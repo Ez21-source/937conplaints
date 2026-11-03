@@ -182,6 +182,10 @@ mark{background:color-mix(in srgb,var(--warn) 30%,transparent);color:inherit;bor
 .form textarea{min-height:90px;resize:vertical}
 .form .req::after{content:" *";color:var(--bad)}
 .err{color:var(--bad);font-size:12.5px}
+.vres{display:grid;gap:6px;border-radius:10px;padding:12px 14px;margin-top:4px}
+.vres.ok{background:color-mix(in srgb,var(--good) 12%,transparent);border:1px solid color-mix(in srgb,var(--good) 40%,transparent)}
+.vres.no{background:color-mix(in srgb,var(--bad) 10%,transparent);border:1px solid color-mix(in srgb,var(--bad) 40%,transparent)}
+.vres b{font-size:15px} .vres span{color:var(--muted);font-size:13px}
 .bk-banner{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--sel);border:1px solid var(--warn);border-radius:var(--r);padding:10px 14px}
 .bk-banner > svg{width:22px;height:22px;color:var(--warn);flex:none}
 .bk-txt{display:grid;gap:1px;flex:1 1 260px;min-width:0}
@@ -340,6 +344,7 @@ table.rpl td.ltr{direction:ltr;text-align:right;white-space:nowrap}
     <section class="panel filters" aria-label="البحث والفلترة">
       <div class="frow">
         <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="ابحث برقم البلاغ، الوصف، اسم المتصل، المركز، التصنيف…" aria-label="بحث"></div>
+        <button type="button" class="btn" id="btnVerify" title="التحقق من تسجيل بلاغ برقمه"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>التحقق من بلاغ</button>
         <div class="dates">
           <div class="field"><label for="dFrom">من تاريخ</label><input class="inp" type="date" id="dFrom"></div>
           <div class="field"><label for="dTo">إلى تاريخ</label><input class="inp" type="date" id="dTo"></div>
@@ -1380,6 +1385,53 @@ document.addEventListener('click',e=>{
 });
 setInterval(renderBackupBanner,60*60*1000);
 
+/* ---------- verify that reports are registered ---------- */
+function parseNos(txt){ return [...new Set(String(txt||'').split(/[\s,،;؛]+/).map(s=>s.trim()).filter(Boolean))]; }
+function verifyDialog(prefill){
+  const html=`<p>اكتب رقم بلاغ أو الصق عدة أرقام (كل رقم في سطر، أو مفصولة بمسافة أو فاصلة)، أو قارن ملف Excel بالقاعدة بدون استيراده.</p>
+    <textarea class="inp" id="vNos" rows="4" dir="ltr" placeholder="B1234567&#10;B1234568" style="font-family:ui-monospace,Menlo,Consolas,monospace">${esc(prefill||'')}</textarea>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" id="vGo">تحقق</button><button type="button" class="btn" id="vFileBtn">مقارنة ملف Excel</button><input type="file" id="vFile" accept=".xlsx,.xlsm" hidden></div>
+    <div id="vOut"></div>`;
+  dialog({title:'التحقق من تسجيل البلاغات', wide:true, html, actions:[{label:'إغلاق'}], onOpen:s=>{
+    const out=s.querySelector('#vOut');
+    const show=(nos, fileRecs, fileName)=>{
+      const byKey=new Map(RECS.map(r=>[keyNo(r.no),r]));
+      const rows=nos.map(no=>({no, r:byKey.get(keyNo(no)), f:fileRecs?fileRecs.get(keyNo(no)):null}));
+      const found=rows.filter(x=>x.r), missing=rows.filter(x=>!x.r);
+      const lastDay=RECS.reduce((m,r)=>r.date&&r.date.slice(0,10)>m?r.date.slice(0,10):m,'');
+      const late=missing.filter(x=>x.f&&x.f.date&&lastDay&&x.f.date.slice(0,10)<lastDay);
+      if(!rows.length){ out.innerHTML='<p class="err">اكتب رقم بلاغ واحداً على الأقل.</p>'; return; }
+      if(rows.length===1){
+        const x=rows[0];
+        out.innerHTML = x.r ? `<div class="vres ok"><b>✓ البلاغ ${esc(x.no)} مسجّل</b><span>${esc(fmtDate(x.r.date))} · ${esc(x.r.center)} · ${esc(x.r.sub||x.r.main||'')}</span><div><button type="button" class="btn sm" data-vopen="${esc(x.r.id)}">عرض البلاغ</button></div></div>`
+          : `<div class="vres no"><b>✗ البلاغ ${esc(x.no)} غير مسجّل في القاعدة</b><span>تأكد من الرقم، أو أضفه الآن.</span><div><button type="button" class="btn sm primary" data-vadd="${esc(x.no)}">إضافة بلاغ بهذا الرقم</button></div></div>`;
+        return;
+      }
+      out.innerHTML=`<div class="stats"><div><b>${fmt(rows.length)}</b><span>رقم${fileName?` في «${esc(fileName)}»`:''}</span></div><div><b style="color:var(--good)">${fmt(found.length)}</b><span>مسجّل</span></div><div><b style="color:var(--bad)">${fmt(missing.length)}</b><span>غير مسجّل${late.length?` · منها ${fmt(late.length)} متأخر`:''}</span></div></div>
+        ${missing.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button type="button" class="btn sm" id="vCopy">نسخ الأرقام غير المسجّلة</button>${fileRecs?`<button type="button" class="btn sm primary" id="vImport">استيراد غير المسجّلة فقط (${fmt(missing.filter(x=>x.f).length)})</button>`:''}</div>`:''}
+        <div class="ctbl-wrap secmap" style="margin-top:10px"><table class="ctbl"><thead><tr><th>رقم البلاغ</th><th>الحالة</th><th>التاريخ</th><th>المركز</th></tr></thead><tbody>
+        ${missing.concat(found).slice(0,500).map(x=>{ const r=x.r||x.f; const isLate=!x.r&&x.f&&late.includes(x); return `<tr${x.r?` data-vopenrow="${esc(x.r.id)}" style="cursor:pointer"`:''}><td dir="ltr">${esc(x.no)}</td><td>${x.r?'<span style="color:var(--good);font-weight:600">مسجّل</span>':`<span style="color:var(--bad);font-weight:600">غير مسجّل</span>${isLate?' <span class="badge">متأخر</span>':''}`}</td><td dir="ltr">${esc(r?fmtDate(r.date):'')}</td><td>${esc(r?r.center:'')}</td></tr>`; }).join('')}
+        </tbody></table></div>${rows.length>500?'<p class="hint">يُعرض أول 500 رقم.</p>':''}`;
+      s._missing=missing; s._fileRecs=fileRecs;
+    };
+    s.querySelector('#vGo').onclick=()=>show(parseNos(s.querySelector('#vNos').value));
+    s.querySelector('#vNos').addEventListener('keydown',e=>{ if(e.key==='Enter' && !e.shiftKey && !s.querySelector('#vNos').value.includes('\n')){ e.preventDefault(); s.querySelector('#vGo').click(); } });
+    s.querySelector('#vFileBtn').onclick=()=>s.querySelector('#vFile').click();
+    s.querySelector('#vFile').onchange=async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return; busy('جارٍ قراءة الملف…'); try{ const res=parseRecords(await readXlsx(await f.arrayBuffer())); const m=new Map(); res.recs.forEach(r=>{ const k=keyNo(r.no); if(k&&!m.has(k)) m.set(k,r); }); show([...m.values()].map(r=>String(r.no).trim()), m, f.name); }catch(err){ toast(err.message||'تعذرت قراءة الملف'); } finally{ busy(null); } };
+    out.addEventListener('click',async e=>{
+      const b=e.target.closest('button'); const tr=e.target.closest('tr[data-vopenrow]');
+      if(tr){ document.getElementById('layer').innerHTML=''; viewRecord(byId.get(tr.dataset.vopenrow)); return; }
+      if(!b) return;
+      if(b.dataset.vopen){ document.getElementById('layer').innerHTML=''; viewRecord(byId.get(b.dataset.vopen)); }
+      if(b.dataset.vadd){ const no=b.dataset.vadd; document.getElementById('layer').innerHTML=''; guard(()=>{ editRecord(null); setTimeout(()=>{ const i=document.getElementById('e-no'); if(i){ i.value=no; i.dispatchEvent(new Event('input')); } },0); }); }
+      if(b.id==='vCopy'){ const txt=s._missing.map(x=>x.no).join('\n'); try{ await navigator.clipboard.writeText(txt); toast('نُسخت الأرقام'); }catch(err){ const ta=s.querySelector('#vNos'); ta.value=txt; ta.select(); toast('حدّد الأرقام وانسخها'); } }
+      if(b.id==='vImport'){ const list=s._missing.map(x=>x.f).filter(Boolean).map(r=>{ const c=clean(r); if(active('sector')&&!c.sector&&c.center){ const sc=centerToSector(c.center); if(sc) c.sector=sc; } return prep(c); }); document.getElementById('layer').innerHTML=''; guard(async()=>{ busy('جارٍ الحفظ…'); try{ await saveRecords(list); } finally{ busy(null); } toast(`أضيف ${fmt(list.length)} بلاغ غير مسجّل`); }); }
+    });
+    setTimeout(()=>s.querySelector('#vNos').focus(),0);
+  }});
+}
+document.getElementById('btnVerify').addEventListener('click',()=>verifyDialog());
+
 /* ---------- libraries ---------- */
 const LIBS={ jszip:['https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js','JSZip'], pdflib:['https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js','PDFLib'], h2i:['https://cdn.jsdelivr.net/npm/html-to-image@1.11.13/dist/html-to-image.js','htmlToImage'] };
 const libP={};
@@ -1869,8 +1921,16 @@ async function importFile(file){
   const uniq=recs.filter(r=>{ const k=keyNo(r.no); if(!k){ noKey++; return false; } if(seen.has(k)){ dupIn++; return false; } seen.add(k); r.no=String(r.no).trim(); return true; });
   const fresh=uniq.filter(r=>!existing.has(keyNo(r.no))), dups=uniq.filter(r=>existing.has(keyNo(r.no)));
   const noDate=uniq.filter(r=>!r.date).length;
+  // تعبئة القطاع الفارغ من ربط المراكز بالقطاعات (أو من قطاع المركز في البلاغات الموجودة)
+  let secFilled=0; const secMissing=new Set();
+  if(active('sector')) uniq.forEach(r=>{ if(r.sector||!r.center) return; const s=centerToSector(r.center); if(s){ r.sector=s; secFilled++; } else secMissing.add(r.center); });
+  // البلاغات المتأخرة: جديدة وتاريخها قبل آخر يوم موجود في القاعدة
+  const lastDay=RECS.reduce((m,r)=>r.date&&r.date.slice(0,10)>m?r.date.slice(0,10):m,'');
+  const late=lastDay?fresh.filter(r=>r.date&&r.date.slice(0,10)<lastDay):[];
   dialog({title:`استيراد «${file.name}»`, wide:true, html:`<div class="stats"><div><b>${fmt(uniq.length)}</b><span>بلاغ في الملف</span></div><div><b>${fmt(fresh.length)}</b><span>جديد</span></div><div><b>${fmt(dups.length)}</b><span>رقمه موجود في القاعدة</span></div></div>
     <p>الأوراق المقروءة: ${esc(used.join('، '))}${dupIn?` · استُبعد ${fmt(dupIn)} صف رقمه مكرر داخل الملف (أُخذ أول ظهور)`:''}${noKey?` · استُبعد ${fmt(noKey)} صف بدون رقم بلاغ`:''}${noDate?` · ${fmt(noDate)} بلاغ بدون تاريخ`:''}</p>
+    ${late.length?`<div class="rpt-note"><span><b>${fmt(late.length)} بلاغ متأخر</b>: جديد على القاعدة وتاريخه قبل آخر يوم مسجل (${esc(lastDay)})، مثل ${late.slice(0,3).map(r=>`<span dir="ltr">${esc(r.no)}</span> (${esc(r.date.slice(0,10))})`).join('، ')}. سيُضاف مع الجديدة.</span></div>`:''}
+    ${active('sector')&&(secFilled||secMissing.size)?`<p class="hint">القطاع: عُبّئ تلقائياً في ${fmt(secFilled)} بلاغ حسب المركز${secMissing.size?` · ${fmt(secMissing.size)} مركز بدون قطاع معروف (اربطها من لوحة التحكم ← القوائم والقطاعات)`:''}.</p>`:''}
     <label class="opt"><input type="radio" name="im" value="new" checked><span>إضافة الجديدة فقط<small>تبقى البلاغات الموجودة كما هي</small></span></label>
     <label class="opt"><input type="radio" name="im" value="upd"><span>إضافة الجديدة وتحديث الموجودة<small>تُستبدل بيانات البلاغات المكررة ببيانات الملف</small></span></label>
     <label class="opt"><input type="radio" name="im" value="all"><span>استبدال كل القاعدة<small>تُحذف البلاغات الحالية (${fmt(RECS.length)}) وتحل محلها بلاغات الملف</small></span></label>`,
@@ -1928,7 +1988,7 @@ try{ navigator.storage && navigator.storage.persist && navigator.storage.persist
   renderAll();
   renderBackupBanner();
 })();
-window.__db={get BK(){return BK;}, maskNums, staffGroups, clinicGroups, pairGroups, buildReportXlsx, get recs(){return RECS;}, readXlsx, parseRecords, buildXlsx, buildReport, get filtered(){return filtered;}};
+window.__db={parseNos, get BK(){return BK;}, maskNums, staffGroups, clinicGroups, pairGroups, buildReportXlsx, get recs(){return RECS;}, readXlsx, parseRecords, buildXlsx, buildReport, get filtered(){return filtered;}};
 </script>
 
 </body>
