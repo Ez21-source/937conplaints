@@ -2,7 +2,6 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="app-version" content="2026-11-03.5">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1B2F5E">
 <meta name="mobile-web-app-capable" content="yes">
@@ -237,6 +236,26 @@ table.ctbl .mv{display:flex;gap:2px}
 @media (max-width:1000px){ .insights{grid-template-columns:1fr 1fr} .insights .ins:first-child{grid-column:1/-1} .kpis{grid-template-columns:repeat(2,minmax(0,1fr))} }
 @media (max-width:600px){ .insights{grid-template-columns:1fr} .form{grid-template-columns:1fr} .brand small{display:none} .dates .field{width:calc(50% - 4px)} .stats{grid-template-columns:1fr 1fr} }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* bottom action bar */
+#app{padding-bottom:74px}
+.actionbar{position:fixed;left:0;right:0;bottom:0;z-index:25;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -8px 24px rgba(10,30,25,.08);padding-bottom:env(safe-area-inset-bottom,0px)}
+.actionbar .wrap{display:flex;gap:10px;justify-content:center;align-items:center;padding-block:10px}
+.actionbar .btn{padding:9px 18px}
+.actionbar .menu{top:auto;bottom:calc(100% + 10px)}
+.toast{bottom:calc(84px + env(safe-area-inset-bottom,0px))!important}
+@media (max-width:600px){
+  #app{padding-bottom:70px}
+  .actionbar .wrap{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding-block:6px}
+  .actionbar .menu-wrap{display:flex;position:static}
+  .actionbar .btn{flex-direction:column;gap:3px;font-size:11.5px;font-weight:600;padding:7px 2px;border:0;background:none;white-space:normal;line-height:1.2;border-radius:10px;width:100%;justify-content:center;color:var(--muted)}
+  .actionbar .btn svg{width:20px;height:20px}
+  .actionbar .btn.primary{background:var(--accent);color:var(--accent-ink)}
+  .actionbar .btn:hover{background:var(--surface-2)}
+  .actionbar .btn.primary:hover{background:var(--accent)}
+  .actionbar .menu{position:fixed;left:12px;right:12px;bottom:calc(74px + env(safe-area-inset-bottom,0px));min-width:0}
+  .toast{bottom:calc(80px + env(safe-area-inset-bottom,0px))!important}
+}
 </style>
 <style id="reportCss">
 .rp{--rp-a:#0B6B5D;--rp-soft:#DCEEEA;--rp-band:#F3F7F6;--rp-line:#DCE5E3;--rp-ink:#16211F;--rp-mut:#5E6E6B;width:1120px;background:#fff;color:var(--rp-ink);font-family:"IBM Plex Sans Arabic","Segoe UI",Tahoma,"Noto Sans Arabic",sans-serif;direction:rtl;padding:30px 34px;font-size:13px;line-height:1.5}
@@ -295,23 +314,7 @@ table.rpl td.ltr{direction:ltr;text-align:right;white-space:nowrap}
         <span id="brandMark" class="brand-mark">937</span>
         <div class="brand-txt"><span class="org" id="brandOrg" hidden></span><h1>قاعدة بلاغات المراكز الصحية</h1><small id="dbInfo">جارٍ التحميل…</small></div>
       </div>
-      <button class="btn primary" id="btnNew" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>بلاغ جديد</button>
-      <button class="btn" id="btnImport" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>استيراد Excel</button>
-      <input type="file" id="fileInput" accept=".xlsx,.xlsm" hidden>
-      <div class="menu-wrap">
-        <button class="btn" id="btnExport" type="button" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg><span>طباعة وتصدير</span></button>
-        <div class="menu" id="exportMenu" hidden>
-          <div class="mh">حسب البحث والفلاتر الحالية</div>
-          <button type="button" data-exp="pdf"><span>PDF للطباعة</span><span>A4 · A3 · Letter</span></button>
-          <button type="button" data-exp="png"><span>صورة PNG</span><span>تقرير كصورة</span></button>
-          <button type="button" data-exp="html"><span>صفحة HTML</span><span>تُفتح وتُطبع من المتصفح</span></button>
-          <button type="button" data-exp="xlsx"><span>Excel</span><span>البلاغات + الملخص</span></button>
-          <hr>
-          <button type="button" data-exp="backup"><span>نسخة احتياطية كاملة</span><span>كل القاعدة Excel</span></button>
-        </div>
-      </div>
       <button class="btn" id="btnInstall" type="button" hidden>تثبيت التطبيق</button>
-      <button class="btn" id="btnPanel" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>لوحة التحكم</button>
       <button class="btn ghost" id="btnLock" type="button" hidden title="قفل التعديل"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>قفل</button>
       <div class="menu-wrap">
         <button class="btn ghost" id="btnMore" type="button" aria-label="خيارات أخرى" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></button>
@@ -361,6 +364,24 @@ table.rpl td.ltr{direction:ltr;text-align:right;white-space:nowrap}
     <section id="view"></section>
   </main>
   <footer class="appfoot"><div class="wrap"><span id="footOrg">قاعدة بلاغات المراكز الصحية · 937</span><span id="footBy"></span></div></footer>
+  <nav class="actionbar" aria-label="الإجراءات"><div class="wrap">
+      <button class="btn primary" id="btnNew" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span class="al">بلاغ جديد</span></button>
+      <button class="btn" id="btnImport" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg><span class="al">استيراد Excel</span></button>
+      <input type="file" id="fileInput" accept=".xlsx,.xlsm" hidden>
+      <div class="menu-wrap">
+        <button class="btn" id="btnExport" type="button" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg><span class="al">طباعة وتصدير</span></button>
+        <div class="menu" id="exportMenu" hidden>
+          <div class="mh">حسب البحث والفلاتر الحالية</div>
+          <button type="button" data-exp="pdf"><span>PDF للطباعة</span><span>A4 · A3 · Letter</span></button>
+          <button type="button" data-exp="png"><span>صورة PNG</span><span>تقرير كصورة</span></button>
+          <button type="button" data-exp="html"><span>صفحة HTML</span><span>تُفتح وتُطبع من المتصفح</span></button>
+          <button type="button" data-exp="xlsx"><span>Excel</span><span>البلاغات + الملخص</span></button>
+          <hr>
+          <button type="button" data-exp="backup"><span>نسخة احتياطية كاملة</span><span>كل القاعدة Excel</span></button>
+        </div>
+      </div>
+      <button class="btn" id="btnPanel" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg><span class="al">لوحة التحكم</span></button>
+    </div></nav>
 </div>
 <div id="exportHolder" aria-hidden="true"></div>
 <div id="layer"></div>
