@@ -182,6 +182,11 @@ mark{background:color-mix(in srgb,var(--warn) 30%,transparent);color:inherit;bor
 .form textarea{min-height:90px;resize:vertical}
 .form .req::after{content:" *";color:var(--bad)}
 .err{color:var(--bad);font-size:12.5px}
+.bk-banner{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--sel);border:1px solid var(--warn);border-radius:var(--r);padding:10px 14px}
+.bk-banner > svg{width:22px;height:22px;color:var(--warn);flex:none}
+.bk-txt{display:grid;gap:1px;flex:1 1 260px;min-width:0}
+.bk-txt span{font-size:12.5px;color:var(--muted)}
+.bk-acts{display:flex;gap:6px;flex-wrap:wrap}
 .inp.bad{border-color:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 18%,transparent)}
 .ro-badge{display:flex;align-items:center;gap:8px;background:var(--surface-2);border-radius:8px;padding:7px 10px;font-size:12.5px;color:var(--muted)}
 .ro-badge svg{width:16px;height:16px;flex:none;color:var(--accent)}
@@ -331,6 +336,7 @@ table.rpl td.ltr{direction:ltr;text-align:right;white-space:nowrap}
   </header>
 
   <main class="wrap">
+    <div class="bk-banner" id="bkBanner" role="status" hidden></div>
     <section class="panel filters" aria-label="البحث والفلترة">
       <div class="frow">
         <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="ابحث برقم البلاغ، الوصف، اسم المتصل، المركز، التصنيف…" aria-label="بحث"></div>
@@ -568,9 +574,17 @@ function staffIndex(){
 }
 const TITLE_SHOW={'د':'الدكتور/ة','الدكتور':'الدكتور','الدكتوره':'الدكتورة','دكتور':'الدكتور','دكتوره':'الدكتورة','الطبيب':'الطبيب','الطبيبه':'الطبيبة','طبيب':'الطبيب','طبيبه':'الطبيبة','الممرض':'الممرض','الممرضه':'الممرضة','ممرض':'الممرض','ممرضه':'الممرضة','الموظف':'الموظف','الموظفه':'الموظفة','موظف':'الموظف','موظفه':'الموظفة'};
 function staffTitle(g){ const t=[...g.titles.entries()].sort((a,b)=>b[1]-a[1])[0]; return t?(TITLE_SHOW[t[0]]||t[0]):''; }
-function staffGroups(list,min){ const ids=new Set(list.map(r=>r.id)); return [...staffIndex().values()].filter(g=>!STAFF_HIDE.has(g.k)).map(g=>{ const recs=g.recs.filter(r=>ids.has(r.id)); return {...g,recsF:recs,n:recs.length}; }).filter(g=>g.n>=min).map(g=>{ const s=[...g.recsF].sort((a,b)=>String(a.date).localeCompare(String(b.date))); return {...g,sub:(countBy(s,active('sub')?'sub':'main')[0]||[''])[0],first_d:s[0].date,last_d:s[s.length-1].date}; }).sort((a,b)=>b.n-a.n||String(b.last_d).localeCompare(String(a.last_d))); }
+// التصنيفات التي لا تُعد شكوى عند عدّ الموظفين المذكورين
+const SCAT_KEY='r937-staffcatex-v1';
+const staffCatField=()=> active('main')?'main':(active('sub')?'sub':null);
+let STAFF_CAT_EX=(()=>{ try{ const s=JSON.parse(localStorage.getItem(SCAT_KEY)||'null'); return Array.isArray(s)?new Set(s):null; }catch(e){ return null; } })();
+function staffCatEx(){ if(STAFF_CAT_EX) return STAFF_CAT_EX; const f=staffCatField(); const s=new Set(); if(f) RECS.forEach(r=>{ const v=r[f]; if(v && /^طلب/.test(v.trim())) s.add(v); }); return s; }
+const saveStaffCatEx=()=>{ try{ localStorage.setItem(SCAT_KEY,JSON.stringify([...staffCatEx()])); }catch(e){} };
+function complaintsOnly(list){ const f=staffCatField(); if(!f) return list; const ex=staffCatEx(); if(!ex.size) return list; return list.filter(r=>!ex.has(r[f])); }
+function staffGroups(list,min){ list=complaintsOnly(list); const ids=new Set(list.map(r=>r.id)); return [...staffIndex().values()].filter(g=>!STAFF_HIDE.has(g.k)).map(g=>{ const recs=g.recs.filter(r=>ids.has(r.id)); return {...g,recsF:recs,n:recs.length}; }).filter(g=>g.n>=min).map(g=>{ const s=[...g.recsF].sort((a,b)=>String(a.date).localeCompare(String(b.date))); return {...g,sub:(countBy(s,active('sub')?'sub':'main')[0]||[''])[0],first_d:s[0].date,last_d:s[s.length-1].date}; }).sort((a,b)=>b.n-a.n||String(b.last_d).localeCompare(String(a.last_d))); }
 // متصل ذكر نفس الموظف في أكثر من شكوى
 function pairGroups(list,min){
+  list=complaintsOnly(list);
   const ids=new Set(list.map(r=>r.id)); const m=new Map();
   staffIndex().forEach(g=>{ if(STAFF_HIDE.has(g.k)) return; g.recs.forEach(r=>{ if(!ids.has(r.id)) return; const ck=callerKey(r); if(!ck) return; const k=ck+'§'+g.k; if(!m.has(k)) m.set(k,{k,ck,g,recs:[]}); m.get(k).recs.push(r); }); });
   return [...m.values()].filter(x=>x.recs.length>=min).map(x=>{ x.recs.sort((a,b)=>String(a.date).localeCompare(String(b.date))); return {...x,n:x.recs.length,caller:x.recs.find(r=>r.caller)?.caller||x.recs[0].nid||'',first_d:x.recs[0].date,last_d:x.recs[x.recs.length-1].date}; }).sort((a,b)=>b.n-a.n||String(b.last_d).localeCompare(String(a.last_d)));
@@ -645,7 +659,7 @@ function setAll(list){ RECS=list.map(prep); byId.clear(); RECS.forEach(r=>byId.s
 let _clSet=null,_clKey=null;
 function clSet(){ if(_clKey!==filt.cl||!_clSet){ _clSet=new Set((clinicIndex().get(filt.cl)||[]).map(r=>r.id)); _clKey=filt.cl; } return _clSet; }
 let _empSet=null,_empKey=null;
-function empSet(){ if(_empKey!==filt.emp||!_empSet){ const g=staffIndex().get(filt.emp); _empSet=new Set(g?g.recs.map(r=>r.id):[]); _empKey=filt.emp; } return _empSet; }
+function empSet(){ if(_empKey!==filt.emp||!_empSet){ const g=staffIndex().get(filt.emp); _empSet=new Set(g?(filt.empc?complaintsOnly(g.recs):g.recs).map(r=>r.id):[]); _empKey=filt.emp; } return _empSet; }
 function apply(){ _empSet=null; _clSet=null;
   const words=nrm(filt.q).split(' ').filter(Boolean);
   filtered=RECS.filter(r=>{
@@ -671,7 +685,7 @@ const total = list => list.length;
 
 /* ---------- render ---------- */
 function renderAll(){ apply(); renderFilters(); renderSummary(); renderView(); renderInfo(); }
-function refresh(keepPage){ if(!keepPage) page=0; callerIdx=null; staffIdx=null; clinIdx=null; apply(); renderFilters(); renderSummary(); renderView(); renderInfo(); }
+function refresh(keepPage){ if(!keepPage) page=0; setTimeout(renderBackupBanner,0); callerIdx=null; staffIdx=null; clinIdx=null; apply(); renderFilters(); renderSummary(); renderView(); renderInfo(); }
 function renderInfo(){
   document.getElementById('dbInfo').textContent = `${fmt(RECS.length)} بلاغ في القاعدة` + (persistent?' · محفوظة على هذا الجهاز':' · الحفظ غير متاح هنا، صدّر نسخة احتياطية');
 }
@@ -719,7 +733,7 @@ function renderFilters(){
   if(filt.q) tags.push(['q',`بحث: ${filt.q}`]);
   if(filt.from||filt.to) tags.push(['dates',`الفترة: ${filt.from||'…'} ← ${filt.to||'…'}`]);
   if(filt.ck) tags.push(['ck',`المتصل: ${callerLabel(filt.ck)}`]);
-  if(filt.emp) tags.push(['emp',`الموظف: ${staffLabel(filt.emp)}`]);
+  if(filt.emp) tags.push(['emp',`الموظف: ${staffLabel(filt.emp)}${filt.empc&&staffCatEx().size?' · الشكاوى فقط':''}`]);
   if(filt.cl) tags.push(['cl',`العيادة: ${filt.cl}`]);
   ['month','sector','center','main','sub',...extraFilterCols().map(c=>c.k)].forEach(k=>{ if(filt[k]) tags.push([k,`${short(k)}: ${filt[k]==='__none'?'بدون قطاع':filt[k]}`]); });
   document.getElementById('fstate').innerHTML = `<span><b>${fmt(total(filtered))}</b> بلاغ${filtered.length!==RECS.length?` من أصل ${fmt(total(RECS))}`:''}</span>` + tags.map(([k,t])=>`<span class="tag">${esc(t)}<button type="button" data-untag="${k}" aria-label="إزالة">×</button></span>`).join('') + (tags.length?`<button type="button" class="btn sm ghost" data-untag="all">مسح الفلاتر</button>`:'');
@@ -806,9 +820,10 @@ function renderStaff(v){
   const seg=`<div class="seg">${[[1,'1+'],[2,'2+'],[3,'3+'],[5,'5+']].map(([v,l])=>`<label><input type="radio" name="smin" value="${v}" ${v===STAFF_MIN?'checked':''}><span>${l}</span></label>`).join('')}</div>`;
   const show=gs.slice(0,300);
   v.innerHTML=`<div class="panel" style="padding:12px 14px;display:grid;gap:10px">
-    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="hint">الحد الأدنى للشكاوى</span>${seg}${hidden?`<button type="button" class="btn sm ghost" id="staffUnhide">إظهار المستبعدين (${fmt(hidden)})</button>`:''}</div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="hint">الحد الأدنى للشكاوى</span>${seg}${hidden?`<button type="button" class="btn sm ghost" id="staffUnhide">إظهار المستبعدين (${fmt(hidden)})</button>`:''}${staffCatField()?`<button type="button" class="btn sm" id="staffCats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4-2v-4z"/></svg>التصنيفات المحسوبة شكوى</button>`:''}</div>
+    ${staffCatField()&&staffCatEx().size?`<div class="chips" style="align-items:center"><span class="hint">مستبعد من العدّ (${fmt(filtered.filter(r=>staffCatEx().has(r[staffCatField()])).length)} بلاغ):</span>${[...staffCatEx()].map(v=>`<span class="tag">${esc(v)}<button type="button" data-unex="${esc(v)}" aria-label="إرجاع">×</button></span>`).join('')}</div>`:''}
     <div class="stats"><div><b>${fmt(gs.length)}</b><span>موظف مذكور</span></div><div><b>${fmt(ment)}</b><span>شكوى ذُكر فيها موظف</span></div><div><b>${gs[0]?fmt(gs[0].n):'—'}</b><span>أعلى عدد لموظف واحد</span></div></div>
-    <p class="hint" style="margin:0">تُستخرج الأسماء تلقائياً من «وصف البلاغ» عندما يأتي الاسم بعد لقب مثل الدكتور أو الممرضة أو الموظف. يُجمع الاسم الأول مع المركز، لأن الاسم نفسه في مركزين قد يكون لشخصين مختلفين. قد يفوت الاستخراج بعض الأسماء، وإذا التقط كلمة ليست اسماً استبعدها بزر «ليس اسماً». النتائج تتبع البحث والفلاتر الحالية.</p></div>
+    <p class="hint" style="margin:0">يُحسب فقط ما يقع في «التصنيفات المحسوبة شكوى». تُستخرج الأسماء تلقائياً من «وصف البلاغ» عندما يأتي الاسم بعد لقب مثل الدكتور أو الممرضة أو الموظف. يُجمع الاسم الأول مع المركز، لأن الاسم نفسه في مركزين قد يكون لشخصين مختلفين. قد يفوت الاستخراج بعض الأسماء، وإذا التقط كلمة ليست اسماً استبعدها بزر «ليس اسماً». النتائج تتبع البحث والفلاتر الحالية.</p></div>
   ${gs.length?`<div class="panel" style="margin-top:12px"><div class="tbl-wrap"><table class="rec"><thead><tr><th class="nosort">#</th><th class="nosort">الاسم كما ورد</th><th class="nosort">الصفة</th><th class="nosort">المركز</th><th class="nosort">الشكاوى</th><th class="nosort">أكثر تصنيف</th><th class="nosort">آخر شكوى</th><th class="nosort"></th></tr></thead><tbody>
     ${show.map((g,i)=>`<tr data-emp="${esc(g.k)}"><td class="num">${i+1}</td><td class="c"><b>${esc(g.full||g.first)}</b></td><td>${esc(staffTitle(g))}</td><td class="c">${esc(g.center)}</td><td class="num"><span class="cnt">${fmt(g.n)}</span></td><td class="c">${esc(g.sub)}</td><td class="dt">${esc(fmtDate(g.last_d))}</td><td><button type="button" class="btn sm ghost" data-staffhide="${esc(g.k)}">ليس اسماً</button></td></tr>`).join('')}
   </tbody></table></div><div class="pager"><span>${fmt(gs.length)} موظف · اضغط أي اسم لعرض الشكاوى التي ذُكر فيها</span></div></div>`:`<div class="panel empty" style="margin-top:12px"><b>لا توجد أسماء موظفين</b>بهذا الحد الأدنى ضمن النتائج الحالية.</div>`}${pairsHTML}`;
@@ -825,7 +840,17 @@ function renderClinics(v){
   </tbody></table></div><div class="pager"><span>اضغط أي عيادة لعرض الشكاوى التي ذُكرت فيها</span></div></div>`:`<div class="panel empty" style="margin-top:12px"><b>لا توجد عيادات مذكورة</b>ضمن النتائج الحالية.</div>`}`;
 }
 function showClinic(k){ filt.cl=k; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); document.getElementById('view').scrollIntoView({block:'start'}); }
-function showStaff(k){ filt.emp=k; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); document.getElementById('view').scrollIntoView({block:'start'}); }
+function staffCatsDialog(){
+  const f=staffCatField(); const ex=staffCatEx();
+  const cats=countBy(RECS,f).filter(x=>x[0]);
+  const ment=new Map(); staffIndex().forEach(g=>g.recs.forEach(r=>ment.set(r[f],(ment.get(r[f])||0)+1)));
+  dialog({title:'التصنيفات المحسوبة شكوى', wide:true, html:`<p>اختر التصنيفات التي تُحسب عند عدّ الموظفين المذكورين. التصنيف غير المحدد لا يدخل في قائمة الموظفين ولا في «متصلون اشتكوا الموظف نفسه» ولا في قسمها بالتقارير. السجلات نفسها لا تتغير.</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn sm" data-scall="1">تحديد الكل</button><button type="button" class="btn sm" data-scall="0">إلغاء الكل</button><button type="button" class="btn sm" data-screq="1">استبعاد الطلبات والاستعلامات</button></div>
+    <div class="ctbl-wrap secmap"><table class="ctbl"><thead><tr><th>شكوى</th><th>${esc(label(f))}</th><th>البلاغات</th><th>ذُكر فيها موظف</th></tr></thead><tbody>${cats.map(([v,n])=>`<tr><td class="ck"><input type="checkbox" data-scat="${esc(v)}" ${ex.has(v)?'':'checked'} aria-label="${esc(v)}"></td><td>${esc(v)}</td><td>${fmt(n)}</td><td>${fmt(ment.get(v)||0)}</td></tr>`).join('')}</tbody></table></div>`,
+    actions:[{label:'حفظ',cls:'primary',run:s=>{ const n=new Set(); s.querySelectorAll('[data-scat]').forEach(c=>{ if(!c.checked) n.add(c.dataset.scat); }); STAFF_CAT_EX=n; saveStaffCatEx(); staffIdx=null; renderView(); toast(n.size?`استُبعد ${fmt(n.size)} تصنيف من العدّ`:'كل التصنيفات محسوبة'); }},{label:'إلغاء'}],
+    onOpen:s=>{ s.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; if(b.dataset.scall!==undefined) s.querySelectorAll('[data-scat]').forEach(c=>c.checked=b.dataset.scall==='1'); if(b.dataset.screq) s.querySelectorAll('[data-scat]').forEach(c=>c.checked=!/^طلب/.test(c.dataset.scat.trim())); }); }});
+}
+function showStaff(k){ filt.emp=k; filt.empc=1; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); document.getElementById('view').scrollIntoView({block:'start'}); }
 function showCaller(k){ filt.ck=k; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); document.getElementById('view').scrollIntoView({block:'start'}); }
 function renderView(){
   const v=document.getElementById('view');
@@ -950,12 +975,14 @@ document.addEventListener('click',e=>{
   const b=t.closest('button');
   if(b){
     if(b.dataset.from!=null && b.classList.contains('chip')){ filt.from=b.dataset.from; filt.to=b.dataset.to; refresh(); return; }
-    if(b.dataset.untag){ const k=b.dataset.untag; if(k==='all') filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:''}; else if(k==='dates'){filt.from='';filt.to='';} else filt[k]=''; refresh(); return; }
+    if(b.dataset.untag){ const k=b.dataset.untag; if(k==='all') filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:''}; else if(k==='emp'){ filt.emp=''; filt.empc=0; } else if(k==='dates'){filt.from='';filt.to='';} else filt[k]=''; refresh(); return; }
     if(b.dataset.pick){ filt[b.dataset.pick]=b.dataset.val; refresh(); return; }
     if(b.dataset.view){ view=b.dataset.view; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); renderView(); return; }
     if(b.dataset.pg){ const pages=Math.ceil(filtered.length/pageSize); page={first:0,prev:page-1,next:page+1,last:pages-1}[b.dataset.pg]; renderView(); document.getElementById('view').scrollIntoView({block:'start'}); return; }
     if(b.dataset.staffhide){ STAFF_HIDE.add(b.dataset.staffhide); saveStaffHide(); renderView(); toast('استُبعد من قائمة الموظفين'); return; }
     if(b.id==='editClinics'){ guard(()=>controlPanel('lists')); return; }
+    if(b.id==='staffCats'){ staffCatsDialog(); return; }
+    if(b.dataset.unex!==undefined){ const s=staffCatEx(); s.delete(b.dataset.unex); STAFF_CAT_EX=s; saveStaffCatEx(); staffIdx=null; renderView(); return; }
     if(b.id==='staffUnhide'){ STAFF_HIDE.clear(); saveStaffHide(); renderView(); return; }
     if(b.id==='selAll'){ filtered.forEach(r=>selected.add(r.id)); renderView(); return; }
     if(b.id==='bulkClear'){ selected.clear(); renderView(); return; }
@@ -1093,17 +1120,20 @@ function bulkEdit(){
     onOpen:s=>{ s.querySelector('#bk').addEventListener('change',e=>{ const k=e.target.value; s.querySelector('#bv').setAttribute('list',col(k).dl?'dl-'+k:''); }); }});
 }
 async function saveRecords(recs){
+  bumpChanges(recs.length);
   recs.forEach(r=>{ if(byId.has(r.id)){ const i=RECS.indexOf(byId.get(r.id)); RECS[i]=r; } else RECS.push(r); byId.set(r.id,r); });
   try{ await dbPut(recs); }catch(e){ console.error(e); toast('تعذر الحفظ على الجهاز، صدّر نسخة احتياطية'); }
   refresh(true);
 }
 async function removeRecords(ids){
+  bumpChanges(ids.length);
   const s=new Set(ids); RECS=RECS.filter(r=>!s.has(r.id)); ids.forEach(id=>{ byId.delete(id); selected.delete(id); });
   try{ await dbDel(ids); }catch(e){ console.error(e); }
   refresh(true);
 }
 async function maskAll(){ const ch=[]; RECS.forEach(r=>{ let c=false; maskCols().forEach(k=>{ const m=maskNums(r[k]); if(m!==r[k]){ r[k]=m; c=true; } }); if(c){ prep(r); ch.push(r); } }); if(ch.length){ busy('جارٍ الحفظ…'); try{ await dbPut(ch); }catch(e){} busy(null); refresh(true); } return ch.length; }
 async function replaceAll(list){
+  bumpChanges(Math.max(1,list.length));
   busy('جارٍ الحفظ…');
   try{ setAll(list); selected.clear(); try{ await dbClear(); await dbPut(RECS); await dbSetMeta('seeded',true); }catch(e){ console.error(e); } refresh(); }
   finally{ busy(null); }
@@ -1215,6 +1245,8 @@ function panelData(){
   return `<div class="stats"><div><b>${fmt(RECS.length)}</b><span>بلاغ في القاعدة</span></div><div><b>${fmt(cols().length)}</b><span>عمود</span></div><div><b>${persistent?'نعم':'لا'}</b><span>حفظ على الجهاز</span></div></div>
     <div class="pcard"><h4>ملف الإعدادات</h4><p class="hint">يحفظ إعدادات التطبيق في ملف لتنقلها إلى جهاز آخر: الشعار واسم الجهة واللون، والأعمدة وترتيبها، وربط المراكز بالقطاعات، وكلمات العيادات، والأسماء المستبعدة، وإعدادات الطباعة${pinHash()?'، ورمز التعديل':''}. لا يحتوي أي بلاغ؛ البلاغات تنتقل بالنسخة الاحتياطية.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" id="setExport">تصدير الإعدادات</button><button type="button" class="btn" id="setImport">استيراد الإعدادات</button><input type="file" id="setFile" accept=".json,application/json" hidden></div></div>
+    <div class="pcard"><h4>تنبيه النسخة الاحتياطية</h4><p><b>${esc(backupStatusText())}</b>${BK.last&&BK.changes?` · ${fmt(BK.changes)} تغيير بعدها`:''}</p>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint">ذكّرني إذا مرّ</span><div class="seg">${[[1,'يوم'],[3,'3 أيام'],[7,'أسبوع'],[14,'أسبوعان'],[0,'إيقاف']].map(([v,l])=>`<label><input type="radio" name="bkEvery" value="${v}" ${v===(+BK.every||0)?'checked':''}><span>${l}</span></label>`).join('')}</div><span class="hint">بدون نسخة جديدة وفيه تغييرات.</span></div></div>
     <div class="pcard"><h4>النسخ الاحتياطي</h4><p class="hint">البيانات محفوظة في هذا المتصفح فقط. صدّر نسخة احتياطية بانتظام، وتستطيع استعادتها من «استيراد Excel» على أي جهاز.</p><div><button type="button" class="btn primary" id="doBackup">تنزيل نسخة احتياطية كاملة</button></div></div>
     <div class="pcard"><h4>فحص تكرار رقم البلاغ</h4><p class="hint">رقم البلاغ هو المفتاح الرئيسي ولا يُقبل مكرراً عند الإدخال أو التعديل أو الاستيراد. هذا الفحص يكشف أي تكرار موجود من قبل.</p>${dupReport()}</div>
     <div class="pcard"><h4>إعادة الضبط</h4><div style="display:flex;gap:8px;flex-wrap:wrap">${SEED&&SEED.length?'<button type="button" class="btn" data-more2="restore">استعادة بيانات الملف الأصلي</button>':''}<button type="button" class="btn" id="resetCols">استعادة الأعمدة الافتراضية</button><button type="button" class="btn danger" data-more2="clear">مسح كل البلاغات</button></div></div>`;
@@ -1266,6 +1298,7 @@ async function panelAction(b,body){
   if(b.dataset.more2){ document.getElementById('layer').innerHTML=''; setTimeout(()=>{ const m=document.querySelector(`#moreMenu [data-more="${b.dataset.more2}"]`); m&&m.click(); },0); return; }
 }
 function panelChange(t){
+  if(t.name==='bkEvery'){ BK.every=+t.value; BK.snooze=''; saveBK(); renderBackupBanner(); toast(BK.every?'حُفظ موعد التذكير':'أُوقف تنبيه النسخة الاحتياطية'); return; }
   if(t.id==='maskOn'){ MASK_ON=t.checked; try{ localStorage.setItem(MASK_KEY,MASK_ON?'1':'0'); }catch(e){} toast(MASK_ON?'سيُخفى أي رقم جوال أو هوية في الوصف':'أُوقف الإخفاء التلقائي'); return; }
   if(t.dataset.flag){ const c=col(t.dataset.k); c[t.dataset.flag]=t.checked?1:0; schemaChanged(); return; }
   if(t.dataset.type){ col(t.dataset.type).type=t.value; schemaChanged(); return 'redraw'; }
@@ -1279,7 +1312,7 @@ function panelChange(t){
 const SETTINGS_APP='r937-db-settings';
 function settingsSnapshot(){
   return {app:SETTINGS_APP, version:1, exported:nowLocal(), brand:BRAND, schema:schemaSerial(), secmap:SECMAP, clinics:CLINICS,
-    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||''};
+    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null};
 }
 async function exportSettings(){
   const blob=new Blob([JSON.stringify(settingsSnapshot(),null,2)],{type:'application/json'});
@@ -1302,6 +1335,8 @@ async function importSettings(file){
         if(s.staffMin){ STAFF_MIN=+s.staffMin||1; localStorage.setItem('r937-staffmin-v1',String(STAFF_MIN)); }
         if(s.repeat){ RPT={min:2,short:false,...s.repeat}; saveRpt(); }
         if(s.print){ PRINT={...DEF_PRINT,...s.print,sec:{...DEF_PRINT.sec,...(s.print.sec||{})}}; localStorage.setItem(PRINT_KEY,JSON.stringify(PRINT)); }
+        if(Array.isArray(s.staffCatEx)){ STAFF_CAT_EX=new Set(s.staffCatEx); saveStaffCatEx(); }
+        if(s.backupEvery!==undefined){ BK.every=+s.backupEvery||0; saveBK(); }
         if(s.mask!==undefined){ MASK_ON=!!s.mask; localStorage.setItem(MASK_KEY,MASK_ON?'1':'0'); }
         if(withPin){ localStorage.setItem(PIN_KEY,s.pin); unlocked=true; }
       }catch(e){ console.error(e); toast('طُبّق جزء من الإعدادات فقط، لأن هذا المتصفح لم يسمح بحفظ الباقي'); }
@@ -1311,6 +1346,40 @@ async function importSettings(file){
     }},{label:'إلغاء'}]});
 }
 
+/* ---------- backup reminder ---------- */
+const BK_KEY='r937-backup-v1';
+let BK=(()=>{ try{ return {last:'',count:0,changes:0,every:3,snooze:'',...JSON.parse(localStorage.getItem(BK_KEY)||'{}')}; }catch(e){ return {last:'',count:0,changes:0,every:3,snooze:''}; } })();
+const saveBK=()=>{ try{ localStorage.setItem(BK_KEY,JSON.stringify(BK)); }catch(e){} };
+function bumpChanges(n){ BK.changes=(BK.changes||0)+(n||1); saveBK(); }
+function markBackup(count){ BK.last=new Date().toISOString(); BK.count=count; BK.changes=0; BK.snooze=''; saveBK(); renderBackupBanner(); }
+const daysSince=s=> s ? Math.floor((Date.now()-new Date(s).getTime())/86400000) : null;
+function backupStatusText(){
+  if(!BK.last) return 'لم تحفظ أي نسخة احتياطية بعد على هذا الجهاز';
+  const d=daysSince(BK.last); const when=d===0?'اليوم':d===1?'أمس':`قبل ${fmt(d)} ${d<=10?'أيام':'يوماً'}`;
+  return `آخر نسخة احتياطية ${when} (${iso(new Date(BK.last))}، ${fmt(BK.count)} بلاغ)`;
+}
+function backupDue(){
+  if(!BK.every || !RECS.length) return false;
+  if(BK.snooze && Date.now()<new Date(BK.snooze).getTime()) return false;
+  if(!BK.last) return true;
+  return daysSince(BK.last)>=BK.every && (BK.changes>0 || daysSince(BK.last)>=BK.every*3);
+}
+function renderBackupBanner(){
+  const el=document.getElementById('bkBanner'); if(!el) return;
+  if(!backupDue()){ el.hidden=true; el.innerHTML=''; return; }
+  const ch=BK.changes||0;
+  el.hidden=false;
+  el.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+    <div class="bk-txt"><b>${esc(backupStatusText())}</b><span>${BK.last?(ch?`${fmt(ch)} تغيير منذ آخر نسخة لم يُحفظ في أي ملف.`:'مرّ وقت طويل بدون نسخة جديدة.'):'البيانات محفوظة في هذا المتصفح فقط، وتضيع إذا مُسحت بيانات المتصفح.'}</span></div>
+    <div class="bk-acts"><button type="button" class="btn sm primary" id="bkNow">تنزيل نسخة احتياطية الآن</button><button type="button" class="btn sm ghost" id="bkLater">ذكّرني غداً</button></div>`;
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  if(b.id==='bkNow'){ runExport('backup',RECS.slice(),{}); }
+  if(b.id==='bkLater'){ BK.snooze=new Date(Date.now()+86400000).toISOString(); saveBK(); renderBackupBanner(); toast('سأذكّرك غداً'); }
+});
+setInterval(renderBackupBanner,60*60*1000);
+
 /* ---------- libraries ---------- */
 const LIBS={ jszip:['https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js','JSZip'], pdflib:['https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js','PDFLib'], h2i:['https://cdn.jsdelivr.net/npm/html-to-image@1.11.13/dist/html-to-image.js','htmlToImage'] };
 const libP={};
@@ -1319,8 +1388,8 @@ function lib(n){ const [src,g]=LIBS[n]; if(window[g]) return Promise.resolve(win
 /* ---------- saving files ---------- */
 const IS_IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 async function saveFile(filename, blob){
-  if(IS_IOS && navigator.canShare){ try{ const f=new File([blob],filename,{type:blob.type}); if(navigator.canShare({files:[f]})){ await navigator.share({files:[f]}); return; } }catch(e){ if(e&&e.name==='AbortError'){ toast('أُلغي الحفظ'); return; } } }
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},4000); toast('حُفظ الملف في التنزيلات');
+  if(IS_IOS && navigator.canShare){ try{ const f=new File([blob],filename,{type:blob.type}); if(navigator.canShare({files:[f]})){ await navigator.share({files:[f]}); return; } }catch(e){ if(e&&e.name==='AbortError'){ toast('أُلغي الحفظ'); return false; } } }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},4000); toast('حُفظ الملف في التنزيلات'); return true;
 }
 const stamp=()=>iso(new Date());
 
@@ -1447,7 +1516,7 @@ async function runExport(kind,list,o){
   const nm=`بلاغات-937-${stamp()}`;
   try{
     if(kind==='xlsx'){ busy('جارٍ تجهيز ملف Excel…'); const b=await buildReportXlsx(list,o); busy(null); await saveFile(nm+'.xlsx',b); }
-    if(kind==='backup'){ busy('جارٍ تجهيز النسخة الاحتياطية…'); const b=await buildXlsx(list,{pii:true,summary:false}); busy(null); await saveFile(`نسخة-احتياطية-بلاغات-937-${stamp()}.xlsx`,b); }
+    if(kind==='backup'){ busy('جارٍ تجهيز النسخة الاحتياطية…'); const b=await buildXlsx(list,{pii:true,summary:false}); busy(null); const ok=await saveFile(`نسخة-احتياطية-بلاغات-937-${stamp()}.xlsx`,b); if(ok!==false) markBackup(list.length); }
     if(kind==='html'){ const b=buildHtml(list,o); await saveFile(nm+'.html',b); }
     if(kind==='png'){ busy('جارٍ رسم الصورة…'); const b=await withReport(list,o,async el=>canvasBlob(await snap(el))); busy(null); await saveFile(nm+'.png',b); }
     if(kind==='pdf'){ const b=await buildPdf(list,o); busy(null); await saveFile(nm+'.pdf',b); }
@@ -1857,8 +1926,9 @@ try{ navigator.storage && navigator.storage.persist && navigator.storage.persist
   }
   setAll(list);
   renderAll();
+  renderBackupBanner();
 })();
-window.__db={maskNums, staffGroups, clinicGroups, pairGroups, buildReportXlsx, get recs(){return RECS;}, readXlsx, parseRecords, buildXlsx, buildReport, get filtered(){return filtered;}};
+window.__db={get BK(){return BK;}, maskNums, staffGroups, clinicGroups, pairGroups, buildReportXlsx, get recs(){return RECS;}, readXlsx, parseRecords, buildXlsx, buildReport, get filtered(){return filtered;}};
 </script>
 
 </body>
