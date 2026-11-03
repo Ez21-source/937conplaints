@@ -569,6 +569,12 @@ function staffIndex(){
 const TITLE_SHOW={'د':'الدكتور/ة','الدكتور':'الدكتور','الدكتوره':'الدكتورة','دكتور':'الدكتور','دكتوره':'الدكتورة','الطبيب':'الطبيب','الطبيبه':'الطبيبة','طبيب':'الطبيب','طبيبه':'الطبيبة','الممرض':'الممرض','الممرضه':'الممرضة','ممرض':'الممرض','ممرضه':'الممرضة','الموظف':'الموظف','الموظفه':'الموظفة','موظف':'الموظف','موظفه':'الموظفة'};
 function staffTitle(g){ const t=[...g.titles.entries()].sort((a,b)=>b[1]-a[1])[0]; return t?(TITLE_SHOW[t[0]]||t[0]):''; }
 function staffGroups(list,min){ const ids=new Set(list.map(r=>r.id)); return [...staffIndex().values()].filter(g=>!STAFF_HIDE.has(g.k)).map(g=>{ const recs=g.recs.filter(r=>ids.has(r.id)); return {...g,recsF:recs,n:recs.length}; }).filter(g=>g.n>=min).map(g=>{ const s=[...g.recsF].sort((a,b)=>String(a.date).localeCompare(String(b.date))); return {...g,sub:(countBy(s,active('sub')?'sub':'main')[0]||[''])[0],first_d:s[0].date,last_d:s[s.length-1].date}; }).sort((a,b)=>b.n-a.n||String(b.last_d).localeCompare(String(a.last_d))); }
+// متصل ذكر نفس الموظف في أكثر من شكوى
+function pairGroups(list,min){
+  const ids=new Set(list.map(r=>r.id)); const m=new Map();
+  staffIndex().forEach(g=>{ if(STAFF_HIDE.has(g.k)) return; g.recs.forEach(r=>{ if(!ids.has(r.id)) return; const ck=callerKey(r); if(!ck) return; const k=ck+'§'+g.k; if(!m.has(k)) m.set(k,{k,ck,g,recs:[]}); m.get(k).recs.push(r); }); });
+  return [...m.values()].filter(x=>x.recs.length>=min).map(x=>{ x.recs.sort((a,b)=>String(a.date).localeCompare(String(b.date))); return {...x,n:x.recs.length,caller:x.recs.find(r=>r.caller)?.caller||x.recs[0].nid||'',first_d:x.recs[0].date,last_d:x.recs[x.recs.length-1].date}; }).sort((a,b)=>b.n-a.n||String(b.last_d).localeCompare(String(a.last_d)));
+}
 function staffLabel(k){ const g=staffIndex().get(k); return g?`${g.full||g.first} · ${g.center}`:k; }
 function callerIndex(){ if(callerIdx) return callerIdx; const m=new Map(); RECS.forEach(r=>{ const k=callerKey(r); if(!k) return; if(!m.has(k)) m.set(k,[]); m.get(k).push(r); }); return callerIdx=m; }
 function repeatGroups(list,min){ const m=new Map(); list.forEach(r=>{ const k=callerKey(r); if(!k) return; if(!m.has(k)) m.set(k,[]); m.get(k).push(r); }); return [...m.entries()].filter(([,g])=>g.length>=min).map(([k,g])=>{ g.sort((a,b)=>String(a.date).localeCompare(String(b.date))); const top=(f)=>{ const c=countBy(g,f)[0]; return c?c[0]:''; }; return {k,g,n:g.length,name:g.find(r=>r.caller)?.caller||'',nid:g.find(r=>r.nid)?.nid||'',centers:countBy(g,'center'),sub:top(active('sub')?'sub':'main'),first:g[0].date,last:g[g.length-1].date}; }).sort((a,b)=>b.n-a.n||String(b.last).localeCompare(String(a.last))); }
@@ -793,6 +799,10 @@ function renderCallers(v){
 }
 function renderStaff(v){
   const gs=staffGroups(filtered,STAFF_MIN); const ment=gs.reduce((s,g)=>s+g.n,0); const hidden=STAFF_HIDE.size;
+  const pairs=(active('caller')||active('nid')) ? pairGroups(filtered,2) : [];
+  const pairsHTML = !(active('caller')||active('nid')) ? '' : `<div class="panel" style="margin-top:12px;padding:12px 14px;display:grid;gap:8px">
+    <h3 style="margin:0;font-size:14.5px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">متصلون اشتكوا الموظف نفسه أكثر من مرة<small class="hint" style="font-weight:400">${fmt(pairs.length)} حالة ضمن النتائج الحالية</small></h3>
+    ${pairs.length?`<div class="tbl-wrap"><table class="rec"><thead><tr><th class="nosort">#</th><th class="nosort">المتصل</th><th class="nosort">الموظف</th><th class="nosort">المركز</th><th class="nosort">الشكاوى</th><th class="nosort">أول شكوى</th><th class="nosort">آخر شكوى</th></tr></thead><tbody>${pairs.slice(0,200).map((x,i)=>`<tr data-pair="${esc(x.k)}"><td class="num">${i+1}</td><td class="c"><b>${esc(x.caller||'—')}</b></td><td class="c">${esc(staffTitle(x.g))} ${esc(x.g.full||x.g.first)}</td><td class="c">${esc(x.g.center)}</td><td class="num"><span class="cnt">${fmt(x.n)}</span></td><td class="dt">${esc(fmtDate(x.first_d))}</td><td class="dt">${esc(fmtDate(x.last_d))}</td></tr>`).join('')}</tbody></table></div><span class="hint">اضغط أي صف لعرض شكاوى هذا المتصل عن هذا الموظف.</span>`:`<p class="hint" style="margin:0">لا يوجد متصل ذكر الموظف نفسه في أكثر من شكوى ضمن النتائج الحالية. يُطابَق المتصل برقم الهوية أو اسمه الكامل، والموظف باسمه الأول ومركزه.</p>`}</div>`;
   const seg=`<div class="seg">${[[1,'1+'],[2,'2+'],[3,'3+'],[5,'5+']].map(([v,l])=>`<label><input type="radio" name="smin" value="${v}" ${v===STAFF_MIN?'checked':''}><span>${l}</span></label>`).join('')}</div>`;
   const show=gs.slice(0,300);
   v.innerHTML=`<div class="panel" style="padding:12px 14px;display:grid;gap:10px">
@@ -801,7 +811,7 @@ function renderStaff(v){
     <p class="hint" style="margin:0">تُستخرج الأسماء تلقائياً من «وصف البلاغ» عندما يأتي الاسم بعد لقب مثل الدكتور أو الممرضة أو الموظف. يُجمع الاسم الأول مع المركز، لأن الاسم نفسه في مركزين قد يكون لشخصين مختلفين. قد يفوت الاستخراج بعض الأسماء، وإذا التقط كلمة ليست اسماً استبعدها بزر «ليس اسماً». النتائج تتبع البحث والفلاتر الحالية.</p></div>
   ${gs.length?`<div class="panel" style="margin-top:12px"><div class="tbl-wrap"><table class="rec"><thead><tr><th class="nosort">#</th><th class="nosort">الاسم كما ورد</th><th class="nosort">الصفة</th><th class="nosort">المركز</th><th class="nosort">الشكاوى</th><th class="nosort">أكثر تصنيف</th><th class="nosort">آخر شكوى</th><th class="nosort"></th></tr></thead><tbody>
     ${show.map((g,i)=>`<tr data-emp="${esc(g.k)}"><td class="num">${i+1}</td><td class="c"><b>${esc(g.full||g.first)}</b></td><td>${esc(staffTitle(g))}</td><td class="c">${esc(g.center)}</td><td class="num"><span class="cnt">${fmt(g.n)}</span></td><td class="c">${esc(g.sub)}</td><td class="dt">${esc(fmtDate(g.last_d))}</td><td><button type="button" class="btn sm ghost" data-staffhide="${esc(g.k)}">ليس اسماً</button></td></tr>`).join('')}
-  </tbody></table></div><div class="pager"><span>${fmt(gs.length)} موظف · اضغط أي اسم لعرض الشكاوى التي ذُكر فيها</span></div></div>`:`<div class="panel empty" style="margin-top:12px"><b>لا توجد أسماء موظفين</b>بهذا الحد الأدنى ضمن النتائج الحالية.</div>`}`;
+  </tbody></table></div><div class="pager"><span>${fmt(gs.length)} موظف · اضغط أي اسم لعرض الشكاوى التي ذُكر فيها</span></div></div>`:`<div class="panel empty" style="margin-top:12px"><b>لا توجد أسماء موظفين</b>بهذا الحد الأدنى ضمن النتائج الحالية.</div>`}${pairsHTML}`;
 }
 function renderClinics(v){
   const gs=clinicGroups(filtered,CLIN_MIN); const any=new Set(); gs.forEach(g=>g.recs.forEach(r=>any.add(r.id)));
@@ -904,7 +914,8 @@ function buildReport(list,opts){
   if(opts.sec.clinics){ const gs=clinicGroups(list,1); if(gs.length){ const lim=Math.min(opts.top||1e9,gs.length); const max=gs[0].n;
     h+=`<div class="blk"><div class="rp-sec"><h4>العيادات والأقسام المذكورة في الشكاوى<small>${fmt(gs.length)} عيادة</small></h4><div class="rp-body"><table class="rpt"><thead><tr><th></th><th>العيادة / القسم</th><th style="text-align:center">الشكاوى</th><th style="text-align:center">النسبة</th><th>أكثر المراكز</th><th>أكثر تصنيف</th><th></th></tr></thead><tbody>${gs.slice(0,lim).map((g,i)=>`<tr><td class="r">${i+1}</td><td>${esc(g.name)}</td><td class="n">${fmt(g.n)}</td><td class="p">${pct(g.n,list.length)}</td><td>${esc(g.centers.slice(0,2).map(c=>c[0]).join('، '))}</td><td>${esc(g.sub)}</td><td class="bar"><div class="barline"><span style="width:${(g.n/max*100).toFixed(1)}%"></span></div></td></tr>`).join('')}</tbody></table><p style="margin:6px 0 0;font-size:11px;color:var(--rp-mut)">الشكوى التي تذكر أكثر من عيادة تُحسب لكل منها.</p></div></div></div>`; } }
   if(opts.sec.staff){ const gs=staffGroups(list,Math.max(1,STAFF_MIN)); if(gs.length){ const lim=Math.min(opts.top||1e9,gs.length); const max=gs[0].n;
-    h+=`<div class="blk"><div class="rp-sec"><h4>الموظفون المذكورون في الشكاوى<small>${fmt(gs.length)} موظف · ${fmt(gs.reduce((s,g)=>s+g.n,0))} شكوى</small></h4><div class="rp-body"><table class="rpt"><thead><tr><th></th><th>الاسم</th><th>الصفة</th><th>المركز</th><th style="text-align:center">الشكاوى</th><th>أكثر تصنيف</th><th></th></tr></thead><tbody>${gs.slice(0,lim).map((g,i)=>`<tr><td class="r">${i+1}</td><td>${opts.pii?esc(g.full||g.first):`موظف ${i+1}`}</td><td>${esc(staffTitle(g))}</td><td>${esc(g.center)}</td><td class="n">${fmt(g.n)}</td><td>${esc(g.sub)}</td><td class="bar"><div class="barline"><span style="width:${(g.n/max*100).toFixed(1)}%"></span></div></td></tr>`).join('')}</tbody></table>${opts.pii?'':'<p style="margin:6px 0 0;font-size:11px;color:var(--rp-mut)">الأسماء مخفية. اختر «تضمين البيانات الشخصية» عند التصدير لإظهارها.</p>'}</div></div></div>`; } }
+    h+=`<div class="blk"><div class="rp-sec"><h4>الموظفون المذكورون في الشكاوى<small>${fmt(gs.length)} موظف · ${fmt(gs.reduce((s,g)=>s+g.n,0))} شكوى</small></h4><div class="rp-body"><table class="rpt"><thead><tr><th></th><th>الاسم</th><th>الصفة</th><th>المركز</th><th style="text-align:center">الشكاوى</th><th>أكثر تصنيف</th><th></th></tr></thead><tbody>${gs.slice(0,lim).map((g,i)=>`<tr><td class="r">${i+1}</td><td>${opts.pii?esc(g.full||g.first):`موظف ${i+1}`}</td><td>${esc(staffTitle(g))}</td><td>${esc(g.center)}</td><td class="n">${fmt(g.n)}</td><td>${esc(g.sub)}</td><td class="bar"><div class="barline"><span style="width:${(g.n/max*100).toFixed(1)}%"></span></div></td></tr>`).join('')}</tbody></table>${opts.pii?'':'<p style="margin:6px 0 0;font-size:11px;color:var(--rp-mut)">الأسماء مخفية. اختر «تضمين البيانات الشخصية» عند التصدير لإظهارها.</p>'}</div></div></div>`;
+    const ps=(active('caller')||active('nid'))?pairGroups(list,2):[]; if(ps.length){ h+=`<div class="blk"><div class="rp-sec"><h4>متصلون اشتكوا الموظف نفسه أكثر من مرة<small>${fmt(ps.length)} حالة</small></h4><div class="rp-body"><table class="rpt"><thead><tr><th></th><th>المتصل</th><th>الموظف</th><th>المركز</th><th style="text-align:center">الشكاوى</th><th>آخر شكوى</th></tr></thead><tbody>${ps.slice(0,Math.min(opts.top||1e9,ps.length)).map((x,i)=>`<tr><td class="r">${i+1}</td><td>${opts.pii?esc(x.caller):`متصل ${i+1}`}</td><td>${esc(staffTitle(x.g))} ${opts.pii?esc(x.g.full||x.g.first):`موظف`}</td><td>${esc(x.g.center)}</td><td class="n">${fmt(x.n)}</td><td class="p" style="width:auto">${esc(fmtDate(x.last_d).slice(0,10))}</td></tr>`).join('')}</tbody></table></div></div></div>`; } } }
   if(opts.sec.sector && sectors.length) h+=`<div class="blk"><div class="rp-sec"><h4>حسب القطاع<small>${fmt(sectors.length)} قطاع</small></h4><div class="rp-body">${rptTable(sectors,'القطاع',tot,top)}</div></div></div>`;
   if(opts.list && list.length){
     const cols=SCHEMA.filter(c=>!c.removed && c.rep && (opts.pii||!c.pii)).map(c=>c.k);
@@ -958,6 +969,7 @@ document.addEventListener('click',e=>{
   const rect=t.closest('rect[data-day]'); if(rect){ filt.from=filt.to=rect.dataset.day; refresh(); return; }
   const th=t.closest('th[data-sort]'); if(th){ const k=th.dataset.sort; if(sort.k===k) sort.dir*=-1; else sort={k,dir:k==='date'?-1:1}; refresh(true); return; }
   const ckr=t.closest('tr[data-ck]'); if(ckr){ showCaller(ckr.dataset.ck); return; }
+  const pr=t.closest('tr[data-pair]'); if(pr){ const [ck,ek]=pr.dataset.pair.split('§'); filt.ck=ck; showStaff(ek); return; }
   const er=t.closest('tr[data-emp]'); if(er){ showStaff(er.dataset.emp); return; }
   const clr=t.closest('tr[data-cl]'); if(clr){ showClinic(clr.dataset.cl); return; }
   const tr=t.closest('tr[data-id]'); if(tr && !t.closest('td.cb')){ viewRecord(byId.get(tr.dataset.id)); return; }
@@ -1668,7 +1680,7 @@ async function buildReportXlsx(list,o){
   if(o.sec.center) pairsOf.push(['البلاغات حسب المركز الصحي','المركز الصحي',centers]);
   if(o.sec.sector && sectors.length) pairsOf.push(['حسب القطاع','القطاع',sectors]);
   if(o.sec.clinics){ const gs=clinicGroups(list,1); if(gs.length) pairsOf.push(['العيادات والأقسام المذكورة في الشكاوى','العيادة / القسم',gs.map(g=>[g.name,g.n])]); }
-  if(o.sec.staff){ const gs=staffGroups(list,Math.max(1,STAFF_MIN)); if(gs.length) pairsOf.push(['الموظفون المذكورون في الشكاوى','الموظف · المركز',gs.map((g,i)=>[(o.pii?(g.full||g.first):`موظف ${i+1}`)+' · '+g.center,g.n])]); }
+  if(o.sec.staff){ const gs=staffGroups(list,Math.max(1,STAFF_MIN)); if(gs.length) pairsOf.push(['الموظفون المذكورون في الشكاوى','الموظف · المركز',gs.map((g,i)=>[(o.pii?(g.full||g.first):`موظف ${i+1}`)+' · '+g.center,g.n])]); const ps=(active('caller')||active('nid'))?pairGroups(list,2):[]; if(ps.length) pairsOf.push(['متصلون اشتكوا الموظف نفسه أكثر من مرة','المتصل ← الموظف · المركز',ps.map((x,i)=>[(o.pii?x.caller:`متصل ${i+1}`)+' ← '+(o.pii?(x.g.full||x.g.first):'موظف')+' · '+x.g.center,x.n])]); }
   if(o.sec.callers && (active('caller')||active('nid'))){ const gs=repeatGroups(list,Math.max(2,RPT.min)); if(gs.length) pairsOf.push([`المتصلون الأكثر تكراراً (${Math.max(2,RPT.min)}+ بلاغات)`,'المتصل',gs.map((g,i)=>[o.pii?(g.name||g.nid):`متصل ${i+1}`,g.n])]); }
   if(o.sec.cats){ if(active('main')) pairsOf.push(['حسب '+label('main'),label('main'),mains]); if(active('sub')) pairsOf.push(['حسب '+short('sub'),short('sub'),subs]); }
   if(land){ for(let i=0;i<pairsOf.length;i+=2){ const a=table(r,0,...pairsOf[i],top); const bb=pairsOf[i+1]?table(r,6,...pairsOf[i+1],top):r; r=Math.max(a,bb); } }
@@ -1846,7 +1858,7 @@ try{ navigator.storage && navigator.storage.persist && navigator.storage.persist
   setAll(list);
   renderAll();
 })();
-window.__db={maskNums, staffGroups, clinicGroups, buildReportXlsx, get recs(){return RECS;}, readXlsx, parseRecords, buildXlsx, buildReport, get filtered(){return filtered;}};
+window.__db={maskNums, staffGroups, clinicGroups, pairGroups, buildReportXlsx, get recs(){return RECS;}, readXlsx, parseRecords, buildXlsx, buildReport, get filtered(){return filtered;}};
 </script>
 
 </body>
