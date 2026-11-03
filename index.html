@@ -137,7 +137,8 @@ select.inp{padding-inline-end:6px}
 .daychart .grid{stroke:var(--line);stroke-width:1}
 
 .viewbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.viewswitch{display:inline-flex;background:var(--surface-2);border-radius:9px;padding:3px}
+.viewswitch{display:inline-flex;background:var(--surface-2);border-radius:9px;padding:3px;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.viewswitch button{white-space:nowrap;flex:none}
 .viewswitch button{border:0;background:none;padding:6px 16px;border-radius:7px;cursor:pointer;font-weight:500;color:var(--muted)}
 .viewswitch button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .bulk{display:flex;align-items:center;gap:8px;background:var(--sel);border:1px solid var(--warn);border-radius:9px;padding:5px 10px;font-size:13px;flex-wrap:wrap}
@@ -357,6 +358,8 @@ table.rpl td.ltr{direction:ltr;text-align:right;white-space:nowrap}
       <div class="viewswitch" role="group" aria-label="طريقة العرض">
         <button type="button" data-view="table" aria-pressed="true">السجلات</button>
         <button type="button" data-view="callers" aria-pressed="false">المتصلون المتكررون</button>
+        <button type="button" data-view="staff" aria-pressed="false">الموظفون المذكورون</button>
+        <button type="button" data-view="clinics" aria-pressed="false">العيادات المذكورة</button>
         <button type="button" data-view="report" aria-pressed="false">معاينة التقرير</button>
       </div>
       <div id="bulkbar"></div>
@@ -445,15 +448,17 @@ const BASE=[
 const SEED_KEYS=['no','month','date','desc','sector','center','sub','main','caller','nid'];
 const TYPES={text:'نص',long:'نص طويل',number:'رقم',date:'تاريخ',datetime:'تاريخ ووقت',list:'قائمة اختيار'};
 const SCHEMA_KEY='r937-schema-v1';
-let SCHEMA=(()=>{
-  let saved=[]; try{ saved=JSON.parse(localStorage.getItem(SCHEMA_KEY)||'[]'); }catch(e){}
+function buildSchema(saved){
+  saved=Array.isArray(saved)?saved:[];
   const out=[];
   saved.forEach(s=>{ const b=BASE.find(x=>x.k===s.k); if(b) out.push({...b,...s,core:b.core,derived:b.derived,dl:b.dl,type:b.type,base:1}); else if(s.custom) out.push(s); });
   BASE.forEach(b=>{ if(!out.find(x=>x.k===b.k)) out.push({...b,base:1,table:1}); });
   out.forEach(c=>{ if(c.table===undefined) c.table=1; });
   return out;
-})();
-function saveSchema(){ try{ localStorage.setItem(SCHEMA_KEY,JSON.stringify(SCHEMA.map(c=>({k:c.k,l:c.l,type:c.type,req:c.req?1:0,pii:c.pii?1:0,table:c.table?1:0,rep:c.rep?1:0,removed:c.removed?1:0,custom:c.custom?1:0,options:c.options||[]})))); return true; }catch(e){ return false; } }
+}
+let SCHEMA=buildSchema((()=>{ try{ return JSON.parse(localStorage.getItem(SCHEMA_KEY)||'[]'); }catch(e){ return []; } })());
+const schemaSerial=()=>SCHEMA.map(c=>({k:c.k,l:c.l,type:c.type,req:c.req?1:0,pii:c.pii?1:0,table:c.table?1:0,rep:c.rep?1:0,removed:c.removed?1:0,custom:c.custom?1:0,options:c.options||[]}));
+function saveSchema(){ try{ localStorage.setItem(SCHEMA_KEY,JSON.stringify(schemaSerial())); return true; }catch(e){ return false; } }
 const col = k => SCHEMA.find(c=>c.k===k);
 const cols = () => SCHEMA.filter(c=>!c.removed);
 const active = k => { const c=col(k); return !!c && !c.removed; };
@@ -484,6 +489,87 @@ function callerKey(r){
   return 'nm:'+n;
 }
 let callerIdx=null;
+const NAMES_LEX=new Set(["ابتسام", "ابتهاج", "ابرار", "ابراهيم", "اثار", "اثير", "اجوان", "احسان", "احلام", "احمد", "اروي", "اريج", "ارين", "ازدهار", "اسامه", "اساور", "اسراء", "اسرار", "اسعد", "اسماء", "اسماعيل", "اسيا", "اسيل", "اشرف", "اشواق", "اصيل", "اعتماد", "افنان", "اقبال", "الاء", "البراء", "البندري", "الجوهره", "الحان", "الحسن", "الحسين", "العنود", "الماس", "الهام", "الهنوف", "الوليد", "الياس", "الين", "امال", "اماني", "امجد", "امل", "امنه", "امواج", "امير", "اميره", "امين", "امينه", "انس", "انصاف", "انمار", "انوار", "اهداب", "اياد", "ايفا", "ايلاف", "ايلان", "ايمان", "ايمن", "ايناس", "ايه", "باسل", "باسم", "بتال", "بتول", "بدر", "بدريه", "بدور", "براء", "بسام", "بسمه", "بشائر", "بشاير", "بشري", "بندر", "بيان", "تارا", "تالا", "تالين", "ترف", "تركي", "تغريد", "تميم", "تهاني", "توق", "تولين", "ثامر", "ثريا", "جابر", "جاد", "جاسم", "جبره", "جسار", "جمال", "جمانه", "جمعه", "جميل", "جميله", "جني", "جوان", "جواهر", "جود", "جوري", "جوهره", "حاتم", "حازم", "حامد", "حبيبه", "حجاب", "حسام", "حسن", "حسناء", "حسنه", "حسين", "حصه", "حلا", "حليمه", "حمد", "حمدان", "حمده", "حمزه", "حمود", "حميده", "حنان", "حنين", "حور", "حياه", "خالد", "خديجه", "خضراء", "خلف", "خلود", "خيريه", "دارين", "داليا", "دانا", "دانه", "دحمانه", "دره", "دلال", "ديم", "ديما", "دينا", "رؤي", "رائد", "رائف", "راكان", "راما", "رامي", "راويه", "رايد", "ربي", "رتيل", "رجاء", "رحاب", "رحمه", "رخاء", "رداد", "رزان", "رسن", "رسيل", "رشا", "رشاء", "رعد", "رغد", "رفيف", "رقيه", "ركان", "رمزي", "رنا", "رند", "رنيم", "رهف", "روابي", "رواد", "روان", "روز", "روزان", "روضه", "ريان", "ريتاج", "ريتال", "ريتان", "ريفان", "ريلام", "ريلان", "ريم", "ريما", "ريماس", "ريمان", "ريناد", "ريهام", "ريوف", "زايد", "زرعه", "زكيه", "زهراء", "زهره", "زهور", "زياد", "زين", "زينب", "زينه", "ساره", "سالم", "سالمه", "سالين", "سامر", "سامي", "ساميه", "سجي", "سحاب", "سحر", "سدن", "سديم", "سراج", "سطام", "سعاد", "سعد", "سعود", "سعيد", "سعيده", "سلطان", "سلطانه", "سلمان", "سلمي", "سلوي", "سليم", "سليمان", "سما", "سماح", "سماهر", "سمر", "سميحه", "سمير", "سميره", "سميه", "سند", "سهام", "سهم", "سهي", "سهير", "سوسن", "سيف", "شادن", "شاهر", "شذي", "شروق", "شريفه", "شفاء", "شمسيه", "شموخ", "شميمه", "شهد", "شوق", "شيخه", "شيماء", "صافيه", "صالح", "صالحه", "صبا", "صباح", "صفاء", "صفوان", "صفيه", "صلاح", "ضياء", "طارق", "طلال", "عائشه", "عابده", "عادل", "عاصم", "عاطف", "عامر", "عامره", "عايش", "عايضه", "عبدالاله", "عبدالباسط", "عبدالرحمن", "عبدالرحيم", "عبدالعزيز", "عبدالقادر", "عبدالكريم", "عبداللطيف", "عبدالله", "عبدالمجيد", "عبدالمحسن", "عبدالمعين", "عبدالملك", "عبدالوهاب", "عبده", "عبيده", "عبير", "عدنان", "عريف", "عزام", "عزلا", "عزه", "عزيزه", "عطيه", "عفاف", "علا", "علي", "عليا", "علياء", "عليان", "عليه", "عماد", "عمار", "عمر", "عمره", "عنود", "عهد", "عهود", "عواطف", "عوض", "عويضه", "عيد", "عيده", "عيسي", "عيشه", "عيضه", "غاده", "غازي", "غاليه", "غدي", "غدير", "غرام", "غزل", "غفران", "غلا", "غني", "غيث", "غيداء", "غيم", "فؤاد", "فائزه", "فاتن", "فارس", "فاطمه", "فايز", "فايزه", "فجر", "فراس", "فرح", "فلاح", "فهد", "فواز", "فوزي", "فوزيه", "فيصل", "قصي", "قمر", "كريمه", "كلثوم", "كوثر", "كيان", "لؤي", "لارا", "لانا", "لجين", "لطيفه", "لما", "لمار", "لمي", "لمياء", "لورين", "ليان", "ليلاس", "ليلي", "لين", "مؤيد", "ماجد", "مازن", "ماهر", "مبارك", "مبروكه", "متعب", "مجاهد", "محسن", "محمد", "محمود", "مدينه", "مراحب", "مراد", "مرام", "مروان", "مروه", "مريم", "مزنه", "مزيه", "مست", "مشاري", "مشاعل", "مشعل", "مشهور", "مصطفي", "مصلح", "مضيف", "مطلق", "معاذ", "معاويه", "معتز", "معيد", "معيض", "ملاذ", "ملاك", "ملك", "ملكه", "ملوك", "مليحه", "ممدوح", "منار", "منال", "منصور", "منور", "مني", "منير", "منيره", "مها", "مهاب", "مهدي", "مهند", "موئيد", "موده", "موسي", "موضي", "ميار", "ميان", "ميرال", "ميسم", "ميعاد", "ميلا", "ميليسا", "ميمونه", "نائف", "نادر", "نادين", "ناديه", "ناصر", "نايف", "نايل", "نبيل", "نبيله", "نجات", "نجاح", "نجاه", "نجلاء", "نجمه", "نجود", "نجوي", "ندي", "نسرين", "نسيله", "نسيم", "نعمه", "نعيمه", "نهي", "نوار", "نواف", "نوال", "نور", "نوره", "نوري", "نوف", "نوير", "نيار", "هاله", "هاني", "هايل", "هبه", "هتان", "هدي", "هديل", "هشام", "هلا", "هناء", "هنادي", "هناي", "هند", "هوازن", "هيا", "هياء", "هيثم", "هيفاء", "هيلين", "وائل", "وافي", "وتين", "وجدان", "وجدي", "وداد", "وديع", "ورد", "ورده", "وريف", "وسام", "وسيم", "وصال", "وضحي", "وعد", "وفاء", "وفيه", "ولاء", "وليد", "يارا", "ياسر", "ياسمين", "يامن", "يحيي", "يزن", "يزيد", "يسري", "يمني", "يوسف", "يونس"]);
+const STAFF_TITLES=new Set(['الموظفه','الموظف','موظفه','موظف','الممرضه','الممرض','ممرضه','ممرض','الدكتوره','الدكتور','دكتوره','دكتور','د','الطبيبه','الطبيب','طبيبه','طبيب','الاخصائيه','الاخصائي','اخصائي','اخصائيه','الاستاذه','الاستاذ','استاذ','استاذه','الصيدلي','الصيدلانيه','الصيدلاني','المدير','مدير','مديره','المديره','الفني','الفنيه','المشرف','المشرفه','الحارس','المدعو','المدعوه','اسمه','اسمها','يدعي','تدعي','السيد','السيده']);
+const STAFF_HIDE_KEY='r937-staffhide-v1';
+let STAFF_HIDE=(()=>{ try{ return new Set(JSON.parse(localStorage.getItem(STAFF_HIDE_KEY)||'[]')); }catch(e){ return new Set(); } })();
+const saveStaffHide=()=>{ try{ localStorage.setItem(STAFF_HIDE_KEY,JSON.stringify([...STAFF_HIDE])); }catch(e){} };
+let STAFF_MIN=(()=>{ try{ return +(localStorage.getItem('r937-staffmin-v1')||1); }catch(e){ return 1; } })();
+let staffIdx=null;
+const CLINIC_KEY='r937-clinics-v1';
+const DEF_CLINICS=[
+  ['الأسنان','اسنان، طب الاسنان، تنظيف الاسنان'],
+  ['المختبر والتحاليل','مختبر، تحاليل، تحليل، سحب الدم، سحب دم'],
+  ['التطعيمات','تطعيم، تطعيمات، لقاح، لقاحات، الطفل السليم'],
+  ['الاستقبال','الاستقبال، موظف استقبال، موظفه استقبال، مكتب استقبال'],
+  ['طب الأسرة','طب الاسره، طب اسره، طبيب الاسره، الطب العام، طبيب عام، العياده العامه'],
+  ['الطوارئ','طوارئ، اسعاف'],
+  ['الأطفال','اطفال، طب الاطفال'],
+  ['الأمراض المزمنة','مزمنه، الامراض المزمنه، السكر، السكري، الضغط، الربو'],
+  ['الحوامل والأمومة','حوامل، متابعه الحمل، متابعه الحوامل، الولاده، النساء والولاده، امومه'],
+  ['الأشعة','اشعه، سونار، الترا ساوند، التراساوند'],
+  ['فحص اللياقة وما قبل الزواج','اللياقه، فحص اللياقه، قبل الزواج، ماقبل الزواج'],
+  ['الصيدلية','صيدليه'],
+  ['الباطنية','باطنيه، الطب الباطني، الباطنه'],
+  ['الجلدية','جلديه'],
+  ['النفسية','نفسيه، الصحه النفسيه'],
+  ['العظام','عظام'],
+  ['المخ والأعصاب','المخ والاعصاب، اعصاب'],
+  ['العيون','عيون'],
+  ['الأنف والأذن','الانف والاذن، انف واذن'],
+  ['العلاج الطبيعي','العلاج الطبيعي'],
+  ['الضماد والتمريض','ضماد، الضماد، غرفه التمريض'],
+  ['كبار السن','كبار السن'],
+  ['الفرز','فرز'],
+  ['العيادات الافتراضية','افتراضيه، العياده الافتراضيه، العيادات الافتراضيه'],
+  ['عيادة السفر','عياده السفر، لقاحات السفر'],
+  ['الإقلاع عن التدخين','التدخين']
+];
+let CLINICS=(()=>{ try{ const s=JSON.parse(localStorage.getItem(CLINIC_KEY)||'null'); if(Array.isArray(s)&&s.length) return s; }catch(e){} return DEF_CLINICS.map(x=>[...x]); })();
+const saveClinics=()=>{ try{ localStorage.setItem(CLINIC_KEY,JSON.stringify(CLINICS)); }catch(e){} };
+let CLIN_MIN=1, clinIdx=null;
+function clinicRegex(kws){
+  // كلمة بدون «ال» تطابق وجودها وعدمه، وكلمة تبدأ بـ«ال» تشترطها (مع و/ب/ف/ل قبلها)
+  const escp=k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/ /g,'\\s+');
+  const parts=kws.split(/[،,\n]/).map(s=>nrm(s)).filter(k=>k.length>=2).map(k=> k.startsWith('ال') ? '(?:[وبف]?'+escp(k)+'|ل'+escp(k.slice(1))+')' : '(?:[وبفل]?(?:ال)?|لل)'+escp(k));
+  if(!parts.length) return null;
+  return new RegExp('(?:^|[^\\u0621-\\u064A])(?:'+parts.join('|')+')(?=$|[^\\u0621-\\u064A])');
+}
+function clinicIndex(){
+  if(clinIdx) return clinIdx;
+  const dcols=SCHEMA.filter(c=>c.type==='long'&&!c.removed).map(c=>c.k);
+  const rx=CLINICS.map(([name,kw])=>[name,clinicRegex(kw)]).filter(x=>x[1]);
+  const m=new Map(rx.map(([n])=>[n,[]]));
+  RECS.forEach(r=>{ const txt=nrm(dcols.map(k=>r[k]||'').join(' ')); if(!txt) return; rx.forEach(([n,re])=>{ if(re.test(txt)) m.get(n).push(r); }); });
+  return clinIdx=m;
+}
+function clinicGroups(list,min){ const ids=new Set(list.map(r=>r.id)); return [...clinicIndex().entries()].map(([name,recs])=>{ const f=recs.filter(r=>ids.has(r.id)); return {k:name,name,recs:f,n:f.length}; }).filter(g=>g.n>=Math.max(1,min)).map(g=>{ const s=[...g.recs].sort((a,b)=>String(a.date).localeCompare(String(b.date))); return {...g,centers:countBy(s,'center'),sub:(countBy(s,active('sub')?'sub':'main')[0]||[''])[0],last_d:s[s.length-1].date}; }).sort((a,b)=>b.n-a.n); }
+function staffIndex(){
+  if(staffIdx) return staffIdx;
+  const dcols=SCHEMA.filter(c=>c.type==='long'&&!c.removed).map(c=>c.k);
+  const toks=r=>dcols.map(k=>r[k]||'').join(' ');
+  const freq=new Map(); const tokRec=new Map();
+  RECS.forEach(r=>{ const tk=nrm(toks(r)).replace(/[^\u0621-\u064A\s]/g,' ').split(/\s+/).filter(Boolean); tokRec.set(r,tk); tk.forEach(w=>freq.set(w,(freq.get(w)||0)+1)); });
+  const nxt=w=>NAMES_LEX.has(w) || (w.length>=4 && w.endsWith('ي') && (freq.get(w)||0)<=8 && (w.startsWith('ال') || !/^[يتوفبل]/.test(w) || (/^[بفل]/.test(w) && w.length>=5 && (freq.get(w)||0)<=6 && !/^(بال|فال|لل|وال)/.test(w))));
+  const otoks=r=>dcols.map(k=>r[k]||'').join(' ').replace(/[\u064B-\u0652\u0640]/g,'').replace(/د\s*[.\/]/g,'د ').replace(/[^\u0621-\u064A\s]/g,' ').split(/\s+/).filter(Boolean);
+  const m=new Map();
+  RECS.forEach(r=>{
+    const orig=otoks(r), raw=orig.map(nrm);
+    const seen=new Set();
+    for(let i=0;i<raw.length-1;i++){
+      if(!STAFF_TITLES.has(raw[i]) || !NAMES_LEX.has(raw[i+1])) continue;
+      const name=[raw[i+1]]; let j=i+2; while(j<raw.length && name.length<3 && nxt(raw[j])){ name.push(raw[j]); j++; }
+      const key=raw[i+1]+'|'+(r.center||''); if(seen.has(key)) continue; seen.add(key);
+      if(!m.has(key)) m.set(key,{k:key,first:raw[i+1],full:'',titles:new Map(),center:r.center||'',recs:[]});
+      const g=m.get(key); g.recs.push(r); const full=orig.slice(i+1,i+1+name.length).join(' '); if(full.length>g.full.length) g.full=full; g.titles.set(raw[i],(g.titles.get(raw[i])||0)+1);
+    }
+  });
+  return staffIdx=m;
+}
+const TITLE_SHOW={'د':'الدكتور/ة','الدكتور':'الدكتور','الدكتوره':'الدكتورة','دكتور':'الدكتور','دكتوره':'الدكتورة','الطبيب':'الطبيب','الطبيبه':'الطبيبة','طبيب':'الطبيب','طبيبه':'الطبيبة','الممرض':'الممرض','الممرضه':'الممرضة','ممرض':'الممرض','ممرضه':'الممرضة','الموظف':'الموظف','الموظفه':'الموظفة','موظف':'الموظف','موظفه':'الموظفة'};
+function staffTitle(g){ const t=[...g.titles.entries()].sort((a,b)=>b[1]-a[1])[0]; return t?(TITLE_SHOW[t[0]]||t[0]):''; }
+function staffGroups(list,min){ const ids=new Set(list.map(r=>r.id)); return [...staffIndex().values()].filter(g=>!STAFF_HIDE.has(g.k)).map(g=>{ const recs=g.recs.filter(r=>ids.has(r.id)); return {...g,recsF:recs,n:recs.length}; }).filter(g=>g.n>=min).map(g=>{ const s=[...g.recsF].sort((a,b)=>String(a.date).localeCompare(String(b.date))); return {...g,sub:(countBy(s,active('sub')?'sub':'main')[0]||[''])[0],first_d:s[0].date,last_d:s[s.length-1].date}; }).sort((a,b)=>b.n-a.n||String(b.last_d).localeCompare(String(a.last_d))); }
+function staffLabel(k){ const g=staffIndex().get(k); return g?`${g.full||g.first} · ${g.center}`:k; }
 function callerIndex(){ if(callerIdx) return callerIdx; const m=new Map(); RECS.forEach(r=>{ const k=callerKey(r); if(!k) return; if(!m.has(k)) m.set(k,[]); m.get(k).push(r); }); return callerIdx=m; }
 function repeatGroups(list,min){ const m=new Map(); list.forEach(r=>{ const k=callerKey(r); if(!k) return; if(!m.has(k)) m.set(k,[]); m.get(k).push(r); }); return [...m.entries()].filter(([,g])=>g.length>=min).map(([k,g])=>{ g.sort((a,b)=>String(a.date).localeCompare(String(b.date))); const top=(f)=>{ const c=countBy(g,f)[0]; return c?c[0]:''; }; return {k,g,n:g.length,name:g.find(r=>r.caller)?.caller||'',nid:g.find(r=>r.nid)?.nid||'',centers:countBy(g,'center'),sub:top(active('sub')?'sub':'main'),first:g[0].date,last:g[g.length-1].date}; }).sort((a,b)=>b.n-a.n||String(b.last).localeCompare(String(a.last))); }
 function callerLabel(k){ const g=callerIndex().get(k); const r=g&&(g.find(x=>x.caller)||g[0]); return r ? (r.caller||r.nid||k) : k.slice(3); }
@@ -520,23 +606,41 @@ function stripIdx(r){ const o={}; ALLK().forEach(k=>{ if(r[k]!==undefined) o[k]=
 /* ---------- state ---------- */
 let RECS=[];               // all records
 const byId=new Map();
-let filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:''};
+let filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:''};
 let sort={k:'date',dir:-1};
 let page=0, pageSize=50, view='table';
 const selected=new Set();
 let filtered=[];
 
 function prep(r){ r._s = nrm(cols().map(c=>c.k==='month'?monthOf(r):r[c.k]).join(' | ')); r._m=monthOf(r); return r; }
+// إخفاء أرقام الجوال والهوية داخل النصوص الحرة
+const MASK_KEY='r937-mask-v1';
+let MASK_ON=(()=>{ try{ return localStorage.getItem(MASK_KEY)==='1'; }catch(e){ return false; } })();
+const MASKED='●●●●●●●●●●';
+function maskNums(s){
+  if(!s) return s;
+  return String(s).replace(/[+0-9\u0660-\u0669\u06F0-\u06F9][0-9\u0660-\u0669\u06F0-\u06F9\s\-]{7,17}[0-9\u0660-\u0669\u06F0-\u06F9]/g, m=>{
+    const d=m.replace(/[\u0660-\u0669]/g,x=>String(x.charCodeAt(0)-0x660)).replace(/[\u06F0-\u06F9]/g,x=>String(x.charCodeAt(0)-0x6F0)).replace(/\D/g,'');
+    const phone=/^(05\d{8}|5\d{8}|9665\d{8}|009665\d{8})$/.test(d), nid=/^[12]\d{9}$/.test(d);
+    return (phone||nid) ? (m.match(/^\s/)?' ':'')+MASKED+(m.match(/\s$/)?' ':'') : m;
+  });
+}
+const maskCols=()=>SCHEMA.filter(c=>c.type==='long').map(c=>c.k);
 function clean(r){
   const o={id:r.id||uid()};
   ALLK().forEach(k=>{ let v=r[k]; if(v==null) v=''; o[k]=String(v).trim(); });
+  if(MASK_ON) maskCols().forEach(k=>{ if(o[k]) o[k]=maskNums(o[k]); });
   return o;
 }
 function seedRecords(){ return (SEED||[]).map(a=>{ const o={}; SEED_KEYS.forEach((k,i)=>o[k]=a[i]); return clean(o); }); }
-function setAll(list){ RECS=list.map(prep); byId.clear(); RECS.forEach(r=>byId.set(r.id,r)); callerIdx=null; }
+function setAll(list){ RECS=list.map(prep); byId.clear(); RECS.forEach(r=>byId.set(r.id,r)); callerIdx=null; staffIdx=null; clinIdx=null; }
 
 /* ---------- filtering ---------- */
-function apply(){
+let _clSet=null,_clKey=null;
+function clSet(){ if(_clKey!==filt.cl||!_clSet){ _clSet=new Set((clinicIndex().get(filt.cl)||[]).map(r=>r.id)); _clKey=filt.cl; } return _clSet; }
+let _empSet=null,_empKey=null;
+function empSet(){ if(_empKey!==filt.emp||!_empSet){ const g=staffIndex().get(filt.emp); _empSet=new Set(g?g.recs.map(r=>r.id):[]); _empKey=filt.emp; } return _empSet; }
+function apply(){ _empSet=null; _clSet=null;
   const words=nrm(filt.q).split(' ').filter(Boolean);
   filtered=RECS.filter(r=>{
     if(filt.from && (!r.date || r.date.slice(0,10)<filt.from)) return false;
@@ -547,6 +651,8 @@ function apply(){
     if(filt.main && r.main!==filt.main) return false;
     if(filt.sub && r.sub!==filt.sub) return false;
     if(filt.ck && callerKey(r)!==filt.ck) return false;
+    if(filt.emp && !empSet().has(r.id)) return false;
+    if(filt.cl && !clSet().has(r.id)) return false;
     for(const c of extraFilterCols()) if(filt[c.k] && r[c.k]!==filt[c.k]) return false;
     for(const w of words) if(!r._s.includes(w)) return false;
     return true;
@@ -559,7 +665,7 @@ const total = list => list.length;
 
 /* ---------- render ---------- */
 function renderAll(){ apply(); renderFilters(); renderSummary(); renderView(); renderInfo(); }
-function refresh(keepPage){ if(!keepPage) page=0; callerIdx=null; apply(); renderFilters(); renderSummary(); renderView(); renderInfo(); }
+function refresh(keepPage){ if(!keepPage) page=0; callerIdx=null; staffIdx=null; clinIdx=null; apply(); renderFilters(); renderSummary(); renderView(); renderInfo(); }
 function renderInfo(){
   document.getElementById('dbInfo').textContent = `${fmt(RECS.length)} بلاغ في القاعدة` + (persistent?' · محفوظة على هذا الجهاز':' · الحفظ غير متاح هنا، صدّر نسخة احتياطية');
 }
@@ -575,6 +681,8 @@ function optionsFor(k){
     if(k!=='main' && filt.main && r.main!==filt.main) return false;
     if(k!=='sub' && filt.sub && r.sub!==filt.sub) return false;
     if(filt.ck && callerKey(r)!==filt.ck) return false;
+    if(filt.emp && !empSet().has(r.id)) return false;
+    if(filt.cl && !clSet().has(r.id)) return false;
     for(const c of extraFilterCols()) if(k!==c.k && filt[c.k] && r[c.k]!==filt[c.k]) return false;
     for(const w of words) if(!r._s.includes(w)) return false;
     return true;
@@ -605,6 +713,8 @@ function renderFilters(){
   if(filt.q) tags.push(['q',`بحث: ${filt.q}`]);
   if(filt.from||filt.to) tags.push(['dates',`الفترة: ${filt.from||'…'} ← ${filt.to||'…'}`]);
   if(filt.ck) tags.push(['ck',`المتصل: ${callerLabel(filt.ck)}`]);
+  if(filt.emp) tags.push(['emp',`الموظف: ${staffLabel(filt.emp)}`]);
+  if(filt.cl) tags.push(['cl',`العيادة: ${filt.cl}`]);
   ['month','sector','center','main','sub',...extraFilterCols().map(c=>c.k)].forEach(k=>{ if(filt[k]) tags.push([k,`${short(k)}: ${filt[k]==='__none'?'بدون قطاع':filt[k]}`]); });
   document.getElementById('fstate').innerHTML = `<span><b>${fmt(total(filtered))}</b> بلاغ${filtered.length!==RECS.length?` من أصل ${fmt(total(RECS))}`:''}</span>` + tags.map(([k,t])=>`<span class="tag">${esc(t)}<button type="button" data-untag="${k}" aria-label="إزالة">×</button></span>`).join('') + (tags.length?`<button type="button" class="btn sm ghost" data-untag="all">مسح الفلاتر</button>`:'');
 }
@@ -681,11 +791,38 @@ function renderCallers(v){
     ${show.map((g,i)=>`<tr data-ck="${esc(g.k)}"><td class="num">${i+1}</td><td class="c"><b>${esc(g.name||'—')}</b></td>${active('nid')?`<td class="dt">${esc(g.nid||'')}</td>`:''}<td class="num"><span class="cnt">${fmt(g.n)}</span></td><td class="c">${esc(g.centers[0][0])}${g.centers.length>1?` <span class="badge">+${g.centers.length-1}</span>`:''}</td><td class="c">${esc(g.sub)}</td><td class="dt">${esc(fmtDate(g.first))}</td><td class="dt">${esc(fmtDate(g.last))}</td></tr>`).join('')}
   </tbody></table></div><div class="pager"><span>${groups.length>show.length?`أول ${fmt(show.length)} من ${fmt(groups.length)}`:`${fmt(groups.length)} متصل`} · اضغط أي متصل لعرض بلاغاته</span></div></div>`:`<div class="panel empty" style="margin-top:12px"><b>لا يوجد متصلون متكررون</b>بهذا الحد الأدنى ضمن النتائج الحالية.</div>`}`;
 }
+function renderStaff(v){
+  const gs=staffGroups(filtered,STAFF_MIN); const ment=gs.reduce((s,g)=>s+g.n,0); const hidden=STAFF_HIDE.size;
+  const seg=`<div class="seg">${[[1,'1+'],[2,'2+'],[3,'3+'],[5,'5+']].map(([v,l])=>`<label><input type="radio" name="smin" value="${v}" ${v===STAFF_MIN?'checked':''}><span>${l}</span></label>`).join('')}</div>`;
+  const show=gs.slice(0,300);
+  v.innerHTML=`<div class="panel" style="padding:12px 14px;display:grid;gap:10px">
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="hint">الحد الأدنى للشكاوى</span>${seg}${hidden?`<button type="button" class="btn sm ghost" id="staffUnhide">إظهار المستبعدين (${fmt(hidden)})</button>`:''}</div>
+    <div class="stats"><div><b>${fmt(gs.length)}</b><span>موظف مذكور</span></div><div><b>${fmt(ment)}</b><span>شكوى ذُكر فيها موظف</span></div><div><b>${gs[0]?fmt(gs[0].n):'—'}</b><span>أعلى عدد لموظف واحد</span></div></div>
+    <p class="hint" style="margin:0">تُستخرج الأسماء تلقائياً من «وصف البلاغ» عندما يأتي الاسم بعد لقب مثل الدكتور أو الممرضة أو الموظف. يُجمع الاسم الأول مع المركز، لأن الاسم نفسه في مركزين قد يكون لشخصين مختلفين. قد يفوت الاستخراج بعض الأسماء، وإذا التقط كلمة ليست اسماً استبعدها بزر «ليس اسماً». النتائج تتبع البحث والفلاتر الحالية.</p></div>
+  ${gs.length?`<div class="panel" style="margin-top:12px"><div class="tbl-wrap"><table class="rec"><thead><tr><th class="nosort">#</th><th class="nosort">الاسم كما ورد</th><th class="nosort">الصفة</th><th class="nosort">المركز</th><th class="nosort">الشكاوى</th><th class="nosort">أكثر تصنيف</th><th class="nosort">آخر شكوى</th><th class="nosort"></th></tr></thead><tbody>
+    ${show.map((g,i)=>`<tr data-emp="${esc(g.k)}"><td class="num">${i+1}</td><td class="c"><b>${esc(g.full||g.first)}</b></td><td>${esc(staffTitle(g))}</td><td class="c">${esc(g.center)}</td><td class="num"><span class="cnt">${fmt(g.n)}</span></td><td class="c">${esc(g.sub)}</td><td class="dt">${esc(fmtDate(g.last_d))}</td><td><button type="button" class="btn sm ghost" data-staffhide="${esc(g.k)}">ليس اسماً</button></td></tr>`).join('')}
+  </tbody></table></div><div class="pager"><span>${fmt(gs.length)} موظف · اضغط أي اسم لعرض الشكاوى التي ذُكر فيها</span></div></div>`:`<div class="panel empty" style="margin-top:12px"><b>لا توجد أسماء موظفين</b>بهذا الحد الأدنى ضمن النتائج الحالية.</div>`}`;
+}
+function renderClinics(v){
+  const gs=clinicGroups(filtered,CLIN_MIN); const any=new Set(); gs.forEach(g=>g.recs.forEach(r=>any.add(r.id)));
+  const max=gs[0]?.n||1;
+  v.innerHTML=`<div class="panel" style="padding:12px 14px;display:grid;gap:10px">
+    <div class="stats"><div><b>${fmt(gs.length)}</b><span>عيادة وقسم مذكور</span></div><div><b>${fmt(any.size)}</b><span>شكوى ذُكرت فيها عيادة · ${pct(any.size,filtered.length)}</span></div><div><b>${esc(gs[0]?.name||'—')}</b><span>الأكثر ذكراً${gs[0]?` · ${fmt(gs[0].n)}`:''}</span></div></div>
+    <p class="hint" style="margin:0">يُبحث في «وصف البلاغ» عن كلمات كل عيادة، مثل: الأسنان، المختبر، التحاليل، التطعيمات، الاستقبال، طب الأسرة. الشكوى التي تذكر أكثر من عيادة تُحسب لكل واحدة منها. عدّل العيادات وكلماتها من لوحة التحكم ← القوائم. النتائج تتبع البحث والفلاتر الحالية.</p>
+    <div><button type="button" class="btn sm" id="editClinics">تعديل العيادات وكلماتها</button></div></div>
+  ${gs.length?`<div class="panel" style="margin-top:12px"><div class="tbl-wrap"><table class="rec"><thead><tr><th class="nosort">#</th><th class="nosort">العيادة / القسم</th><th class="nosort">الشكاوى</th><th class="nosort">النسبة</th><th class="nosort">أكثر المراكز</th><th class="nosort">أكثر تصنيف</th><th class="nosort">آخر شكوى</th></tr></thead><tbody>
+    ${gs.map((g,i)=>`<tr data-cl="${esc(g.k)}"><td class="num">${i+1}</td><td class="c"><b>${esc(g.name)}</b><div class="track" style="height:5px;background:var(--surface-2);border-radius:3px;margin-top:5px;overflow:hidden"><span style="display:block;height:100%;width:${(g.n/max*100).toFixed(1)}%;background:var(--accent)"></span></div></td><td class="num"><span class="cnt">${fmt(g.n)}</span></td><td class="num">${pct(g.n,filtered.length)}</td><td class="c">${g.centers.slice(0,2).map(c=>`${esc(c[0])} <span class="badge">${fmt(c[1])}</span>`).join('<br>')}${g.centers.length>2?`<br><span class="hint">+${g.centers.length-2} مركز</span>`:''}</td><td class="c">${esc(g.sub)}</td><td class="dt">${esc(fmtDate(g.last_d))}</td></tr>`).join('')}
+  </tbody></table></div><div class="pager"><span>اضغط أي عيادة لعرض الشكاوى التي ذُكرت فيها</span></div></div>`:`<div class="panel empty" style="margin-top:12px"><b>لا توجد عيادات مذكورة</b>ضمن النتائج الحالية.</div>`}`;
+}
+function showClinic(k){ filt.cl=k; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); document.getElementById('view').scrollIntoView({block:'start'}); }
+function showStaff(k){ filt.emp=k; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); document.getElementById('view').scrollIntoView({block:'start'}); }
 function showCaller(k){ filt.ck=k; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); document.getElementById('view').scrollIntoView({block:'start'}); }
 function renderView(){
   const v=document.getElementById('view');
   renderBulk();
   if(view==='callers'){ renderCallers(v); return; }
+  if(view==='staff'){ renderStaff(v); return; }
+  if(view==='clinics'){ renderClinics(v); return; }
   if(view==='report'){
     v.innerHTML=`<div class="preview-scroll"><div id="rpSlot"></div></div><p class="hint" style="margin-top:8px">هذا شكل التقرير للفلاتر الحالية بآخر إعدادات طباعة استخدمتها. غيّر الورق والاتجاه والأقسام من «طباعة وتصدير».</p>`;
     document.getElementById('rpSlot').replaceWith(buildReport(filtered,{...printOpts(),list:filtered.length<=200&&printOpts().list}));
@@ -723,6 +860,8 @@ function filterDesc(){
   if(filt.sub) out.push(['التصنيف الفرعي',filt.sub]);
   if(filt.q) out.push(['بحث',filt.q]);
   if(filt.ck) out.push(['المتصل',callerLabel(filt.ck)]);
+  if(filt.emp) out.push(['الموظف',staffLabel(filt.emp)]);
+  if(filt.cl) out.push(['العيادة',filt.cl]);
   return out;
 }
 function rptTable(list,label,tot,limit){
@@ -736,7 +875,7 @@ function reportFoot(tot){
   return `<div class="rp-foot"><span>${esc(b.org||'قاعدة بلاغات المراكز الصحية')} · ${esc(b.title||'تقرير البلاغات')} · ${fmt(tot)} بلاغ</span><span>${b.preparer?`إعداد: <b>${esc(b.preparer)}</b>`:''}</span></div>`;
 }
 function buildReport(list,opts){
-  opts={list:false,pii:false,top:20,orient:'landscape',sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1},...opts};
+  opts={list:false,pii:false,top:20,orient:'landscape',sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1},...opts};
   const b=brand(), c=brandColors();
   const el=document.createElement('div'); el.className='rp'+(opts.orient==='portrait'?' portrait':'');
   el.style.cssText=`--rp-a:${c.a};--rp-soft:${c.soft};--rp-band:${c.band}`;
@@ -762,6 +901,10 @@ function buildReport(list,opts){
   if(opts.sec.cats && (active('main')||active('sub'))){ const parts=[]; if(active('main')) parts.push(`<div class="rp-sec"><h4>حسب ${esc(label('main'))}<small>${fmt(mains.length)} تصنيف</small></h4><div class="rp-body">${rptTable(mains,label('main'),tot,top)}</div></div>`); if(active('sub')) parts.push(`<div class="rp-sec"><h4>حسب ${esc(short('sub'))}<small>${fmt(subs.length)} تصنيف</small></h4><div class="rp-body">${rptTable(subs,short('sub'),tot,top)}</div></div>`); h+=`<div class="blk"><div class="${parts.length>1?'rp-two':''}">${parts.join('')}</div></div>`; }
   if(opts.sec.callers && (active('caller')||active('nid'))){ const gs=repeatGroups(list,Math.max(2,RPT.min)); if(gs.length){ const lim=Math.min(opts.top||1e9,gs.length); const max=gs[0].n;
     h+=`<div class="blk"><div class="rp-sec"><h4>المتصلون الأكثر تكراراً<small>${fmt(gs.length)} متصل لهم ${Math.max(2,RPT.min)} بلاغات فأكثر · ${fmt(gs.reduce((s,g)=>s+g.n,0))} بلاغ</small></h4><div class="rp-body"><table class="rpt"><thead><tr><th></th><th>المتصل</th><th style="text-align:center">البلاغات</th><th>المراكز</th><th>أكثر تصنيف</th><th>آخر بلاغ</th><th></th></tr></thead><tbody>${gs.slice(0,lim).map((g,i)=>`<tr><td class="r">${i+1}</td><td>${opts.pii?esc(g.name||g.nid):`متصل ${i+1}`}</td><td class="n">${fmt(g.n)}</td><td>${esc(g.centers.map(c=>c[0]).slice(0,2).join('، '))}${g.centers.length>2?` +${g.centers.length-2}`:''}</td><td>${esc(g.sub)}</td><td class="p" style="width:auto">${esc(fmtDate(g.last).slice(0,10))}</td><td class="bar"><div class="barline"><span style="width:${(g.n/max*100).toFixed(1)}%"></span></div></td></tr>`).join('')}</tbody></table>${opts.pii?'':'<p style="margin:6px 0 0;font-size:11px;color:var(--rp-mut)">الأسماء مخفية. اختر «تضمين اسم المتصل ورقم الهوية» عند التصدير لإظهارها.</p>'}</div></div></div>`; } }
+  if(opts.sec.clinics){ const gs=clinicGroups(list,1); if(gs.length){ const lim=Math.min(opts.top||1e9,gs.length); const max=gs[0].n;
+    h+=`<div class="blk"><div class="rp-sec"><h4>العيادات والأقسام المذكورة في الشكاوى<small>${fmt(gs.length)} عيادة</small></h4><div class="rp-body"><table class="rpt"><thead><tr><th></th><th>العيادة / القسم</th><th style="text-align:center">الشكاوى</th><th style="text-align:center">النسبة</th><th>أكثر المراكز</th><th>أكثر تصنيف</th><th></th></tr></thead><tbody>${gs.slice(0,lim).map((g,i)=>`<tr><td class="r">${i+1}</td><td>${esc(g.name)}</td><td class="n">${fmt(g.n)}</td><td class="p">${pct(g.n,list.length)}</td><td>${esc(g.centers.slice(0,2).map(c=>c[0]).join('، '))}</td><td>${esc(g.sub)}</td><td class="bar"><div class="barline"><span style="width:${(g.n/max*100).toFixed(1)}%"></span></div></td></tr>`).join('')}</tbody></table><p style="margin:6px 0 0;font-size:11px;color:var(--rp-mut)">الشكوى التي تذكر أكثر من عيادة تُحسب لكل منها.</p></div></div></div>`; } }
+  if(opts.sec.staff){ const gs=staffGroups(list,Math.max(1,STAFF_MIN)); if(gs.length){ const lim=Math.min(opts.top||1e9,gs.length); const max=gs[0].n;
+    h+=`<div class="blk"><div class="rp-sec"><h4>الموظفون المذكورون في الشكاوى<small>${fmt(gs.length)} موظف · ${fmt(gs.reduce((s,g)=>s+g.n,0))} شكوى</small></h4><div class="rp-body"><table class="rpt"><thead><tr><th></th><th>الاسم</th><th>الصفة</th><th>المركز</th><th style="text-align:center">الشكاوى</th><th>أكثر تصنيف</th><th></th></tr></thead><tbody>${gs.slice(0,lim).map((g,i)=>`<tr><td class="r">${i+1}</td><td>${opts.pii?esc(g.full||g.first):`موظف ${i+1}`}</td><td>${esc(staffTitle(g))}</td><td>${esc(g.center)}</td><td class="n">${fmt(g.n)}</td><td>${esc(g.sub)}</td><td class="bar"><div class="barline"><span style="width:${(g.n/max*100).toFixed(1)}%"></span></div></td></tr>`).join('')}</tbody></table>${opts.pii?'':'<p style="margin:6px 0 0;font-size:11px;color:var(--rp-mut)">الأسماء مخفية. اختر «تضمين البيانات الشخصية» عند التصدير لإظهارها.</p>'}</div></div></div>`; } }
   if(opts.sec.sector && sectors.length) h+=`<div class="blk"><div class="rp-sec"><h4>حسب القطاع<small>${fmt(sectors.length)} قطاع</small></h4><div class="rp-body">${rptTable(sectors,'القطاع',tot,top)}</div></div></div>`;
   if(opts.list && list.length){
     const cols=SCHEMA.filter(c=>!c.removed && c.rep && (opts.pii||!c.pii)).map(c=>c.k);
@@ -784,6 +927,7 @@ document.getElementById('dTo').addEventListener('change',e=>{ filt.to=e.target.v
 document.addEventListener('change',e=>{ const s=e.target.closest&&e.target.closest('select[data-f]'); if(s){ filt[s.dataset.f]=s.value; refresh(); } });
 document.addEventListener('change',e=>{
   const t=e.target;
+  if(t.name==='smin'){ STAFF_MIN=+t.value; try{ localStorage.setItem('r937-staffmin-v1',String(STAFF_MIN)); }catch(e){} renderView(); return; }
   if(t.name==='rmin'){ RPT.min=+t.value; saveRpt(); renderView(); return; }
   if(t.id==='rShort'){ RPT.short=t.checked; saveRpt(); callerIdx=null; renderView(); return; }
   if(t.id==='pageSize'){ pageSize=+t.value; page=0; renderView(); }
@@ -795,10 +939,13 @@ document.addEventListener('click',e=>{
   const b=t.closest('button');
   if(b){
     if(b.dataset.from!=null && b.classList.contains('chip')){ filt.from=b.dataset.from; filt.to=b.dataset.to; refresh(); return; }
-    if(b.dataset.untag){ const k=b.dataset.untag; if(k==='all') filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:''}; else if(k==='dates'){filt.from='';filt.to='';} else filt[k]=''; refresh(); return; }
+    if(b.dataset.untag){ const k=b.dataset.untag; if(k==='all') filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:''}; else if(k==='dates'){filt.from='';filt.to='';} else filt[k]=''; refresh(); return; }
     if(b.dataset.pick){ filt[b.dataset.pick]=b.dataset.val; refresh(); return; }
     if(b.dataset.view){ view=b.dataset.view; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); renderView(); return; }
     if(b.dataset.pg){ const pages=Math.ceil(filtered.length/pageSize); page={first:0,prev:page-1,next:page+1,last:pages-1}[b.dataset.pg]; renderView(); document.getElementById('view').scrollIntoView({block:'start'}); return; }
+    if(b.dataset.staffhide){ STAFF_HIDE.add(b.dataset.staffhide); saveStaffHide(); renderView(); toast('استُبعد من قائمة الموظفين'); return; }
+    if(b.id==='editClinics'){ guard(()=>controlPanel('lists')); return; }
+    if(b.id==='staffUnhide'){ STAFF_HIDE.clear(); saveStaffHide(); renderView(); return; }
     if(b.id==='selAll'){ filtered.forEach(r=>selected.add(r.id)); renderView(); return; }
     if(b.id==='bulkClear'){ selected.clear(); renderView(); return; }
     if(b.id==='bulkDel'){ guard(()=>confirmDelete([...selected])); return; }
@@ -811,6 +958,8 @@ document.addEventListener('click',e=>{
   const rect=t.closest('rect[data-day]'); if(rect){ filt.from=filt.to=rect.dataset.day; refresh(); return; }
   const th=t.closest('th[data-sort]'); if(th){ const k=th.dataset.sort; if(sort.k===k) sort.dir*=-1; else sort={k,dir:k==='date'?-1:1}; refresh(true); return; }
   const ckr=t.closest('tr[data-ck]'); if(ckr){ showCaller(ckr.dataset.ck); return; }
+  const er=t.closest('tr[data-emp]'); if(er){ showStaff(er.dataset.emp); return; }
+  const clr=t.closest('tr[data-cl]'); if(clr){ showClinic(clr.dataset.cl); return; }
   const tr=t.closest('tr[data-id]'); if(tr && !t.closest('td.cb')){ viewRecord(byId.get(tr.dataset.id)); return; }
 });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeMenus(); const l=document.getElementById('layer'); if(l.querySelector('.scrim')) l.innerHTML=''; } });
@@ -869,8 +1018,12 @@ function viewRecord(r){
   const html=`<div class="ro-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>للعرض فقط. اضغط «تعديل» لتغيير البيانات.</div>
     <dl class="ro">${(()=>{ let pos=0; const full=cs.map(c=>c.type==='long'); cs.forEach((c,i)=>{ if(full[i]){ pos=0; return; } if(pos===0 && (i===cs.length-1 || full[i+1])) full[i]=true; else pos=1-pos; }); return cs.map((c,i)=>`<div class="${full[i]?'full':''}">`); })().map((open,i)=>open+`<dt>${esc(cs[i].l)}${cs[i].pii?' <span class="badge">شخصي</span>':''}</dt><dd>${fieldValueHTML(r,cs[i])}</dd></div>`).join('')}</dl>`;
   const ck=callerKey(r), others=ck?(callerIndex().get(ck)||[]).filter(x=>x.id!==r.id):[];
+  const staffIn=[...staffIndex().values()].filter(g=>!STAFF_HIDE.has(g.k) && g.recs.some(x=>x.id===r.id));
+  const staffNote= staffIn.length ? `<div class="rpt-note" style="background:var(--surface-2);border-color:var(--line)"><span>موظفون مذكورون: ${staffIn.map(g=>`<button type="button" class="chip" data-seestaff="${esc(g.k)}">${esc(staffTitle(g))} ${esc(g.full||g.first)} · ${fmt(g.recs.length)}</button>`).join(' ')}</span></div>` : '';
+  const clIn=[...clinicIndex().entries()].filter(([,recs])=>recs.some(x=>x.id===r.id)).map(([n])=>n);
+  const clNote= clIn.length ? `<div class="rpt-note" style="background:var(--surface-2);border-color:var(--line)"><span>العيادات المذكورة: ${clIn.map(n=>`<button type="button" class="chip" data-seecl="${esc(n)}">${esc(n)}</button>`).join(' ')}</span></div>` : '';
   const note= others.length ? `<div class="rpt-note"><span>لهذا المتصل <b>${fmt(others.length)}</b> ${others.length===1?'بلاغ آخر':'بلاغات أخرى'} · آخرها ${esc(fmtDate(others.map(x=>x.date).sort().pop()))}</span><button type="button" class="btn sm" id="seeCaller">عرض بلاغاته</button></div>` : '';
-  dialog({title:`البلاغ ${r.no||''}`, html:note+html, wide:true, onOpen:s=>{ const b=s.querySelector('#seeCaller'); if(b) b.onclick=()=>{ document.getElementById('layer').innerHTML=''; showCaller(ck); }; }, actions:[
+  dialog({title:`البلاغ ${r.no||''}`, html:note+staffNote+clNote+html, wide:true, onOpen:s=>{ const b=s.querySelector('#seeCaller'); if(b) b.onclick=()=>{ document.getElementById('layer').innerHTML=''; showCaller(ck); }; s.querySelectorAll('[data-seestaff]').forEach(x=>x.onclick=()=>{ document.getElementById('layer').innerHTML=''; showStaff(x.dataset.seestaff); }); s.querySelectorAll('[data-seecl]').forEach(x=>x.onclick=()=>{ document.getElementById('layer').innerHTML=''; showClinic(x.dataset.seecl); }); }, actions:[
     {label:'تعديل',cls:'primary',run:()=>{ setTimeout(()=>guard(()=>editRecord(r)),0); }},
     {label:'إغلاق'}]});
 }
@@ -937,6 +1090,7 @@ async function removeRecords(ids){
   try{ await dbDel(ids); }catch(e){ console.error(e); }
   refresh(true);
 }
+async function maskAll(){ const ch=[]; RECS.forEach(r=>{ let c=false; maskCols().forEach(k=>{ const m=maskNums(r[k]); if(m!==r[k]){ r[k]=m; c=true; } }); if(c){ prep(r); ch.push(r); } }); if(ch.length){ busy('جارٍ الحفظ…'); try{ await dbPut(ch); }catch(e){} busy(null); refresh(true); } return ch.length; }
 async function replaceAll(list){
   busy('جارٍ الحفظ…');
   try{ setAll(list); selected.clear(); try{ await dbClear(); await dbPut(RECS); await dbSetMeta('seeded',true); }catch(e){ console.error(e); } refresh(); }
@@ -1003,11 +1157,17 @@ function panelCols(){
       <div class="err" id="ncErr" style="grid-column:1/-1"></div></div>
     ${gone.length?`<div class="pcard"><h4>أعمدة محذوفة</h4><p class="hint">الأعمدة الأساسية المحذوفة تختفي من الجدول والنماذج والتصدير، وتبقى بياناتها محفوظة إذا استعدتها.</p><div style="display:flex;gap:6px;flex-wrap:wrap">${gone.map(c=>`<button type="button" class="btn sm" data-restore="${c.k}">استعادة «${esc(c.l)}»</button>`).join('')}</div></div>`:''}`;
 }
+function panelClinics(){
+  return `<div class="pcard"><h4>العيادات والأقسام</h4><p class="hint">لكل عيادة اسم وكلمات يُبحث عنها في وصف البلاغ، وتُفصل الكلمات بفاصلة، ولا تهم الهمزات. الكلمة بدون «ال» واسعة: «اسنان» تطابق «أسنان» و«الأسنان» و«بالأسنان». والكلمة التي تبدأ بـ«ال» أدق: «الاستقبال» تطابق «الاستقبال» و«للاستقبال» فقط، ولا تطابق «تم استقبال المريض». وللدقة أكثر اكتب عبارة كاملة مثل «موظف الاستقبال».</p>
+    <div class="ctbl-wrap secmap"><table class="ctbl"><thead><tr><th>العيادة</th><th>الكلمات</th><th>الشكاوى</th><th></th></tr></thead><tbody>${CLINICS.map(([n,kw],i)=>`<tr><td><input class="inp" data-cln="${i}" value="${esc(n)}" style="min-width:140px"></td><td><input class="inp" data-clk="${i}" value="${esc(kw)}" style="min-width:260px"></td><td class="ck">${fmt((clinicIndex().get(n)||[]).length)}</td><td><button type="button" class="iconbtn del" data-cldel="${i}" aria-label="حذف">${IC.del}</button></td></tr>`).join('')}</tbody></table></div>
+    <div class="addcol"><div class="field"><label for="clNew">عيادة جديدة</label><input class="inp" id="clNew" placeholder="مثال: الصحة المدرسية"></div><div class="field"><label for="clNewKw">الكلمات</label><input class="inp" id="clNewKw" placeholder="الصحه المدرسيه، المدارس"></div><button type="button" class="btn primary" id="clAdd">إضافة</button></div>
+    <div><button type="button" class="btn sm ghost" id="clReset">استعادة القائمة الافتراضية</button></div></div>`;
+}
 function panelLists(){
   const lists=cols().filter(c=>c.type==='list');
   const centers=countBy(RECS,'center').filter(x=>x[0]);
   const noSec=c=>RECS.filter(r=>r.center===c && !r.sector).length;
-  return `${lists.length?lists.map(c=>`<div class="pcard"><h4>خيارات «${esc(c.l)}»</h4><textarea class="inp" rows="4" data-opts="${c.k}">${esc((c.options||[]).join('\n'))}</textarea><span class="hint">كل خيار في سطر. تظهر في نموذج الإدخال وكفلتر في البحث.</span></div>`).join(''):`<div class="pcard"><h4>قوائم الاختيار</h4><p class="hint">لا توجد أعمدة من نوع «قائمة اختيار». أضف عموداً بهذا النوع من تبويب «الأعمدة» لتدير خياراته هنا.</p></div>`}
+  return panelClinics()+`${lists.length?lists.map(c=>`<div class="pcard"><h4>خيارات «${esc(c.l)}»</h4><textarea class="inp" rows="4" data-opts="${c.k}">${esc((c.options||[]).join('\n'))}</textarea><span class="hint">كل خيار في سطر. تظهر في نموذج الإدخال وكفلتر في البحث.</span></div>`).join(''):`<div class="pcard"><h4>قوائم الاختيار</h4><p class="hint">لا توجد أعمدة من نوع «قائمة اختيار». أضف عموداً بهذا النوع من تبويب «الأعمدة» لتدير خياراته هنا.</p></div>`}
     ${active('sector')?`<div class="pcard"><h4>ربط المراكز بالقطاعات</h4><p class="hint">اكتب قطاع كل مركز مرة واحدة، فيُعبّأ تلقائياً عند إدخال بلاغ جديد، ويمكنك تطبيقه على البلاغات الحالية.</p>
       <div class="ctbl-wrap secmap"><table class="ctbl"><thead><tr><th>المركز الصحي</th><th>البلاغات</th><th>بدون قطاع</th><th>القطاع</th></tr></thead><tbody>${centers.map(([c,n])=>`<tr><td>${esc(c)}</td><td>${fmt(n)}</td><td>${fmt(noSec(c))}</td><td><input class="inp" list="dl-sector" data-secmap="${esc(c)}" value="${esc(SECMAP[c]||'')}" aria-label="القطاع"></td></tr>`).join('')}</tbody></table></div>
       ${datalists()}
@@ -1015,7 +1175,8 @@ function panelLists(){
 }
 function panelLock(){
   const has=!!pinHash();
-  return `<div class="pcard"><h4>عرض البلاغ</h4><p>عند فتح أي بلاغ من الجدول تظهر بياناته للعرض فقط، ولا تتغير إلا بعد الضغط على «تعديل».</p></div>
+  return `<div class="pcard"><h4>إخفاء الأرقام الشخصية</h4><label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer"><input type="checkbox" id="maskOn" ${MASK_ON?'checked':''}><span>إخفاء أرقام الجوال والهوية من نصوص «وصف البلاغ» تلقائياً<br><span class="hint">تظهر بدلها ${MASKED} عند الحفظ والاستيراد. الإخفاء نهائي ولا يمكن استرجاع الرقم بعده.</span></span></label><div><button type="button" class="btn sm" id="maskNow">إخفاء الأرقام من كل البلاغات الحالية الآن</button></div></div>
+    <div class="pcard"><h4>عرض البلاغ</h4><p>عند فتح أي بلاغ من الجدول تظهر بياناته للعرض فقط، ولا تتغير إلا بعد الضغط على «تعديل».</p></div>
     <div class="pcard"><h4>رمز التعديل ${has?'<span class="badge">مفعّل</span>':''}</h4>
       <p class="hint">عند تفعيله يُطلب الرمز قبل: إضافة بلاغ، أو التعديل، أو الحذف، أو الاستيراد، أو فتح لوحة التحكم. يُطلب مرة واحدة حتى تغلق الصفحة أو تضغط «قفل». الرمز حماية من التعديل غير المقصود على هذا الجهاز، وليس تشفيراً للبيانات.</p>
       <div class="form"><div class="field"><label for="pin1">${has?'الرمز الجديد':'الرمز'} (4 أرقام أو أكثر)</label><input class="inp pin" id="pin1" type="password" inputmode="numeric" autocomplete="new-password"></div>
@@ -1040,6 +1201,8 @@ function dupReport(){
 }
 function panelData(){
   return `<div class="stats"><div><b>${fmt(RECS.length)}</b><span>بلاغ في القاعدة</span></div><div><b>${fmt(cols().length)}</b><span>عمود</span></div><div><b>${persistent?'نعم':'لا'}</b><span>حفظ على الجهاز</span></div></div>
+    <div class="pcard"><h4>ملف الإعدادات</h4><p class="hint">يحفظ إعدادات التطبيق في ملف لتنقلها إلى جهاز آخر: الشعار واسم الجهة واللون، والأعمدة وترتيبها، وربط المراكز بالقطاعات، وكلمات العيادات، والأسماء المستبعدة، وإعدادات الطباعة${pinHash()?'، ورمز التعديل':''}. لا يحتوي أي بلاغ؛ البلاغات تنتقل بالنسخة الاحتياطية.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" id="setExport">تصدير الإعدادات</button><button type="button" class="btn" id="setImport">استيراد الإعدادات</button><input type="file" id="setFile" accept=".json,application/json" hidden></div></div>
     <div class="pcard"><h4>النسخ الاحتياطي</h4><p class="hint">البيانات محفوظة في هذا المتصفح فقط. صدّر نسخة احتياطية بانتظام، وتستطيع استعادتها من «استيراد Excel» على أي جهاز.</p><div><button type="button" class="btn primary" id="doBackup">تنزيل نسخة احتياطية كاملة</button></div></div>
     <div class="pcard"><h4>فحص تكرار رقم البلاغ</h4><p class="hint">رقم البلاغ هو المفتاح الرئيسي ولا يُقبل مكرراً عند الإدخال أو التعديل أو الاستيراد. هذا الفحص يكشف أي تكرار موجود من قبل.</p>${dupReport()}</div>
     <div class="pcard"><h4>إعادة الضبط</h4><div style="display:flex;gap:8px;flex-wrap:wrap">${SEED&&SEED.length?'<button type="button" class="btn" data-more2="restore">استعادة بيانات الملف الأصلي</button>':''}<button type="button" class="btn" id="resetCols">استعادة الأعمدة الافتراضية</button><button type="button" class="btn danger" data-more2="clear">مسح كل البلاغات</button></div></div>`;
@@ -1075,6 +1238,12 @@ async function panelAction(b,body){
   }
   if(b.id==='pinOff'){ try{ localStorage.removeItem(PIN_KEY); }catch(e){} unlocked=false; renderLock(); toast('أُلغي رمز التعديل'); return 'redraw'; }
   if(b.id==='openBrand'){ document.getElementById('layer').innerHTML=''; setTimeout(brandDialog,0); return; }
+  if(b.id==='maskNow'){ const n=await maskAll(); toast(n?`أُخفيت الأرقام في ${fmt(n)} بلاغ`:'لا توجد أرقام جوال أو هوية في الوصف'); return; }
+  if(b.dataset.cldel!==undefined){ CLINICS.splice(+b.dataset.cldel,1); saveClinics(); clinIdx=null; refresh(true); return 'redraw'; }
+  if(b.id==='clAdd'){ const n=body.querySelector('#clNew').value.trim(), k=body.querySelector('#clNewKw').value.trim(); if(!n||!k){ toast('اكتب اسم العيادة وكلماتها'); return; } CLINICS.push([n,k]); saveClinics(); clinIdx=null; refresh(true); toast(`أضيفت «${n}»`); return 'redraw'; }
+  if(b.id==='clReset'){ CLINICS=DEF_CLINICS.map(x=>[...x]); saveClinics(); clinIdx=null; refresh(true); return 'redraw'; }
+  if(b.id==='setExport'){ exportSettings(); return; }
+  if(b.id==='setImport'){ const f=body.querySelector('#setFile'); f.onchange=e=>{ const file=e.target.files[0]; e.target.value=''; if(file) importSettings(file); }; f.click(); return; }
   if(b.id==='doBackup'){ runExport('backup',RECS.slice(),{}); return; }
   if(b.id==='dedupe'){
     if(!b.classList.contains('confirm')){ b.classList.add('confirm'); b.textContent='اضغط مرة أخرى للتأكيد'; return; }
@@ -1085,10 +1254,49 @@ async function panelAction(b,body){
   if(b.dataset.more2){ document.getElementById('layer').innerHTML=''; setTimeout(()=>{ const m=document.querySelector(`#moreMenu [data-more="${b.dataset.more2}"]`); m&&m.click(); },0); return; }
 }
 function panelChange(t){
+  if(t.id==='maskOn'){ MASK_ON=t.checked; try{ localStorage.setItem(MASK_KEY,MASK_ON?'1':'0'); }catch(e){} toast(MASK_ON?'سيُخفى أي رقم جوال أو هوية في الوصف':'أُوقف الإخفاء التلقائي'); return; }
   if(t.dataset.flag){ const c=col(t.dataset.k); c[t.dataset.flag]=t.checked?1:0; schemaChanged(); return; }
   if(t.dataset.type){ col(t.dataset.type).type=t.value; schemaChanged(); return 'redraw'; }
   if(t.dataset.opts){ col(t.dataset.opts).options=t.value.split('\n').map(s=>s.trim()).filter(Boolean); schemaChanged(); toast('حُفظت الخيارات'); return; }
+  if(t.dataset.cln!==undefined){ const v=t.value.trim(); if(v){ CLINICS[+t.dataset.cln][0]=v; saveClinics(); clinIdx=null; } return; }
+  if(t.dataset.clk!==undefined){ CLINICS[+t.dataset.clk][1]=t.value; saveClinics(); clinIdx=null; refresh(true); return 'redraw'; }
   if(t.dataset.secmap!==undefined){ const c=t.dataset.secmap; const v=t.value.trim(); if(v) SECMAP[c]=v; else delete SECMAP[c]; saveSecmap(); return; }
+}
+
+/* ---------- settings file ---------- */
+const SETTINGS_APP='r937-db-settings';
+function settingsSnapshot(){
+  return {app:SETTINGS_APP, version:1, exported:nowLocal(), brand:BRAND, schema:schemaSerial(), secmap:SECMAP, clinics:CLINICS,
+    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||''};
+}
+async function exportSettings(){
+  const blob=new Blob([JSON.stringify(settingsSnapshot(),null,2)],{type:'application/json'});
+  await saveFile(`إعدادات-قاعدة-937-${stamp()}.json`,blob);
+}
+async function importSettings(file){
+  let s; try{ s=JSON.parse(await file.text()); }catch(e){ toast('الملف ليس ملف إعدادات صالحاً'); return; }
+  if(!s || s.app!==SETTINGS_APP){ toast('هذا الملف ليس ملف إعدادات قاعدة البلاغات'); return; }
+  const parts=[s.brand&&'الهوية والشعار', Array.isArray(s.schema)&&`الأعمدة (${s.schema.filter(c=>!c.removed).length})`, s.secmap&&`ربط القطاعات (${Object.keys(s.secmap).length} مركز)`, Array.isArray(s.clinics)&&`العيادات (${s.clinics.length})`, s.print&&'إعدادات الطباعة'].filter(Boolean);
+  document.getElementById('layer').innerHTML='';
+  dialog({title:'استيراد الإعدادات', html:`<p>من ملف صُدّر في ${esc(String(s.exported||'').slice(0,10)||'—')}. سيستبدل إعدادات هذا الجهاز:</p><ul>${parts.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>${s.pin?`<label class="opt"><input type="checkbox" id="impPin" checked><span>استيراد رمز التعديل<small>يُطلب نفس الرمز على هذا الجهاز</small></span></label>`:''}<p class="hint">البلاغات لا تتأثر.</p>`,
+    actions:[{label:'استيراد',cls:'primary',run:sc=>{
+      const withPin = s.pin && sc.querySelector('#impPin')?.checked;
+      try{
+        if(s.brand){ BRAND={...DEF_BRAND,...s.brand}; saveBrand(); }
+        if(Array.isArray(s.schema)){ SCHEMA=buildSchema(s.schema); saveSchema(); }
+        if(s.secmap && typeof s.secmap==='object'){ SECMAP={...s.secmap}; saveSecmap(); }
+        if(Array.isArray(s.clinics)){ CLINICS=s.clinics.filter(x=>Array.isArray(x)&&x[0]).map(x=>[String(x[0]),String(x[1]||'')]); saveClinics(); }
+        if(Array.isArray(s.staffHide)){ STAFF_HIDE=new Set(s.staffHide); saveStaffHide(); }
+        if(s.staffMin){ STAFF_MIN=+s.staffMin||1; localStorage.setItem('r937-staffmin-v1',String(STAFF_MIN)); }
+        if(s.repeat){ RPT={min:2,short:false,...s.repeat}; saveRpt(); }
+        if(s.print){ PRINT={...DEF_PRINT,...s.print,sec:{...DEF_PRINT.sec,...(s.print.sec||{})}}; localStorage.setItem(PRINT_KEY,JSON.stringify(PRINT)); }
+        if(s.mask!==undefined){ MASK_ON=!!s.mask; localStorage.setItem(MASK_KEY,MASK_ON?'1':'0'); }
+        if(withPin){ localStorage.setItem(PIN_KEY,s.pin); unlocked=true; }
+      }catch(e){ console.error(e); toast('طُبّق جزء من الإعدادات فقط، لأن هذا المتصفح لم يسمح بحفظ الباقي'); }
+      applyBrand(); renderLock(); RECS.forEach(prep); callerIdx=null; staffIdx=null; clinIdx=null;
+      const ex=document.getElementById('fExtra'); if(ex) ex.dataset.keys='';
+      refresh(); toast('استُوردت الإعدادات');
+    }},{label:'إلغاء'}]});
 }
 
 /* ---------- libraries ---------- */
@@ -1172,7 +1380,7 @@ function brandDialog(){
 }
 
 /* ---------- print & export ---------- */
-const DEF_PRINT={fmt:'pdf',paper:'A4',orient:'landscape',margin:'normal',top:20,list:true,pii:false,sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1}};
+const DEF_PRINT={fmt:'pdf',paper:'A4',orient:'landscape',margin:'normal',top:20,list:true,pii:false,sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1}};
 let PRINT=(()=>{ try{ const o=JSON.parse(localStorage.getItem(PRINT_KEY)||'{}'); return {...DEF_PRINT,...o,sec:{...DEF_PRINT.sec,...(o.sec||{})}}; }catch(e){ return JSON.parse(JSON.stringify(DEF_PRINT)); } })();
 const printOpts=()=>PRINT;
 const PAPER={A4:[595.28,841.89],A3:[841.89,1190.55],Letter:[612,792]};
@@ -1198,9 +1406,11 @@ function exportDialog(kind){
         <label><input type="checkbox" data-sec="cats" ${P.sec.cats?'checked':''}>حسب التصنيفات</label>
         <label><input type="checkbox" data-sec="sector" ${P.sec.sector?'checked':''}>حسب القطاع</label>
         <label><input type="checkbox" data-sec="callers" ${P.sec.callers?'checked':''}>المتصلون الأكثر تكراراً</label>
+        <label><input type="checkbox" data-sec="staff" ${P.sec.staff?'checked':''}>الموظفون المذكورون</label>
+        <label><input type="checkbox" data-sec="clinics" ${P.sec.clinics?'checked':''}>العيادات المذكورة</label>
         <label><input type="checkbox" id="pList" ${P.list?'checked':''}>قائمة البلاغات التفصيلية</label>
       </div>
-      <span class="l">البيانات الشخصية</span><label class="checks" style="grid-template-columns:1fr"><label><input type="checkbox" id="pPii" ${P.pii?'checked':''}>تضمين اسم المتصل ورقم الهوية</label></label>
+      <span class="l">البيانات الشخصية</span><label class="checks" style="grid-template-columns:1fr"><label><input type="checkbox" id="pPii" ${P.pii?'checked':''}>تضمين البيانات الشخصية (اسم المتصل، رقم الهوية، أسماء الموظفين)</label></label>
     </div>
     <p class="hint" id="pNote"></p>`;
   const names={pdf:'PDF',png:'صورة PNG',html:'HTML',xlsx:'Excel'};
@@ -1390,7 +1600,7 @@ function pageXml(o,orientDefault){
 }
 function imgSize(url){ return new Promise(res=>{ const i=new Image(); i.onload=()=>res([i.naturalWidth||1,i.naturalHeight||1]); i.onerror=()=>res([1,1]); i.src=url; }); }
 async function buildReportXlsx(list,o){
-  o={top:20,orient:'landscape',sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1},...o};
+  o={top:20,orient:'landscape',sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1},...o};
   const JSZip=await lib('jszip'); const z=new JSZip(); const b=brand(), c=brandColors();
   const land=o.orient!=='portrait'; const top=o.top||1e9;
   const S=new SheetB(); const SN='التقرير';
@@ -1457,6 +1667,8 @@ async function buildReportXlsx(list,o){
   const pairsOf=[];
   if(o.sec.center) pairsOf.push(['البلاغات حسب المركز الصحي','المركز الصحي',centers]);
   if(o.sec.sector && sectors.length) pairsOf.push(['حسب القطاع','القطاع',sectors]);
+  if(o.sec.clinics){ const gs=clinicGroups(list,1); if(gs.length) pairsOf.push(['العيادات والأقسام المذكورة في الشكاوى','العيادة / القسم',gs.map(g=>[g.name,g.n])]); }
+  if(o.sec.staff){ const gs=staffGroups(list,Math.max(1,STAFF_MIN)); if(gs.length) pairsOf.push(['الموظفون المذكورون في الشكاوى','الموظف · المركز',gs.map((g,i)=>[(o.pii?(g.full||g.first):`موظف ${i+1}`)+' · '+g.center,g.n])]); }
   if(o.sec.callers && (active('caller')||active('nid'))){ const gs=repeatGroups(list,Math.max(2,RPT.min)); if(gs.length) pairsOf.push([`المتصلون الأكثر تكراراً (${Math.max(2,RPT.min)}+ بلاغات)`,'المتصل',gs.map((g,i)=>[o.pii?(g.name||g.nid):`متصل ${i+1}`,g.n])]); }
   if(o.sec.cats){ if(active('main')) pairsOf.push(['حسب '+label('main'),label('main'),mains]); if(active('sub')) pairsOf.push(['حسب '+short('sub'),short('sub'),subs]); }
   if(land){ for(let i=0;i<pairsOf.length;i+=2){ const a=table(r,0,...pairsOf[i],top); const bb=pairsOf[i+1]?table(r,6,...pairsOf[i+1],top):r; r=Math.max(a,bb); } }
@@ -1622,10 +1834,19 @@ try{ navigator.storage && navigator.storage.persist && navigator.storage.persist
     list=seedRecords();
     if(idb){ try{ await dbPut(list); await dbSetMeta('seeded',true); }catch(e){ console.error(e); } }
   }
+  // استعادة أسماء المتصلين والأرقام التي حُذفت سابقاً من بيانات الملف الأصلي (مرة واحدة)
+  if(SEED && SEED.length && !(await dbMeta('restore2'))){
+    const bySeed=new Map(SEED.map(a=>[keyNo(a[0]),a])); const ch=[];
+    list.forEach(r=>{ const a=bySeed.get(keyNo(r.no)); if(!a) return; let c=false;
+      if(!r.caller && a[8]){ r.caller=a[8]; c=true; } if(!r.nid && a[9]){ r.nid=a[9]; c=true; }
+      if(r.desc && r.desc.includes(MASKED) && a[3]){ r.desc=a[3]; c=true; }
+      if(c) ch.push(r); });
+    if(idb){ try{ if(ch.length) await dbPut(ch); await dbSetMeta('restore2',true); }catch(e){ console.error(e); } }
+  }
   setAll(list);
   renderAll();
 })();
-window.__db={buildReportXlsx, get recs(){return RECS;}, readXlsx, parseRecords, buildXlsx, buildReport, get filtered(){return filtered;}};
+window.__db={maskNums, staffGroups, clinicGroups, buildReportXlsx, get recs(){return RECS;}, readXlsx, parseRecords, buildXlsx, buildReport, get filtered(){return filtered;}};
 </script>
 
 </body>
