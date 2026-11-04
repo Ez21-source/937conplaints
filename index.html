@@ -1889,7 +1889,7 @@ function toISO(v){
   const p=n=>String(n).padStart(2,'0'); return `${y}-${p(mo)}-${p(d)}T${p(h)}:${p(mi)}:${p(se)}`;
 }
 function parseRecords(sheets){
-  const recs=[]; let used=[]; const fields=new Set();
+  const recs=[]; let used=[]; const fields=new Set(); const unknown=new Map();
   sheets.forEach(sh=>{
     const rowNums=[...sh.rows.keys()].sort((a,b)=>a-b);
     let hdr=null, map=null;
@@ -1897,6 +1897,8 @@ function parseRecords(sheets){
     for(const rn of rowNums.slice(0,15)){ const cells=sh.rows.get(rn); const m={}; cells.forEach((v,c)=>{ const raw=nrm(v), n=raw.replace(/[\d]+$/,'').trim(); for(const k in names) if(!(k in m) && (names[k].has(raw)||names[k].has(n))){ m[k]=c; break; } }); if((Object.keys(m).length>=3 && ('center' in m || 'no' in m || 'desc' in m)) || ('no' in m && Object.keys(m).length>=2)){ hdr=rn; map=m; break; } }
     if(!map) return;
     used.push(sh.name); Object.keys(map).forEach(k=>fields.add(k));
+    const mapped=new Set(Object.values(map)); const IGN=new Set(['العدد','عدد','#','م','مسلسل','الرقم التسلسلي']);
+    sh.rows.get(hdr).forEach((v,c)=>{ const name=String(v??'').trim(); if(!name||mapped.has(c)||IGN.has(name)||/^column\d*$/i.test(name)) return; const key=nrm(name); if(!unknown.has(key)) unknown.set(key,{name,vals:[]}); const u=unknown.get(key); rowNums.filter(rn=>rn>hdr).slice(0,200).forEach(rn=>{ const x=sh.rows.get(rn)?.get(c); if(x!=null&&x!=='') u.vals.push(x); }); });
     rowNums.filter(rn=>rn>hdr).forEach(rn=>{
       const cells=sh.rows.get(rn); const o={};
       SCHEMA.forEach(c=>{ const k=c.k; let v= k in map ? cells.get(map[k]) : ''; if(c.type==='datetime') v=toISO(v); else if(c.type==='date') v=toISO(v).slice(0,10); else if(v&&typeof v==='object'&&v.serial!=null) v=toISO(v).slice(0,10); else v=v==null?'':String(v); o[k]=v; });
@@ -1904,15 +1906,31 @@ function parseRecords(sheets){
       recs.push(clean(o));
     });
   });
-  return {recs,used,fields};
+  return {recs,used,fields,unknown:[...unknown.values()]};
 }
 async function importFile(file){
   if(!/\.(xlsx|xlsm)$/i.test(file.name)){ toast('اختر ملف Excel بصيغة xlsx'); return; }
   busy('جارٍ قراءة الملف…');
   let res;
-  try{ res=parseRecords(await readXlsx(await file.arrayBuffer())); }
+  let sheets;
+  try{ sheets=await readXlsx(await file.arrayBuffer()); res=parseRecords(sheets); }
   catch(e){ console.error(e); busy(null); toast(e.message||'تعذرت قراءة الملف'); return; }
   busy(null);
+  if(res.unknown.length && res.recs.length){
+    const guessType=u=>{ const v=u.vals.slice(0,50); if(!v.length) return 'text'; if(v.every(x=>typeof x==='object'&&x&&x.serial!=null)) return 'datetime'; if(v.every(x=>typeof x==='number' || /^[\d\u0660-\u0669.,\s-]+$/.test(String(x)))) return 'number'; const d=new Set(v.map(String)); if(d.size<=12 && v.length>=d.size*2) return 'list'; if(v.some(x=>String(x).length>80)) return 'long'; return 'text'; };
+    const cand=res.unknown.map(u=>({...u,type:guessType(u)}));
+    dialog({title:'أعمدة جديدة في الملف', wide:true, html:`<p>وجدت في «${esc(file.name)}» أعمدة غير موجودة في التطبيق على هذا الجهاز. حدّد ما تريد إضافته، فيُضاف العمود وتُستورد قيمه.</p>
+      <div class="ctbl-wrap"><table class="ctbl"><thead><tr><th>إضافة</th><th>العمود</th><th>النوع</th><th>أمثلة من الملف</th></tr></thead><tbody>${cand.map((u,i)=>`<tr><td class="ck"><input type="checkbox" data-uc="${i}" checked aria-label="${esc(u.name)}"></td><td><b>${esc(u.name)}</b></td><td><select class="inp" data-ut="${i}" style="min-width:110px">${Object.entries(TYPES).map(([k,l])=>`<option value="${k}" ${k===u.type?'selected':''}>${l}</option>`).join('')}</select></td><td class="hint">${esc([...new Set(u.vals.map(x=>typeof x==='object'&&x&&x.serial!=null?toISO(x).slice(0,10):String(x)))].slice(0,3).join('، '))}</td></tr>`).join('')}</tbody></table></div>`,
+      actions:[{label:'إضافة الأعمدة والمتابعة',cls:'primary',run:s=>{
+        cand.forEach((u,i)=>{ if(!s.querySelector(`[data-uc="${i}"]`).checked) return; if(SCHEMA.some(c=>nrm(c.l)===nrm(u.name))) return; const type=s.querySelector(`[data-ut="${i}"]`).value; const options= type==='list' ? [...new Set(u.vals.map(String))].slice(0,50) : []; SCHEMA.push({k:'c_'+uid(),l:u.name,type,custom:1,table:1,rep:0,req:0,pii:0,options}); });
+        saveSchema(); RECS.forEach(prep); const ex=document.getElementById('fExtra'); if(ex) ex.dataset.keys=''; refresh(true);
+        setTimeout(()=>continueImport(file, parseRecords(sheets)),0);
+      }},{label:'تجاهلها والمتابعة',run:()=>{ setTimeout(()=>continueImport(file,res),0); }},{label:'إلغاء'}]});
+    return;
+  }
+  continueImport(file,res);
+}
+function continueImport(file,res){
   const {recs,used,fields}=res;
   const partial=!(fields.has('center')&&fields.has('date'));
   if(!recs.filter(r=>keyNo(r.no)).length && recs.length){ dialog({title:'لا توجد أرقام بلاغات', body:'وُجدت صفوف بيانات لكن بدون عمود «رقم البلاغ» أو بقيم فارغة. رقم البلاغ مطلوب لأنه المفتاح الرئيسي للقاعدة.', actions:[{label:'حسناً',cls:'primary'}]}); return; }
