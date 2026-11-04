@@ -1889,14 +1889,14 @@ function toISO(v){
   const p=n=>String(n).padStart(2,'0'); return `${y}-${p(mo)}-${p(d)}T${p(h)}:${p(mi)}:${p(se)}`;
 }
 function parseRecords(sheets){
-  const recs=[]; let used=[];
+  const recs=[]; let used=[]; const fields=new Set();
   sheets.forEach(sh=>{
     const rowNums=[...sh.rows.keys()].sort((a,b)=>a-b);
     let hdr=null, map=null;
     const names={}; SCHEMA.forEach(c=>{ names[c.k]=new Set([...(HEAD[c.k]||[]), nrm(c.l)]); });
-    for(const rn of rowNums.slice(0,15)){ const cells=sh.rows.get(rn); const m={}; cells.forEach((v,c)=>{ const raw=nrm(v), n=raw.replace(/[\d]+$/,'').trim(); for(const k in names) if(!(k in m) && (names[k].has(raw)||names[k].has(n))){ m[k]=c; break; } }); if(Object.keys(m).length>=3 && ('center' in m || 'no' in m || 'desc' in m)){ hdr=rn; map=m; break; } }
+    for(const rn of rowNums.slice(0,15)){ const cells=sh.rows.get(rn); const m={}; cells.forEach((v,c)=>{ const raw=nrm(v), n=raw.replace(/[\d]+$/,'').trim(); for(const k in names) if(!(k in m) && (names[k].has(raw)||names[k].has(n))){ m[k]=c; break; } }); if((Object.keys(m).length>=3 && ('center' in m || 'no' in m || 'desc' in m)) || ('no' in m && Object.keys(m).length>=2)){ hdr=rn; map=m; break; } }
     if(!map) return;
-    used.push(sh.name);
+    used.push(sh.name); Object.keys(map).forEach(k=>fields.add(k));
     rowNums.filter(rn=>rn>hdr).forEach(rn=>{
       const cells=sh.rows.get(rn); const o={};
       SCHEMA.forEach(c=>{ const k=c.k; let v= k in map ? cells.get(map[k]) : ''; if(c.type==='datetime') v=toISO(v); else if(c.type==='date') v=toISO(v).slice(0,10); else if(v&&typeof v==='object'&&v.serial!=null) v=toISO(v).slice(0,10); else v=v==null?'':String(v); o[k]=v; });
@@ -1904,7 +1904,7 @@ function parseRecords(sheets){
       recs.push(clean(o));
     });
   });
-  return {recs,used};
+  return {recs,used,fields};
 }
 async function importFile(file){
   if(!/\.(xlsx|xlsm)$/i.test(file.name)){ toast('اختر ملف Excel بصيغة xlsx'); return; }
@@ -1913,7 +1913,8 @@ async function importFile(file){
   try{ res=parseRecords(await readXlsx(await file.arrayBuffer())); }
   catch(e){ console.error(e); busy(null); toast(e.message||'تعذرت قراءة الملف'); return; }
   busy(null);
-  const {recs,used}=res;
+  const {recs,used,fields}=res;
+  const partial=!(fields.has('center')&&fields.has('date'));
   if(!recs.filter(r=>keyNo(r.no)).length && recs.length){ dialog({title:'لا توجد أرقام بلاغات', body:'وُجدت صفوف بيانات لكن بدون عمود «رقم البلاغ» أو بقيم فارغة. رقم البلاغ مطلوب لأنه المفتاح الرئيسي للقاعدة.', actions:[{label:'حسناً',cls:'primary'}]}); return; }
   if(!recs.length){ dialog({title:'لم يُعثر على بلاغات', body:'لم نجد صف عناوين بالأعمدة المتوقعة (رقم البلاغ، تاريخ البلاغ، وصف البلاغ، المركز الصحي، التصنيف…) في أول 15 صفاً من الأوراق.', actions:[{label:'حسناً',cls:'primary'}]}); return; }
   const existing=new Map(RECS.map(r=>[keyNo(r.no),r]));
@@ -1931,16 +1932,20 @@ async function importFile(file){
     <p>الأوراق المقروءة: ${esc(used.join('، '))}${dupIn?` · استُبعد ${fmt(dupIn)} صف رقمه مكرر داخل الملف (أُخذ أول ظهور)`:''}${noKey?` · استُبعد ${fmt(noKey)} صف بدون رقم بلاغ`:''}${noDate?` · ${fmt(noDate)} بلاغ بدون تاريخ`:''}</p>
     ${late.length?`<div class="rpt-note"><span><b>${fmt(late.length)} بلاغ متأخر</b>: جديد على القاعدة وتاريخه قبل آخر يوم مسجل (${esc(lastDay)})، مثل ${late.slice(0,3).map(r=>`<span dir="ltr">${esc(r.no)}</span> (${esc(r.date.slice(0,10))})`).join('، ')}. سيُضاف مع الجديدة.</span></div>`:''}
     ${active('sector')&&(secFilled||secMissing.size)?`<p class="hint">القطاع: عُبّئ تلقائياً في ${fmt(secFilled)} بلاغ حسب المركز${secMissing.size?` · ${fmt(secMissing.size)} مركز بدون قطاع معروف (اربطها من لوحة التحكم ← القوائم والقطاعات)`:''}.</p>`:''}
-    <label class="opt"><input type="radio" name="im" value="new" checked><span>إضافة الجديدة فقط<small>تبقى البلاغات الموجودة كما هي</small></span></label>
-    <label class="opt"><input type="radio" name="im" value="upd"><span>إضافة الجديدة وتحديث الموجودة<small>تُستبدل بيانات البلاغات المكررة ببيانات الملف</small></span></label>
+    <p class="hint">أعمدة الملف: ${[...fields].map(k=>esc(label(k))).join('، ')}</p>
+    ${partial?`<div class="rpt-note"><span>الملف لا يحتوي ${!fields.has('center')&&!fields.has('date')?'«المركز الصحي» و«تاريخ البلاغ»':!fields.has('center')?'«المركز الصحي»':'«تاريخ البلاغ»'}، فيبدو ملف تحديث لأعمدة معينة. الخيار المناسب: «تحديث الموجودة فقط».</span></div>`:''}
+    <label class="opt"><input type="radio" name="im" value="new" ${partial?'':'checked'}><span>إضافة الجديدة فقط<small>تبقى البلاغات الموجودة كما هي</small></span></label>
+    <label class="opt"><input type="radio" name="im" value="onlyupd" ${partial?'checked':''}><span>تحديث الموجودة فقط (${fmt(dups.length)})<small>تُحدّث أعمدة الملف فقط في البلاغات المسجّلة، وتبقى بقية أعمدتها كما هي. لا يُضاف أي بلاغ جديد.</small></span></label>
+    <label class="opt"><input type="radio" name="im" value="upd"><span>إضافة الجديدة وتحديث الموجودة<small>تُضاف الجديدة، وتُحدّث في الموجودة أعمدة الملف فقط</small></span></label>
     <label class="opt"><input type="radio" name="im" value="all"><span>استبدال كل القاعدة<small>تُحذف البلاغات الحالية (${fmt(RECS.length)}) وتحل محلها بلاغات الملف</small></span></label>`,
     actions:[{label:'استيراد',cls:'primary',run:async s=>{
       const mode=s.querySelector('input[name=im]:checked').value;
       if(mode==='all'){ await replaceAll(uniq); toast(`استُورد ${fmt(uniq.length)} بلاغ`); return; }
-      const add=fresh.map(prep);
-      const upd= mode==='upd' ? dups.map(r=>prep({...r,id:existing.get(keyNo(r.no)).id})) : [];
+      const add= mode==='onlyupd' ? [] : fresh.map(prep);
+      // التحديث يدمج: يغيّر فقط الأعمدة الموجودة في الملف وقيمها غير فارغة
+      const upd= (mode==='upd'||mode==='onlyupd') ? dups.map(r=>{ const base={...existing.get(keyNo(r.no))}; delete base._s; delete base._m; fields.forEach(k=>{ if(k==='no') return; const v=r[k]; if(v!==undefined && v!==null && String(v).trim()!=='') base[k]=v; }); return prep(clean(base)); }) : [];
       busy('جارٍ الحفظ…'); try{ await saveRecords(add.concat(upd)); } finally{ busy(null); }
-      toast(`أضيف ${fmt(add.length)} بلاغ${upd.length?` وحُدّث ${fmt(upd.length)}`:''}`);
+      toast(mode==='onlyupd'?`حُدّث ${fmt(upd.length)} بلاغ`:`أضيف ${fmt(add.length)} بلاغ${upd.length?` وحُدّث ${fmt(upd.length)}`:''}`);
     }},{label:'إلغاء'}]});
 }
 document.getElementById('btnImport').addEventListener('click',()=>guard(()=>document.getElementById('fileInput').click()));
