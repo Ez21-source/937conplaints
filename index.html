@@ -327,7 +327,7 @@ table.rpl td.ltr{direction:ltr;text-align:right;white-space:nowrap}
 .aitem{display:flex;gap:8px;align-items:flex-start;text-align:start;border:1px solid var(--line);background:var(--surface-2);border-radius:9px;padding:7px 10px;cursor:pointer;color:var(--ink);font:inherit;min-width:0}
 .aitem:hover{border-color:var(--bad)}
 .aitem .dot{width:8px;height:8px;border-radius:50%;background:var(--bad);margin-top:7px;flex:none}
-.aitem.w .dot{background:var(--warn)}
+.aitem.w .dot{background:var(--warn)} .aitem.dn .dot{background:var(--good)}
 .aitem b{display:block;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis}
 .aitem span{display:block;font-size:12px;color:var(--muted)}
 .aitem > div{min-width:0}
@@ -353,6 +353,21 @@ mark.kw{background:color-mix(in srgb,var(--bad) 22%,transparent)}
 .rulec .rf{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
 .rulec .rf .inp{width:auto}
 .rulec .rf input[type=number]{width:80px}
+.sla{display:inline-block;border-radius:6px;padding:0 8px;font-weight:600;font-size:12.5px;white-space:nowrap}
+.sla.out{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.sla.in{background:color-mix(in srgb,var(--good) 16%,transparent);color:var(--good)}
+.dk.good .val{color:var(--good)}
+.kpi .kc{display:flex;flex-wrap:wrap;gap:3px 6px;align-items:center;font-size:12px;color:var(--muted);border-top:1px dashed var(--line);padding-top:4px;margin-top:2px}
+.kpi .kc + .kc{border-top:0;padding-top:0;margin-top:0}
+.kpi .kd{font-weight:700;color:var(--ink)} .kpi .kd.g{color:var(--good)} .kpi .kd.b{color:var(--bad)}
+.kpi .kp{font-size:11px} .kpi .kg{white-space:nowrap;display:inline-flex;gap:4px;align-items:center}
+.sla.sm{font-size:11px;padding:0 5px}
+.lims summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:13px}
+.catpick summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:13px}
+.catlist{max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px 8px;display:grid;gap:2px}
+.catlist label{display:flex;gap:6px;align-items:flex-start;cursor:pointer;font-size:13px;font-weight:600}
+.catlist label.sub{padding-inline-start:22px;font-weight:400}
+.catlist small{color:var(--muted);font-weight:400}
 /* dashboard */
 .ticker{display:flex;align-items:stretch;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;min-height:40px}
 .tk-lbl{flex:none;display:flex;align-items:center;background:var(--bad);color:#fff;font-weight:700;padding:0 14px;font-size:13.5px}
@@ -364,7 +379,7 @@ mark.kw{background:color-mix(in srgb,var(--bad) 22%,transparent)}
 .tk-copy{display:flex;flex-direction:row-reverse;align-items:center;direction:rtl}
 .tk-i{white-space:nowrap;padding:0 18px;font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px}
 .tk-i::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
-.tk-a::before{background:var(--warn)} .tk-k::before{background:var(--bad)} .tk-k{color:var(--bad)}
+.tk-a::before{background:var(--warn)} .tk-d::before{background:var(--good)} .tk-d{color:var(--good)} .tk-u::before{background:var(--bad)} .tk-u{color:var(--bad)} .tk-k::before{background:var(--bad)} .tk-k{color:var(--bad)}
 .tk-pause{flex:none;border:0;border-inline-start:1px solid var(--line);background:var(--surface-2);color:var(--muted);padding:0 12px;cursor:pointer;font-size:11px}
 @media (prefers-reduced-motion:reduce){ .tk-track.run{animation:none} .tk-win{overflow-x:auto} .tk-track{position:static} .tk-copy[aria-hidden]{display:none} }
 .dash{display:grid;gap:12px}
@@ -429,6 +444,7 @@ body.dash-full .actionbar{display:none}
   </header>
 
   <main class="wrap">
+    <section id="homeTicker" hidden></section>
     <div class="bk-banner" id="bkBanner" role="status" hidden></div>
     <section class="panel filters" aria-label="البحث والفلترة">
       <div class="frow">
@@ -451,7 +467,6 @@ body.dash-full .actionbar{display:none}
       <div class="fstate" id="fstate"></div>
     </section>
 
-    <section id="homeTicker" hidden></section>
     <section class="alerts" id="alerts" aria-label="التنبيهات" hidden></section>
     <section class="kpis" id="kpis" aria-label="ملخص"></section>
     <section class="insights" id="insights"></section>
@@ -723,7 +738,7 @@ function stripIdx(r){ const o={}; ALLK().forEach(k=>{ if(r[k]!==undefined) o[k]=
 /* ---------- state ---------- */
 let RECS=[];               // all records
 const byId=new Map();
-let filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:'',kw:''};
+let filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:'',kw:'',sla:''};
 let sort={k:'date',dir:-1};
 let page=0, pageSize=50, view='table';
 const selected=new Set();
@@ -732,7 +747,7 @@ let filtered=[];
 /* ---------- change log & undo ---------- */
 const LOG_MAX=60, LOG_SNAP_MAX=25000;
 let LOG=[], LAST_LOG=null;
-const LOG_TYPES={add:'إضافة',edit:'تعديل',del:'حذف',import:'استيراد',update:'تحديث من ملف',bulk:'تعديل جماعي',replace:'استبدال القاعدة',clear:'مسح القاعدة',restore:'استعادة الملف الأصلي',dedupe:'حذف المكرر',sector:'تطبيق القطاعات',mask:'إخفاء الأرقام',undo:'تراجع'};
+const LOG_TYPES={status:'تعبئة حالة البلاغ',add:'إضافة',edit:'تعديل',del:'حذف',import:'استيراد',update:'تحديث من ملف',bulk:'تعديل جماعي',replace:'استبدال القاعدة',clear:'مسح القاعدة',restore:'استعادة الملف الأصلي',dedupe:'حذف المكرر',sector:'تطبيق القطاعات',mask:'إخفاء الأرقام',undo:'تراجع'};
 async function loadLog(){ try{ const l=await dbMeta('changelog'); if(Array.isArray(l)) LOG=l; }catch(e){} }
 function saveLog(){
   LOG=LOG.slice(0,LOG_MAX);
@@ -794,17 +809,21 @@ async function applyChange(puts,dels,meta){
 
 /* ---------- home screen customisation ---------- */
 const HOME_KEY='r937-home-v1';
-const DEF_DASH={ticker:1,speed:70,home:0,items:{alerts:1,stats:1,latest:1,kw:1}};
-const KPI_DEF={total:'عدد البلاغات',centers:'المراكز الصحية',topCenter:'أعلى مركز',topCat:'أعلى تصنيف',lastDay:'آخر يوم مسجل',callers:'متصلون متكررون',flagged:'بلاغات بكلمات حساسة',sectors:'القطاعات'};
+const DEF_DASH={ticker:1,speed:70,home:1,cats:[],items:{alerts:1,stats:1,latest:1,kw:1,rise:1,value:1,up:1,down:1,sla:1},fields:{day:1,date:1,time:1,center:1,cat:1,no:0},latestN:10};
+const TK_FIELDS=[['day','اليوم'],['date','التاريخ'],['time','الساعة'],['center','المركز'],['cat','التصنيف'],['no','رقم البلاغ']];
+const KPI_DEF={sla:'خارج مستوى الخدمة',slaIn:'داخل مستوى الخدمة',total:'عدد البلاغات',centers:'المراكز الصحية',topCenter:'أعلى مركز',topCat:'أعلى تصنيف',lastDay:'آخر يوم مسجل',callers:'متصلون متكررون',flagged:'بلاغات بكلمات حساسة',sectors:'القطاعات'};
 const CARD_DEF={daily:'البلاغات اليومية',centers:'أعلى المراكز',cats:'أعلى التصنيفات',sectors:'البلاغات حسب القطاع',weekday:'البلاغات حسب أيام الأسبوع',hours:'البلاغات حسب ساعة الاتصال'};
 const VIEW_DEF={table:'السجلات',dash:'لوحة المؤشرات',callers:'المتصلون المتكررون',staff:'الموظفون المذكورون',clinics:'العيادات المذكورة',report:'معاينة التقرير'};
 const DEF_HOME={theme:'system',zoom:100,bars:6,pageSize:50,alerts:1,presets:1,defView:'table',
-  kpis:[['total',1],['centers',1],['topCenter',1],['topCat',1],['lastDay',0],['callers',0],['flagged',0],['sectors',0]],
+  kpis:[['total',1],['centers',1],['topCenter',1],['topCat',1],['lastDay',0],['callers',0],['flagged',0],['sectors',0],['slaIn',0],['sla',0]],
   cards:[['daily',1],['centers',1],['cats',1],['sectors',0],['weekday',0],['hours',0]],
   views:[['table',1],['dash',1],['callers',1],['staff',1],['clinics',1],['report',1]]};
 function mergeOrder(saved,def){ const out=[]; const seen=new Set(); (Array.isArray(saved)?saved:[]).forEach(x=>{ if(Array.isArray(x) && def.some(d=>d[0]===x[0]) && !seen.has(x[0])){ out.push([x[0],x[1]?1:0]); seen.add(x[0]); } }); def.forEach(d=>{ if(!seen.has(d[0])) out.push([...d]); }); return out; }
-function normHome(h){ h={...DEF_HOME,...(h||{})}; h.dash={...DEF_DASH,...(h.dash||{}),items:{...DEF_DASH.items,...((h.dash||{}).items||{})}}; h.kpis=mergeOrder(h.kpis,DEF_HOME.kpis); h.cards=mergeOrder(h.cards,DEF_HOME.cards); h.views=mergeOrder(h.views,DEF_HOME.views); h.views.find(v=>v[0]==='table')[1]=1; return h; }
+function normHome(h){ h={...DEF_HOME,...(h||{})}; h.dash={...DEF_DASH,...(h.dash||{}),items:{...DEF_DASH.items,...((h.dash||{}).items||{})},fields:{...DEF_DASH.fields,...((h.dash||{}).fields||{})}}; h.kpis=mergeOrder(h.kpis,DEF_HOME.kpis); h.cards=mergeOrder(h.cards,DEF_HOME.cards); h.views=mergeOrder(h.views,DEF_HOME.views); h.views.find(v=>v[0]==='table')[1]=1; return h; }
 let HOME=(()=>{ try{ return normHome(JSON.parse(localStorage.getItem(HOME_KEY)||'null')); }catch(e){ return normHome(null); } })();
+try{ if(!localStorage.getItem('r937-slatiles-v1')){ HOME.kpis.forEach(x=>{ if(x[0]==='sla'||x[0]==='slaIn') x[1]=0; }); localStorage.setItem(HOME_KEY,JSON.stringify(HOME)); localStorage.setItem('r937-slatiles-v1','1'); } }catch(e){}
+// مرة واحدة: إظهار الشريط أعلى الصفحة الرئيسية لمن ثبّت التطبيق قبل هذا التحديث
+try{ if(!localStorage.getItem('r937-tkhome-v1')){ HOME.dash.home=1; localStorage.setItem(HOME_KEY,JSON.stringify(HOME)); localStorage.setItem('r937-tkhome-v1','1'); } }catch(e){}
 const saveHome=()=>{ try{ localStorage.setItem(HOME_KEY,JSON.stringify(HOME)); }catch(e){} };
 function applyHome(){
   const de=document.documentElement;
@@ -819,14 +838,42 @@ function applyHome(){
 
 /* ---------- rules & automatic alerts ---------- */
 const RULES_KEY='r937-rules-v1';
-const RULE_TYPES={center:'مركز يتجاوز عدداً من البلاغات',sub:'تصنيف يتجاوز عدداً من البلاغات',total:'إجمالي البلاغات يتجاوز حداً',caller:'متصل يتكرر خلال فترة قصيرة',kw:'كلمات حساسة في الوصف'};
+const RULE_TYPES={rise:'زيادة البلاغات عن الفترة السابقة',value:'متابعة تصنيف أو حالة',center:'مركز يتجاوز حده من البلاغات',sector:'قطاع يتجاوز حده من البلاغات',sub:'تصنيف يتجاوز حده من البلاغات',total:'إجمالي البلاغات يتجاوز حداً',caller:'متصل يتكرر خلال فترة قصيرة',kw:'كلمات حساسة في الوصف'};
 const PERIODS={day:'في يوم واحد',week:'في أسبوع (يبدأ السبت)',month:'في شهر'};
 const DEF_RULES=[
-  {id:'r1',type:'center',on:1,n:15,per:'day'},
+  {id:'r1',dir:'both',type:'center',on:1,n:15,per:'week',auto:1,kind:'count',margin:1,pct:30,floor:10},
   {id:'r2',type:'caller',on:1,n:3,days:30},
   {id:'r3',type:'kw',on:1,name:'كلمات حساسة',words:'وفاة، توفي، خطأ طبي، تحرش، اعتداء، تهديد، سرقة، رشوة، الاعلام'},
-  {id:'r4',type:'sub',on:0,n:40,per:'day'},
-  {id:'r5',type:'total',on:0,n:200,per:'day'}];
+  {id:'r4',dir:'both',type:'sub',on:1,n:40,per:'week',auto:1,kind:'count',margin:1,pct:30,floor:15},
+  {id:'r11',dir:'both',type:'center',subset:'sla',on:1,n:5,per:'week',auto:1,kind:'count',margin:1,pct:30,floor:3},
+  {id:'r12',dir:'both',type:'sector',subset:'sla',on:1,n:10,per:'week',auto:1,kind:'count',margin:1,pct:20,floor:5},
+  {id:'r13',dir:'both',type:'sub',subset:'sla',on:1,n:5,per:'week',auto:1,kind:'count',margin:1,pct:30,floor:3},
+  {id:'r10',dir:'both',type:'sector',on:1,n:60,per:'week',auto:1,kind:'count',margin:1,pct:20,floor:30},
+  {id:'r5',type:'total',on:0,n:200,per:'day'},
+  {id:'r6',type:'rise',on:0,field:'center',pct:30,min:10,days:7},
+  {id:'r7',type:'rise',on:0,field:'sector',pct:20,min:20,days:7},
+  {id:'r8',type:'value',on:1,name:'سلوك فظ وسوء معاملة',field:'main',values:'سوء معاملة، سلوك فظ، اعتداء لفظي'},
+  {id:'r9',type:'value',on:1,name:'تحت الإجراء',fieldLabel:'حالة البلاغ',values:'تحت الإجراء'}];
+// يضيف القواعد الجديدة للأجهزة التي حفظت قواعدها قبل هذا التحديث (مرة واحدة)
+(function(){ try{ if(localStorage.getItem('r937-rules-v7')) return;
+  ['r11','r12','r13'].forEach(id=>{ if(!RULES.some(r=>r.id===id)) RULES.push({...DEF_RULES.find(r=>r.id===id)}); });
+  localStorage.setItem(RULES_KEY,JSON.stringify(RULES)); localStorage.setItem('r937-rules-v7','1'); }catch(e){} })();
+(function(){ try{ if(localStorage.getItem('r937-rules-v6')) return;
+  RULES.forEach(r=>{ if(['r1','r4','r10'].includes(r.id)&&!r.dir) r.dir='both'; });
+  localStorage.setItem(RULES_KEY,JSON.stringify(RULES)); localStorage.setItem('r937-rules-v6','1'); }catch(e){} })();
+(function(){ try{ if(localStorage.getItem('r937-rules-v5')) return;
+  RULES.forEach(r=>{ if((r.id==='r6'||r.id==='r7')&&r.type==='rise') r.on=0; if(['r1','r4','r10'].includes(r.id)&&!r.kind){ r.kind='count'; if(!r.pct) r.pct=r.id==='r10'?20:30; } });
+  localStorage.setItem(RULES_KEY,JSON.stringify(RULES)); localStorage.setItem('r937-rules-v5','1'); }catch(e){} })();
+(function(){ try{ if(localStorage.getItem('r937-rules-v4')) return;
+  // الحد من الفترة السابقة (بالعدد) بدل المعدّل
+  RULES.forEach(r=>{ const d=DEF_RULES.find(x=>x.id===r.id); if(d && ['r1','r4','r10'].includes(r.id) && r.factor!==undefined){ delete r.factor; Object.assign(r,{per:d.per,margin:d.margin,floor:d.floor}); } });
+  localStorage.setItem(RULES_KEY,JSON.stringify(RULES)); localStorage.setItem('r937-rules-v4','1'); }catch(e){} })();
+(function(){ try{ if(localStorage.getItem('r937-rules-v3')) return;
+  // الحدود التلقائية: تفعيلها للمراكز والتصنيفات وإضافة قاعدة القطاعات
+  RULES.forEach(r=>{ if(r.id==='r1'&&r.type==='center'&&r.auto===undefined) Object.assign(r,{auto:1,per:'week',margin:1,floor:10}); if(r.id==='r4'&&r.type==='sub'&&r.auto===undefined) Object.assign(r,{on:1,auto:1,per:'week',margin:1,floor:15}); });
+  if(!RULES.some(r=>r.id==='r10')) RULES.push({...DEF_RULES.find(r=>r.id==='r10')});
+  localStorage.setItem(RULES_KEY,JSON.stringify(RULES)); localStorage.setItem('r937-rules-v3','1'); }catch(e){} })();
+(function(){ try{ if(localStorage.getItem('r937-rules-v2')) return; const have=new Set(RULES.map(r=>r.id)); DEF_RULES.filter(r=>['r6','r7','r8','r9'].includes(r.id)&&!have.has(r.id)).forEach(r=>RULES.push({...r})); localStorage.setItem(RULES_KEY,JSON.stringify(RULES)); localStorage.setItem('r937-rules-v2','1'); }catch(e){} })();
 let RULES=(()=>{ try{ const v=JSON.parse(localStorage.getItem(RULES_KEY)||'null'); return Array.isArray(v)?v:DEF_RULES.map(x=>({...x})); }catch(e){ return DEF_RULES.map(x=>({...x})); } })();
 const saveRules=()=>{ try{ localStorage.setItem(RULES_KEY,JSON.stringify(RULES)); }catch(e){} kwIdx=null; };
 const kwWords=rule=>String(rule.words||'').split(/[,،\n]+/).map(w=>w.trim()).filter(Boolean);
@@ -843,7 +890,18 @@ function kwIndex(){
     if(hit) kwIdx.set(rec.id,hit); });
   return kwIdx;
 }
-function kwMatch(rec,rid){ const h=kwIndex().get(rec.id); if(!h) return false; return rid==='*'||h.some(x=>x.rid===rid); }
+function ruleField(rule){ if(rule.field && col(rule.field) && active(rule.field)) return rule.field; const l=nrm(rule.fieldLabel||''); if(!l) return null; const c=cols().find(c=>nrm(c.l)===l)||cols().find(c=>nrm(c.l).includes(l)||l.includes(nrm(c.l))&&nrm(c.l).includes('حال')); return c?c.k:null; }
+const ruleVals=rule=>String(rule.values||'').split(/[,،\n]+/).map(w=>nrm(w)).filter(Boolean);
+function valueMatch(rec,rule,k,vs){ k=k||ruleField(rule); if(!k) return false; const v=nrm(rec[k]); if(!v) return false; return (vs||ruleVals(rule)).some(w=>v===w||v.includes(w)); }
+function kwMatch(rec,rid){ const vr=RULES.find(x=>x.id===rid&&x.type==='value'); if(vr) return valueMatch(rec,vr); const h=kwIndex().get(rec.id); if(!h) return false; return rid==='*'||h.some(x=>x.rid===rid); }
+// الفترة الحالية: فترة التاريخ المحددة في الفلاتر، وإلا آخر N يوم حتى آخر بلاغ
+const dWord=n=>n===1?'يوم واحد':n===2?'يومين':n<=10?`${fmt(n)} أيام`:`${fmt(n)} يوماً`;
+function periodWindows(days){
+  let a=filt.from, b=filt.to;
+  if(!a||!b){ const ds=(a||b?filtered:RECS).map(r=>r.date).filter(Boolean).sort(); if(!ds.length) return null; const last=b||ds[ds.length-1].slice(0,10); const first=ds[0].slice(0,10); if(!b) b=last; if(!a) a = (filt.to? first : addDays(b,-(Math.max(1,days)-1))); }
+  const len=Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000)+1;
+  return {a,b,len,pa:addDays(a,-len),pb:addDays(a,-1)};
+}
 function kwRegex(){ const ws=[...new Set(RULES.filter(r=>r.on&&r.type==='kw').flatMap(kwWords))]; if(!ws.length) return null; try{ return new RegExp(ws.sort((a,b)=>b.length-a.length).map(kwPattern).join('|'),'g'); }catch(e){ return null; } }
 function bucketOf(d,per){
   if(!d) return null; const day=d.slice(0,10);
@@ -852,16 +910,84 @@ function bucketOf(d,per){
   const dt=new Date(day+'T00:00:00'); dt.setDate(dt.getDate()-((dt.getDay()+1)%7)); const a=iso(dt); const e=new Date(dt); e.setDate(e.getDate()+6); const b=iso(e);
   return {k:a,from:a,to:b,l:`أسبوع ${a.slice(8,10)}/${a.slice(5,7)}`};
 }
+// حد كل مركز/قطاع/تصنيف بالعدد للفترة الأخيرة (يُحسب من بلاغاته في الأسابيع السابقة)
+const nB=n=>n===0?'0 بلاغ':n===1?'بلاغ واحد':n===2?'بلاغان':n<=10?`${fmt(n)} بلاغات`:`${fmt(n)} بلاغاً`;
+function autoLimits(rule){
+  const k=rule.type; if(!active(k)) return [];
+  const per=rule.per||'day';
+  const DAY=86400000, di=d=>Math.round(new Date(d+'T00:00:00').getTime()/DAY);
+  const ds=RECS.map(r=>r.date).filter(Boolean).sort(); if(!ds.length) return [];
+  const b=bucketOf(ds[ds.length-1],per); const s0=di(b.from), e0=Math.min(di(b.to),di(ds[ds.length-1].slice(0,10))), len=e0-s0+1;
+  const fl=Math.max(1,+rule.floor||1), mg=Math.max(1,+rule.margin||1);
+  const m=new Map();
+  const isS=rule.subset==='sla'; if(isS&&!slaKey()) return [];
+  RECS.forEach(r=>{ if(!r.date||!r[k]) return; if(isS&&!isOut(r)) return; const x=di(r.date.slice(0,10)); let g=m.get(r[k]); if(!g){ g={v:r[k],th:0,cur:0}; m.set(r[k],g); } if(x>=s0-len&&x<s0) g.th++; if(x>=s0&&x<=e0) g.cur++; });
+  return [...m.values()].map(g=>({...g,th:rule.auto?g.th:Math.max(1,+rule.n||1),b,hit:rule.auto?(()=>{ const d=rule.dir||'up', P=+rule.pct||30, isP=rule.kind==='pct';
+    if(d!=='down' && g.cur>g.th && g.cur>=fl && (isP?(g.th?(g.cur-g.th)/g.th*100>=P:true):g.cur-g.th>=mg)) return 'up';
+    if(d!=='up' && g.th>g.cur && g.th>=fl && (isP?(g.th-g.cur)/g.th*100>=P:g.th-g.cur>=mg)) return 'down'; return ''; })():(g.cur>=(+rule.n||1)?'up':'')})).sort((a,b)=>(!!b.hit-!!a.hit)||Math.abs(b.cur-b.th)-Math.abs(a.cur-a.th));
+}
 function evalRules(list){
   const out=[];
+  let base=null; const getBase=()=>base||(base=baseNoDates());
   RULES.filter(r=>r.on).forEach(rule=>{
     const n=Math.max(1,+rule.n||1);
-    if(rule.type==='center'||rule.type==='sub'||rule.type==='total'){
+    if(rule.type==='rise'){
+      const k=rule.field==='sector'?'sector':'center'; if(!active(k)) return;
+      const w=periodWindows(+rule.days||7); if(!w) return;
+      const B=getBase(); const cur=new Map(), prev=new Map();
+      for(const r of B){ if(!r.date||!r[k]) continue; const d=r.date.slice(0,10); if(d>=w.a&&d<=w.b) cur.set(r[k],(cur.get(r[k])||0)+1); else if(d>=w.pa&&d<=w.pb) prev.set(r[k],(prev.get(r[k])||0)+1); }
+      const minN=Math.max(1,+rule.min||1), P=Math.max(0,+rule.pct||0); const hits=[];
+      cur.forEach((c,v)=>{ const pv=prev.get(v)||0; if(c<minN||c<=pv) return; const pc=pv?(c-pv)/pv*100:Infinity; if(pc>=P) hits.push({v,c,pv,pc}); });
+      const nm=k==='sector'?'القطاع':'المركز';
+      hits.sort((x,y)=>(y.c-y.pv)-(x.c-x.pv)).forEach(h=>out.push({rule,sev:h.pc>=P*2?2:1,n:h.c,
+        title:`${h.v}: ${fmt(h.c)} بلاغ مقابل ${fmt(h.pv)} ${h.pv?`(+${h.pc.toFixed(0)}%)`:'(جديد)'}`,
+        sub:`زيادة في ${nm} · ${w.a.slice(5).replace('-','/')}–${w.b.slice(5).replace('-','/')} مقارنة بـ ${dWord(w.len)} قبلها`,
+        act:{[k]:h.v,from:w.a,to:w.b}, tick:`${k==='sector'?'قطاع ':''}${h.v}: ${fmt(h.c)} بلاغ مقابل ${fmt(h.pv)} في الفترة السابقة ${h.pv?`↑ ${h.pc.toFixed(0)}%`:'(لم يكن فيه بلاغات)'}`}));
+      return;
+    }
+    if(rule.type==='value'){
+      const k=ruleField(rule); if(!k) return; const vs=ruleVals(rule); if(!vs.length) return;
+      const recs=list.filter(r=>valueMatch(r,rule,k,vs)); if(!recs.length) return;
+      const per=countBy(recs,k).slice(0,3).map(([v,c])=>`${v} (${fmt(c)})`).join('، ');
+      out.push({rule,sev:2,n:recs.length,title:`${fmt(recs.length)} بلاغ: ${rule.name||'متابعة'}`,sub:per,act:{kw:rule.id},recs});
+      return;
+    }
+    if(rule.type==='center'||rule.type==='sub'||rule.type==='sector'||rule.type==='total'){
       const k=rule.type==='total'?null:rule.type; if(k&&!active(k)) return;
+      const isS=rule.subset==='sla'; if(isS&&!slaKey()) return;
+      const per=rule.per||'day';
       const m=new Map();
-      list.forEach(r=>{ const b=bucketOf(r.date,rule.per||'day'); if(!b) return; const v=k?r[k]:''; if(k&&!v) return; const key=v+'§'+b.k; let g=m.get(key); if(!g){ g={v,b,n:0}; m.set(key,g); } g.n++; });
-      [...m.values()].filter(g=>g.n>=n).sort((a,b)=>b.n-a.n||String(b.b.k).localeCompare(a.b.k)).forEach(g=>out.push({rule,sev:g.n>=n*1.5?2:1,n:g.n,
-        title:k?`${g.v}: ${fmt(g.n)} بلاغ`:`${fmt(g.n)} بلاغ`, sub:`${g.b.l} · الحد ${fmt(n)}`, act:{...(k?{[k]:g.v}:{}),from:g.b.from,to:g.b.to}}));
+      (isS?list.filter(isOut):list).forEach(r=>{ const b=bucketOf(r.date,per); if(!b) return; const v=k?r[k]:''; if(k&&!v) return; const key=v+'§'+b.k; let g=m.get(key); if(!g){ g={v,b,n:0}; m.set(key,g); } g.n++; });
+      let groups=[...m.values()];
+      const prevL={day:'اليوم السابق',week:'الأسبوع السابق',month:'الشهر السابق'}[per];
+      const isP=rule.kind==='pct';
+      if(rule.auto){
+        // الحد = عدد بلاغات هذا المركز/القطاع/التصنيف في الفترة السابقة المساوية في الطول
+        const B=getBase(); const DAY=86400000, di=d=>Math.round(new Date(d+'T00:00:00').getTime()/DAY);
+        const hist=new Map(); let first=Infinity, last=-Infinity;
+        B.forEach(r=>{ if(!r.date) return; const x=di(r.date.slice(0,10)); if(x<first) first=x; if(x>last) last=x; if(isS&&!isOut(r)) return; const v=k?r[k]:''; if(k&&!v) return; let h=hist.get(v); if(!h){ h=new Map(); hist.set(v,h); } h.set(x,(h.get(x)||0)+1); });
+        const fl=Math.max(1,+rule.floor||1), mg=Math.max(1,+rule.margin||1), P=Math.max(1,+rule.pct||30);
+        const dir=rule.dir||'up', wantUp=dir!=='down', wantDown=dir!=='up';
+        const sumH=(v,a,b)=>{ const h=hist.get(v); let c=0; if(h) for(let x=a;x<=b;x++) c+=h.get(x)||0; return c; };
+        const buckets=new Map(); groups.forEach(g=>buckets.set(g.b.k,g.b));
+        const res=[];
+        buckets.forEach(bk=>{ const s0=di(bk.from), e0=Math.min(di(bk.to),last), len=e0-s0+1; if(s0-len<first) return;
+          const ents = wantDown ? [...hist.keys()] : groups.filter(g=>g.b.k===bk.k).map(g=>g.v);
+          ents.forEach(v=>{ const cur=(m.get(v+'§'+bk.k)||{n:0}).n, prev=sumH(v,s0-len,s0-1);
+            if(wantUp && cur>prev && cur>=fl){ const pc=prev?(cur-prev)/prev*100:Infinity; if(isP?pc>=P:cur-prev>=mg) res.push({v,b:bk,n:cur,th:prev,pc,dir:'up'}); }
+            if(wantDown && prev>cur && prev>=fl){ const pc=(prev-cur)/prev*100; if(isP?pc>=P:prev-cur>=mg) res.push({v,b:bk,n:cur,th:prev,pc,dir:'down'}); } }); });
+        groups=res;
+      } else groups=groups.filter(g=>g.n>=n).map(g=>({...g,th:n,dir:'up'}));
+      const mag=g=>isP?(isFinite(g.pc)?g.pc:1e9):Math.abs(g.n-g.th);
+      groups.sort((a,b)=>String(b.b.k).localeCompare(a.b.k)||(rule.auto?mag(b)-mag(a):b.n-a.n)).forEach(g=>{ const th=g.th, up=g.dir==='up';
+        const chg = isP ? (isFinite(g.pc)?`${g.pc.toFixed(0)}%`:'جديد') : nB(Math.abs(g.n-th));
+        const SP=isS?' خارج مستوى الخدمة':'';
+        out.push({rule,dir:g.dir,sla:isS,sev:up?(g.n>=Math.max(1,th)*1.5?2:1):1,n:g.n,
+        title:k?`${g.v}: ${nB(g.n)}${SP}`:nB(g.n)+SP,
+        sub: rule.auto ? `${g.b.l} · ${prevL} ${nB(th)} · ${up?'زيادة':'انخفاض'} ${chg}${isP?` (الحد ${+rule.pct||30}%)`:''}` : `${g.b.l} · الحد ${nB(th)}`,
+        act:{...(k?{[k]:g.v}:{}),from:g.b.from,to:g.b.to,...(isS?{sla:'out'}:{})},
+        // صيغة مختصرة للشريط: «المعابدة: 53 ↑40 (السابق 13)»
+        tick: `${k==='sector'?'قطاع ':''}${k?String(g.v).replace(/^مركز\s+صحي\s+/,'')+': ':''}${fmt(g.n)}${isS?' خارج المستوى':''} ${rule.auto?`${up?'↑':'↓'}${isP?(isFinite(g.pc)?g.pc.toFixed(0)+'%':'جديد'):fmt(Math.abs(g.n-th))} (السابق ${fmt(th)})`:`(الحد ${fmt(th)})`}`}); });
     }
     if(rule.type==='caller'){
       const days=Math.max(1,+rule.days||30); const m=new Map();
@@ -878,7 +1004,8 @@ function evalRules(list){
       out.push({rule,sev:2,n:recs.length,title:`${fmt(recs.length)} بلاغ فيها ${rule.name||'كلمات حساسة'}`,sub:[...per.entries()].sort((a,b)=>b[1]-a[1]).slice(0,4).map(([w,c])=>`${w} (${fmt(c)})`).join('، '),act:{kw:rule.id}});
     }
   });
-  return out.filter(a=>a.rule.type==='kw').concat(out.filter(a=>a.rule.type!=='kw'));
+  const ord={kw:0,value:1,rise:2};
+  return out.map((a,i)=>[a,i]).sort((x,y)=>((ord[x[0].rule.type]??3)-(ord[y[0].rule.type]??3))||x[1]-y[1]).map(x=>x[0]);
 }
 let ALERTS_OPEN=false;
 function renderAlerts(){
@@ -889,17 +1016,17 @@ function renderAlerts(){
   const show=ALERTS_OPEN?al.slice(0,60):al.slice(0,4);
   el.hidden=false;
   el.innerHTML=`<h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>التنبيهات <small>${fmt(al.length)} تنبيه ضمن النتائج الحالية · اضغط أي تنبيه لعرض بلاغاته</small><span class="sp"></span>${al.length>4?`<button type="button" class="btn sm ghost" id="alMore">${ALERTS_OPEN?'عرض أقل':`عرض الكل (${fmt(al.length)})`}</button>`:''}<button type="button" class="btn sm ghost" id="alRules">القواعد</button></h3>
-    <div class="alist">${show.map((a,i)=>`<button type="button" class="aitem ${a.sev>1?'':'w'}" data-alert="${i}"><span class="dot"></span><div><b>${esc(a.title)}</b><span>${esc(RULE_TYPES[a.rule.type])} · ${esc(a.sub)}</span></div></button>`).join('')}</div>`;
+    <div class="alist">${show.map((a,i)=>`<button type="button" class="aitem ${a.dir==='down'?'dn':a.sev>1?'':'w'}" data-alert="${i}"><span class="dot"></span><div><b>${esc(a.title)}</b><span>${esc(RULE_TYPES[a.rule.type])} · ${esc(a.sub)}</span></div></button>`).join('')}</div>`;
   el._al=al;
 }
 function applyAlert(a){
-  filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:'',kw:'',...a.act};
+  filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:'',kw:'',sla:'',...a.act};
   view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view));
   refresh(); document.getElementById('view').scrollIntoView({block:'start'});
 }
 
 /* ---------- dashboard (لوحة المؤشرات) ---------- */
-const dashCfg=()=>({...DEF_DASH,...(HOME.dash||{}),items:{...DEF_DASH.items,...((HOME.dash||{}).items||{})}});
+const dashCfg=()=>({...DEF_DASH,...(HOME.dash||{}),items:{...DEF_DASH.items,...((HOME.dash||{}).items||{})},fields:{...DEF_DASH.fields,...((HOME.dash||{}).fields||{})}});
 function baseNoDates(){ const f=filt.from, t=filt.to; if(!f&&!t) return filtered; filt.from=''; filt.to=''; apply(); const base=filtered; filt.from=f; filt.to=t; apply(); return base; }
 const addDays=(d,n)=>{ const x=new Date(d+'T00:00:00'); x.setDate(x.getDate()+n); return iso(x); };
 function countRange(list,a,b){ let n=0; for(const r of list){ if(!r.date) continue; const d=r.date.slice(0,10); if(d>=a&&d<=b) n++; } return n; }
@@ -919,20 +1046,55 @@ function dashStats(){
   const mo=countRange(base,ms,d), prevMo=countRange(base,pms,pmEnd);
   const dayRecs=filtered.filter(r=>r.date&&r.date.startsWith(d));
   const topDay=countBy(dayRecs,'center')[0];
-  return {d,day,prevDay,wk,prevWk,mo,prevMo,dom,topDay,dayRecs};
+  let sla=null; const SKx=slaKey();
+  if(SKx){ const inR=(r,a,b)=>r.date&&r.date.slice(0,10)>=a&&r.date.slice(0,10)<=b; const a7=addDays(d,-6), p1=addDays(d,-13), p2=addDays(d,-7);
+    const cur=base.filter(r=>inR(r,a7,d)), prv=base.filter(r=>inR(r,p1,p2));
+    sla={wk:cur.filter(isOut).length, tot:cur.filter(r=>slaState(r,SKx)).length, prev:prv.filter(isOut).length,
+      all:filtered.filter(isOut).length, allIn:filtered.filter(r=>slaState(r,SKx)==='in').length}; }
+  return {d,day,prevDay,wk,prevWk,mo,prevMo,dom,topDay,dayRecs,sla};
 }
 function tickerItems(st,al){
   const c=dashCfg().items, out=[];
   if(c.stats && st.d){
-    out.push(['s',`آخر يوم مسجل ${st.d.replace(/-/g,'/')}: ${fmt(st.day)} بلاغ${st.prevDay?` (${st.day>=st.prevDay?'+':''}${fmt(st.day-st.prevDay)} عن اليوم السابق)`:''}`]);
+    out.push([st.prevDay&&st.day!==st.prevDay?(st.day>st.prevDay?'u':'d'):'s',`آخر يوم مسجل ${st.d.replace(/-/g,'/')}: ${fmt(st.day)} بلاغ${st.prevDay?` (${st.day>st.prevDay?'↑':st.day<st.prevDay?'↓':''} ${fmt(Math.abs(st.day-st.prevDay))} عن اليوم السابق)`:''}`]);
     if(st.topDay) out.push(['s',`أعلى مركز في آخر يوم: ${st.topDay[0]} بـ ${fmt(st.topDay[1])} بلاغ`]);
-    out.push(['s',`آخر 7 أيام: ${fmt(st.wk)} بلاغ${st.prevWk?`، ${st.wk>=st.prevWk?'بزيادة':'بانخفاض'} ${Math.abs((st.wk-st.prevWk)/st.prevWk*100).toFixed(0)}% عن الأسبوع الذي قبله`:''}`]);
+    if(st.sla&&c.sla) out.push([st.sla.prev&&st.sla.wk!==st.sla.prev?(st.sla.wk>st.sla.prev?'u':'d'):'k',`خارج مستوى الخدمة آخر 7 أيام: ${nB(st.sla.wk)} من ${fmt(st.sla.tot)} (${pct(st.sla.wk,st.sla.tot)})${st.sla.prev?` · الأسبوع السابق ${fmt(st.sla.prev)} ${st.sla.wk>st.sla.prev?'↑':st.sla.wk<st.sla.prev?'↓':''}`:''}`]);
+    out.push([st.prevWk&&st.wk!==st.prevWk?(st.wk>st.prevWk?'u':'d'):'s',`آخر 7 أيام: ${fmt(st.wk)} بلاغ${st.prevWk?` (${st.wk>st.prevWk?'↑':st.wk<st.prevWk?'↓':''} ${Math.abs((st.wk-st.prevWk)/st.prevWk*100).toFixed(0)}% عن الأسبوع السابق)`:''}`]);
     const cats=countBy(st.dayRecs,active('sub')?'sub':'main').filter(x=>x[0]); if(cats[0]) out.push(['s',`أكثر تصنيف في آخر يوم: ${cats[0][0]} (${fmt(cats[0][1])})`]);
   }
-  if(c.alerts) al.filter(a=>a.rule.type!=='kw').slice(0,10).forEach(a=>out.push(['a',`تنبيه: ${a.title} · ${a.sub}`]));
-  if(c.kw){ const idx=kwIndex(); filtered.filter(r=>idx.has(r.id)).slice().sort((a,b)=>String(b.date).localeCompare(a.date)).slice(0,8).forEach(r=>out.push(['k',`بلاغ حساس ${r.no} · ${r.center||'—'} · «${[...new Set(idx.get(r.id).map(x=>x.w))].join('، ')}»`])); }
-  if(c.latest) filtered.slice().sort((a,b)=>String(b.date).localeCompare(a.date)).slice(0,10).forEach(r=>out.push(['n',`${fmtDate(r.date).slice(11)||''} ${r.center||'—'}: ${r.sub||r.main||'بلاغ'}`]));
+  if(c.rise) al.filter(a=>a.rule.type==='rise').slice(0,12).forEach(a=>out.push(['u',a.tick]));
+  if(c.value) al.filter(a=>a.rule.type==='value').forEach(a=>{ out.push(['k',`${a.rule.name||'متابعة'}: ${fmt(a.n)} بلاغ في الفترة`]); a.recs.slice().sort((x,y)=>String(y.date).localeCompare(x.date)).slice(0,6).forEach(r=>{ const dd=r.date?Math.max(0,Math.floor((Date.now()-new Date(r.date.slice(0,10)+'T00:00:00'))/86400000)):null; out.push(['k',`${a.rule.name||'متابعة'} · ${recTick(r,{cat:false})}${/اجراء|إجراء/.test(a.rule.values||'')&&dd!=null?` · منذ ${fmt(dd)} يوم`:''}`]); }); });
+  const lim=a=>['center','sub','sector','total'].includes(a.rule.type)&&!a.sla;
+  if(c.sla) al.filter(a=>a.sla).slice(0,12).forEach(a=>out.push([a.dir==='down'?'d':'u',a.tick]));
+  if(c.up) al.filter(a=>lim(a)&&a.dir!=='down').slice(0,10).forEach(a=>out.push(['u',a.tick]));
+  if(c.down) al.filter(a=>lim(a)&&a.dir==='down').slice(0,10).forEach(a=>out.push(['d',a.tick]));
+  if(c.alerts) al.filter(a=>!lim(a)&&!['kw','rise','value'].includes(a.rule.type)).slice(0,10).forEach(a=>out.push(['a',`تنبيه: ${a.title} · ${a.sub}`]));
+  if(c.kw){ const idx=kwIndex(); filtered.filter(r=>idx.has(r.id)).slice().sort((a,b)=>String(b.date).localeCompare(a.date)).slice(0,8).forEach(r=>out.push(['k',`بلاغ حساس · ${recTick(r,{cat:false})} · «${[...new Set(idx.get(r.id).map(x=>x.w))].join('، ')}»`])); }
+  const cs=new Set(dashCfg().cats||[]); const catOk=r=>!cs.size||cs.has('m:'+r.main)||cs.has('s:'+r.sub);
+  if(c.latest) filtered.filter(catOk).slice().sort((a,b)=>String(b.date).localeCompare(a.date)).slice(0,+dashCfg().latestN||10).forEach(r=>out.push(['n',recTick(r)]));
   return out;
+}
+// تفاصيل البلاغ في الشريط حسب اختيار المستخدم (اليوم، التاريخ، الساعة، المركز، التصنيف، الرقم)
+function recTick(r,{cat=true}={}){
+  const f=dashCfg().fields, d=r.date||'', parts=[];
+  const when=[];
+  if(d){ const day=d.slice(0,10), dt=new Date(day+'T00:00:00');
+    if(f.day) when.push(WEEKDAYS[dt.getDay()]);
+    if(f.date) when.push(`${day.slice(8,10)}/${day.slice(5,7)}`);
+    if(f.time && d.length>=16){ let h=+d.slice(11,13); const m=d.slice(14,16); const pm=h>=12; h=h%12||12; when.push(`${f.day||f.date?'الساعة ':''}${h}:${m} ${pm?'م':'ص'}`); } }
+  if(when.length) parts.push(when.join(' '));
+  if(f.no && r.no) parts.push(`بلاغ ${r.no}`);
+  const tail=[f.center?(r.center||'—'):'', cat&&f.cat?(r.sub||r.main||''):''].filter(Boolean);
+  if(tail.length) parts.push(tail.join(': '));
+  return parts.join(' · ')||(r.no?`بلاغ ${r.no}`:'بلاغ');
+}
+// «الأحد 21/09 الساعة 11:39 م»
+function whenText(d){
+  if(!d) return 'بدون تاريخ';
+  const day=d.slice(0,10), dt=new Date(day+'T00:00:00');
+  let s=`${WEEKDAYS[dt.getDay()]} ${day.slice(8,10)}/${day.slice(5,7)}`;
+  if(d.length>=16){ let h=+d.slice(11,13); const m=d.slice(14,16); const pm=h>=12; h=h%12||12; s+=` الساعة ${h}:${m} ${pm?'م':'ص'}`; }
+  return s;
 }
 function tickerHTML(items){
   if(!items.length) return '';
@@ -964,6 +1126,8 @@ function renderDash(v){
       ${tile(`${MONTHS[+st.d.slice(5,7)-1]} حتى يوم ${st.dom}`,fmt(st.mo),deltaHTML(st.mo,st.prevMo,'الشهر السابق'))}
       ${tile('إجمالي الفترة',fmt(tot),days?`${fmt(days)} يوم · ${(tot/days).toFixed(1)} يومياً`:'')}
       ${tile('التنبيهات',fmt(al.length),al.length?'اضغط للعرض':'لا توجد تنبيهات',al.length?'warn click" data-dgo="alerts':'')}
+      ${st.sla?tile('خارج مستوى الخدمة',fmt(st.sla.all),`${pct(st.sla.all,st.sla.all+st.sla.allIn)} من الفترة`,'bad click" data-dgo="sla'):''}
+      ${st.sla?tile('داخل مستوى الخدمة',fmt(st.sla.allIn),pct(st.sla.allIn,st.sla.all+st.sla.allIn)+' من الفترة','good click" data-dgo="slain'):''}
       ${tile('بلاغات بكلمات حساسة',fmt(flagged),flagged?pct(flagged,tot)+' من الفترة':'—',flagged?'bad click" data-dgo="kw':'')}
       ${tile('متصلون متكررون',fmt(rep),`${RPT.min}+ بلاغ لكل متصل`,rep?'click" data-dgo="callers':'')}
       ${tile('أعلى مركز في آخر يوم',st.topDay?esc(st.topDay[0]):'—',st.topDay?`${fmt(st.topDay[1])} بلاغ`:'','txt')}
@@ -973,6 +1137,8 @@ function renderDash(v){
       <div class="panel ins"><h3>آخر البلاغات<small>${fmt(latest.length)}</small></h3><div class="dlatest">${latest.map(r=>`<button type="button" class="dl-row${idx.has(r.id)?' fl':''}" data-rid="${r.id}"><span class="t">${esc(fmtDate(r.date).slice(5))}</span><span class="c">${esc(r.center||'—')}</span><span class="s">${esc(r.sub||r.main||'')}</span></button>`).join('')||'<span class="hint">لا توجد</span>'}</div></div>
       <div class="panel ins"><h3>أعلى المراكز<small>${fmt(centers.length)} مركز</small></h3>${barsHTML(centers,'center',B,tot)}</div>
       <div class="panel ins"><h3>أعلى التصنيفات<small>${fmt(cats.length)}</small></h3>${barsHTML(cats,catK,B,tot)}</div>
+      ${st.sla?(()=>{ const outBy=countBy(filtered.filter(isOut),'center'); const totBy=new Map(countBy(filtered.filter(r=>slaState(r)),'center')); const max=outBy[0]?.[1]||1;
+        return `<div class="panel ins"><h3>خارج مستوى الخدمة حسب المركز<small>${fmt(st.sla.all)} بلاغ</small></h3><div class="bars">${outBy.slice(0,B).map(([v,n])=>`<button type="button" class="barrow" data-slac="${esc(v)}" title="${pct(n,totBy.get(v)||n)} من بلاغات المركز"><span class="nm">${esc(v)} <small style="color:var(--muted)">· ${pct(n,totBy.get(v)||n)}</small></span><span class="n" style="color:var(--bad)">${fmt(n)}</span><span class="track"><span style="width:${(n/max*100).toFixed(1)}%;background:var(--bad)"></span></span></button>`).join('')||'<span class="hint">لا يوجد</span>'}</div></div>`; })():''}
       ${active('sector')&&filtered.some(r=>r.sector)?`<div class="panel ins"><h3>حسب القطاع</h3>${barsHTML(countBy(filtered,'sector'),'sector',B,tot)}</div>`:''}
       ${al.length?`<div class="panel ins"><h3>أهم التنبيهات<small>${fmt(al.length)}</small></h3><div class="alist one">${al.slice(0,5).map((a,i)=>`<button type="button" class="aitem ${a.sev>1?'':'w'}" data-dal="${i}"><span class="dot"></span><div><b>${esc(a.title)}</b><span>${esc(a.sub)}</span></div></button>`).join('')}</div></div>`:''}
     </div>
@@ -1012,10 +1178,43 @@ function maskNums(s){
   });
 }
 const maskCols=()=>SCHEMA.filter(c=>c.type==='long').map(c=>c.k);
+/* ---------- حالة البلاغ التلقائية ---------- */
+const STAT_KEY='r937-status-v1';
+const DEF_STAT={on:1,target:'حالة البلاغ',src1:'الإجراء المتخذ من الضابط',src2:'القرار الأخير من المنطقة',pending:'تحت الإجراء',mid:'src1',final:'src2'};
+let STAT=(()=>{ try{ return {...DEF_STAT,...JSON.parse(localStorage.getItem(STAT_KEY)||'{}')}; }catch(e){ return {...DEF_STAT}; } })();
+const saveStat=()=>{ try{ localStorage.setItem(STAT_KEY,JSON.stringify(STAT)); }catch(e){} };
+function colByLabel(l){ const n=nrm(l); if(!n) return null; const cs=(typeof SCHEMA!=='undefined'?SCHEMA:[]).filter(c=>!c.removed); const c=cs.find(c=>nrm(c.l)===n)||cs.find(c=>nrm(c.l).replace(/^ال/,'')===n.replace(/^ال/,'')); return c?c.k:null; }
+function statusKeys(){ if(!STAT.on) return null; const t=colByLabel(STAT.target); if(!t) return null; return {t,a:colByLabel(STAT.src1),b:colByLabel(STAT.src2)}; }
+function deriveStatus(o,K){
+  K=K||statusKeys(); if(!K) return o;
+  const a=K.a?String(o[K.a]||'').trim():'', b=K.b?String(o[K.b]||'').trim():'';
+  let v;
+  if(b) v = STAT.final==='closed' ? 'مغلق' : b;
+  else if(a) v = STAT.mid==='src1' ? a : STAT.mid==='wait' ? 'بانتظار قرار المنطقة' : STAT.pending;
+  else v = STAT.pending||'تحت الإجراء';
+  o[K.t]=v; return o;
+}
+async function recomputeStatus(silent){
+  const K=statusKeys(); if(!K) return 0;
+  const ch=[]; RECS.forEach(r=>{ const o=deriveStatus({...r},K); if(o[K.t]!==r[K.t]) ch.push(prep(o)); });
+  if(ch.length){ if(!silent) busy('جارٍ تعبئة حالة البلاغ…'); try{ await applyChange(ch,[],{type:'status',note:`${fmt(ch.length)} بلاغ`}); } finally{ if(!silent) busy(null); } }
+  return ch.length;
+}
+/* ---------- اتفاقية مستوى الخدمة ---------- */
+const SLA_KEY='r937-sla-v1';
+const DEF_SLA={label:'خارج اتفاقية مستوى الخدمة',yes:'نعم',no:'لا'};
+let SLA=(()=>{ try{ return {...DEF_SLA,...JSON.parse(localStorage.getItem(SLA_KEY)||'{}')}; }catch(e){ return {...DEF_SLA}; } })();
+const saveSla=()=>{ try{ localStorage.setItem(SLA_KEY,JSON.stringify(SLA)); }catch(e){} };
+function slaKey(){ const k=colByLabel(SLA.label); if(k) return k; const c=(typeof SCHEMA!=='undefined'?SCHEMA:[]).find(c=>!c.removed&&nrm(c.l).includes(nrm('مستوى الخدمة'))); return c?c.k:null; }
+// «نعم» = خارج مستوى الخدمة، «لا» = داخل مستوى الخدمة
+function slaState(r,k){ k=k||slaKey(); if(!k) return ''; const v=nrm(r[k]); if(!v) return ''; if(v===nrm(SLA.yes)||v.startsWith('خارج')) return 'out'; if(v===nrm(SLA.no)||v.startsWith('داخل')) return 'in'; return ''; }
+const isOut=r=>slaState(r)==='out';
+function slaBadge(v,st){ return st==='out'?`<span class="sla out">${esc(v)} · خارج مستوى الخدمة</span>`:st==='in'?`<span class="sla in">${esc(v)} · داخل مستوى الخدمة</span>`:esc(v); }
 function clean(r){
   const o={id:r.id||uid()};
   ALLK().forEach(k=>{ let v=r[k]; if(v==null) v=''; o[k]=String(v).trim(); });
   if(MASK_ON) maskCols().forEach(k=>{ if(o[k]) o[k]=maskNums(o[k]); });
+  deriveStatus(o);
   return o;
 }
 function seedRecords(){ return (SEED||[]).map(a=>{ const o={}; SEED_KEYS.forEach((k,i)=>o[k]=a[i]); return clean(o); }); }
@@ -1040,6 +1239,7 @@ function apply(){ _empSet=null; _clSet=null;
     if(filt.emp && !empSet().has(r.id)) return false;
     if(filt.cl && !clSet().has(r.id)) return false;
     if(filt.kw && !kwMatch(r,filt.kw)) return false;
+    if(filt.sla && slaState(r)!==filt.sla) return false;
     for(const c of extraFilterCols()) if(filt[c.k] && r[c.k]!==filt[c.k]) return false;
     for(const w of words) if(!r._s.includes(w)) return false;
     return true;
@@ -1072,6 +1272,7 @@ function optionsFor(k){
     if(filt.emp && !empSet().has(r.id)) return false;
     if(filt.cl && !clSet().has(r.id)) return false;
     if(filt.kw && !kwMatch(r,filt.kw)) return false;
+    if(filt.sla && slaState(r)!==filt.sla) return false;
     for(const c of extraFilterCols()) if(k!==c.k && filt[c.k] && r[c.k]!==filt[c.k]) return false;
     for(const w of words) if(!r._s.includes(w)) return false;
     return true;
@@ -1105,6 +1306,7 @@ function renderFilters(){
   if(filt.emp) tags.push(['emp',`الموظف: ${staffLabel(filt.emp)}${filt.empc&&staffCatEx().size?' · الشكاوى فقط':''}`]);
   if(filt.cl) tags.push(['cl',`العيادة: ${filt.cl}`]);
   if(filt.kw) tags.push(['kw',`تنبيه: ${kwRuleName(filt.kw)}`]);
+  if(filt.sla) tags.push(['sla',filt.sla==='out'?'خارج مستوى الخدمة':'داخل مستوى الخدمة']);
   ['month','sector','center','main','sub',...extraFilterCols().map(c=>c.k)].forEach(k=>{ if(filt[k]) tags.push([k,`${short(k)}: ${filt[k]==='__none'?'بدون قطاع':filt[k]}`]); });
   document.getElementById('fstate').innerHTML = `<span><b>${fmt(total(filtered))}</b> بلاغ${filtered.length!==RECS.length?` من أصل ${fmt(total(RECS))}`:''}</span>` + tags.map(([k,t])=>`<span class="tag">${esc(t)}<button type="button" data-untag="${k}" aria-label="إزالة">×</button></span>`).join('') + (tags.length?`<button type="button" class="btn sm ghost" data-untag="all">مسح الفلاتر</button>`:'');
 }
@@ -1145,22 +1347,53 @@ function dayChartSVG(list, w=640, h=140, interactive=true){
   return s+'</svg>';
 }
 let CAT_CARD=(()=>{ try{ return localStorage.getItem('r937-catcard-v1')||'sub'; }catch(e){ return 'sub'; } })();
+// مقارنة داخل مربعات الشاشة الرئيسية: البلاغات، ثم داخل/خارج مستوى الخدمة، مقابل الفترة السابقة
+function kpiCompare(){
+  const ds=filtered.map(r=>r.date).filter(Boolean).sort(); if(!ds.length) return ()=>'';
+  const last=ds[ds.length-1].slice(0,10), firstF=ds[0].slice(0,10);
+  let a,b,lbl;
+  if(filt.from||filt.to){ a=filt.from||firstF; b=filt.to||last; lbl='الفترة المحددة'; } else { b=last; a=addDays(b,-6); lbl='آخر 7 أيام'; }
+  const len=Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000)+1, pa=addDays(a,-len), pb=addDays(a,-1);
+  const base=baseNoDates(); const k=slaKey();
+  const C=[], P=[]; base.forEach(r=>{ if(!r.date) return; const d=r.date.slice(0,10); if(d>=a&&d<=b) C.push(r); else if(d>=pa&&d<=pb) P.push(r); });
+  const hasPrev=base.some(r=>r.date&&r.date.slice(0,10)<a);
+  // goodUp: الزيادة جيدة (داخل مستوى الخدمة) فتُلوَّن بالأخضر
+  const arrow=(c,p,goodUp)=>{ if(!hasPrev||!p) return `<span class="kd">${fmt(c)}</span>`; if(c===p) return `<span class="kd">${fmt(c)} =</span>`; const up=c>p, good=goodUp?up:!up, pc=Math.abs((c-p)/p*100).toFixed(0);
+    return `<span class="kd ${good?'g':'b'}">${fmt(c)} ${up?'↑':'↓'}${pc}%</span>`; };
+  return (pred,note)=>{
+    const c=C.filter(pred), p=P.filter(pred);
+    let h=`<span class="kc"><span class="kg"><span class="kl">${lbl}${note?` (${note})`:''}:</span> ${arrow(c.length,p.length,false)}</span>${hasPrev?`<span class="kp">السابق ${fmt(p.length)}</span>`:''}</span>`;
+    if(k){ const ci=c.filter(r=>slaState(r,k)==='in').length, co=c.filter(r=>slaState(r,k)==='out').length, pi=p.filter(r=>slaState(r,k)==='in').length, po=p.filter(r=>slaState(r,k)==='out').length;
+      if(ci+co+pi+po) h+=`<span class="kc"><span class="kg"><span class="sla in sm">داخل</span> ${arrow(ci,pi,true)}</span><span class="kg"><span class="sla out sm">خارج</span> ${arrow(co,po,false)}</span></span>`; }
+    return h;
+  };
+}
+// مؤشر داخل/خارج مستوى الخدمة في الشاشة الرئيسية
+function slaTile(w){
+  const out=w==='out', col=out?'--bad':'--good', lbl=out?'خارج مستوى الخدمة':'داخل مستوى الخدمة', k=slaKey();
+  if(!k) return `<div role="button" tabindex="0" class="kpi" data-dgo="slacol" style="text-align:start;cursor:pointer;border-color:color-mix(in srgb,var(${col}) 45%,var(--line));font:inherit;color:inherit"><span class="lbl">${lbl}</span><span class="val" style="color:var(--muted)">—</span><span class="sub">اضغط لإضافة العمود</span></div>`;
+  const o=filtered.filter(r=>slaState(r,k)==='out').length, i=filtered.filter(r=>slaState(r,k)==='in').length, n=out?o:i;
+  return `<div role="button" tabindex="0" class="kpi" data-dgo="${out?'sla':'slain'}" style="text-align:start;cursor:pointer;border-color:color-mix(in srgb,var(${col}) 45%,var(--line));font:inherit;color:inherit"><span class="lbl">${lbl}</span><span class="val" style="color:var(${col})">${fmt(n)}</span><span class="sub">${o+i?`${pct(n,o+i)} من البلاغات`:'لا توجد قيم بعد'}</span></div>`;
+}
 const WEEKDAYS=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
 function renderSummary(){
   const tot=total(filtered), B=+HOME.bars||6;
   const centers=countBy(filtered,'center'), mains=countBy(filtered,'main'), subs=countBy(filtered,'sub');
   const days=new Set(filtered.map(r=>r.date&&r.date.slice(0,10)).filter(Boolean)).size;
   const catK=active('sub')?'sub':'main', cats=catK==='sub'?subs:mains;
-  const kpi=(l,v,sub,txt)=>`<div class="kpi"><span class="lbl">${l}</span><span class="val${txt?' txt':''}">${v}</span><span class="sub">${sub||''}</span></div>`;
+  const kpi=(l,v,sub,txt,extra)=>`<div class="kpi"><span class="lbl">${l}</span><span class="val${txt?' txt':''}">${v}</span><span class="sub">${sub||''}</span>${extra||''}</div>`;
+  const CMP=kpiCompare();
   const K={
-    total:()=>kpi('عدد البلاغات',fmt(tot),days?`${fmt(days)} يوم · ${(tot/days).toFixed(1)} بلاغ يومياً`:'—'),
+    total:()=>kpi('عدد البلاغات',fmt(tot),days?`${fmt(days)} يوم · ${(tot/days).toFixed(1)} بلاغ يومياً`:'—',0,CMP(()=>true)),
     centers:()=>kpi('المراكز الصحية',fmt(centers.length),'مركز ورد منه بلاغ'),
-    topCenter:()=>kpi('أعلى مركز',esc(centers[0]?.[0]||'—'),centers[0]?`${fmt(centers[0][1])} بلاغ · ${pct(centers[0][1],tot)}`:'',1),
-    topCat:()=>kpi(`أعلى ${catK==='sub'?'تصنيف فرعي':'تصنيف رئيسي'}`,esc(cats[0]?.[0]||'—'),cats[0]?`${fmt(cats[0][1])} بلاغ · ${pct(cats[0][1],tot)}`:'',1),
+    topCenter:()=>kpi('أعلى مركز',esc(centers[0]?.[0]||'—'),centers[0]?`${fmt(centers[0][1])} بلاغ · ${pct(centers[0][1],tot)}`:'',1,centers[0]?CMP(r=>r.center===centers[0][0]):''),
+    topCat:()=>kpi(`أعلى ${catK==='sub'?'تصنيف فرعي':'تصنيف رئيسي'}`,esc(cats[0]?.[0]||'—'),cats[0]?`${fmt(cats[0][1])} بلاغ · ${pct(cats[0][1],tot)}`:'',1,cats[0]?CMP(r=>r[catK]===cats[0][0]):''),
     lastDay:()=>{ const ds=filtered.map(r=>r.date).filter(Boolean).sort(); const d=ds.length?ds[ds.length-1].slice(0,10):''; const n=d?filtered.filter(r=>r.date&&r.date.startsWith(d)).length:0; return kpi('آخر يوم مسجل',d?d.replace(/-/g,'/'):'—',d?`${fmt(n)} بلاغ في ذلك اليوم`:'',1); },
     callers:()=>{ const g=(active('caller')||active('nid'))?repeatGroups(filtered,RPT.min):[]; return kpi('متصلون متكررون',fmt(g.length),`${RPT.min}+ بلاغ لكل متصل`); },
     flagged:()=>{ const idx=kwIndex(); const n=filtered.filter(r=>idx.has(r.id)).length; return kpi('بلاغات بكلمات حساسة',fmt(n),n?pct(n,tot)+' من النتائج':'حسب قواعد التنبيه'); },
-    sectors:()=>{ const sc=countBy(filtered,'sector').filter(x=>x[0]); return kpi('القطاعات',fmt(sc.length),sc[0]?`الأعلى: ${esc(sc[0][0])} (${fmt(sc[0][1])})`:'—'); }
+    sla:()=>slaTile('out'),
+    slaIn:()=>slaTile('in'),
+    sectors:()=>{ const sc=countBy(filtered,'sector').filter(x=>x[0]); return kpi('القطاعات',fmt(sc.length),sc[0]?`الأعلى: ${esc(sc[0][0])} (${fmt(sc[0][1])})`:'—',0,sc[0]?CMP(r=>r.sector===sc[0][0],'الأعلى'):''); }
   };
   if(!active('sector')) delete K.sectors;
   const ks=HOME.kpis.filter(([k,on])=>on&&K[k]).map(([k])=>k);
@@ -1271,8 +1504,8 @@ function renderView(){
   const allSel = rows.every(r=>selected.has(r.id));
   const COLS=tableCols();
   const th=COLS.map(c=>`<th data-sort="${c.k}" scope="col">${esc(short(c.k))}${sort.k===c.k?`<span class="ar">${sort.dir>0?'▲':'▼'}</span>`:''}</th>`).join('');
-  const KWI=kwIndex();
-  const body=rows.map(r=>{ const fl=KWI.get(r.id); return `<tr data-id="${r.id}" class="${selected.has(r.id)?'sel':''}${fl?' flag':''}"${fl?` title="كلمات حساسة: ${esc([...new Set(fl.map(x=>x.w))].join('، '))}"`:''}><td class="cb"><input type="checkbox" data-sel="${r.id}" ${selected.has(r.id)?'checked':''} aria-label="تحديد"></td>${COLS.map(c=>{ const raw=c.fmt?c.fmt(r[c.k],r):r[c.k]; const t= c.k==='count'?raw:hl(raw,fl&&c.cls==='desc'); return `<td class="${c.cls||''}">${c.cls==='desc'?`<div title="${esc(r[c.k])}">${t}</div>`:t}</td>`; }).join('')}</tr>`; }).join('');
+  const KWI=kwIndex(); const SK2=slaKey();
+  const body=rows.map(r=>{ const fl=KWI.get(r.id); return `<tr data-id="${r.id}" class="${selected.has(r.id)?'sel':''}${fl?' flag':''}"${fl?` title="كلمات حساسة: ${esc([...new Set(fl.map(x=>x.w))].join('، '))}"`:''}><td class="cb"><input type="checkbox" data-sel="${r.id}" ${selected.has(r.id)?'checked':''} aria-label="تحديد"></td>${COLS.map(c=>{ const raw=c.fmt?c.fmt(r[c.k],r):r[c.k]; const t= c.k==='count'?raw: (c.k===SK2&&raw) ? slaBadge(raw,slaState(r,SK2)) : hl(raw,fl&&c.cls==='desc'); return `<td class="${c.cls||''}">${c.cls==='desc'?`<div title="${esc(r[c.k])}">${t}</div>`:t}</td>`; }).join('')}</tr>`; }).join('');
   v.innerHTML=`<div class="panel"><div class="tbl-wrap"><table class="rec"><thead><tr><th class="cb nosort"><input type="checkbox" id="selPage" ${allSel?'checked':''} aria-label="تحديد الصفحة"></th>${th}</tr></thead><tbody>${body}</tbody></table></div>
     <div class="pager"><span>عرض ${fmt(page*pageSize+1)}–${fmt(page*pageSize+rows.length)} من ${fmt(filtered.length)}</span>
       <label>صفوف <select class="inp" id="pageSize" style="width:auto;display:inline-block">${[25,50,100,200].map(n=>`<option ${n===pageSize?'selected':''}>${n}</option>`).join('')}</select></label>
@@ -1378,7 +1611,7 @@ document.addEventListener('click',e=>{
   const b=t.closest('button');
   if(b){
     if(b.dataset.from!=null && b.classList.contains('chip')){ filt.from=b.dataset.from; filt.to=b.dataset.to; refresh(); return; }
-    if(b.dataset.untag){ const k=b.dataset.untag; if(k==='all') filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:'',kw:''}; else if(k==='emp'){ filt.emp=''; filt.empc=0; } else if(k==='dates'){filt.from='';filt.to='';} else filt[k]=''; refresh(); return; }
+    if(b.dataset.untag){ const k=b.dataset.untag; if(k==='all') filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:'',kw:'',sla:''}; else if(k==='emp'){ filt.emp=''; filt.empc=0; } else if(k==='dates'){filt.from='';filt.to='';} else filt[k]=''; refresh(); return; }
     if(b.dataset.pick){ filt[b.dataset.pick]=b.dataset.val; refresh(); return; }
     if(b.dataset.view){ view=b.dataset.view; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); renderView(); return; }
     if(b.dataset.pg){ const pages=Math.ceil(filtered.length/pageSize); page={first:0,prev:page-1,next:page+1,last:pages-1}[b.dataset.pg]; renderView(); document.getElementById('view').scrollIntoView({block:'start'}); return; }
@@ -1389,6 +1622,7 @@ document.addEventListener('click',e=>{
     if(b.id==='dashSet'){ document.body.classList.remove('dash-full'); if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); guard(()=>controlPanel('home')); return; }
     if(b.classList.contains('tk-pause')){ const t=b.closest('.ticker'); t.classList.toggle('paused'); b.textContent=t.classList.contains('paused')?'▶':'❚❚'; return; }
     if(b.dataset.dal!==undefined){ const al=document.getElementById('dash')?._al; const a=al&&al[+b.dataset.dal]; if(a){ document.body.classList.remove('dash-full'); if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); applyAlert(a); } return; }
+    if(b.dataset.slac!==undefined){ filt.center=b.dataset.slac; filt.sla='out'; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); return; }
     if(b.dataset.rid){ const r=byId.get(b.dataset.rid); if(r) viewRecord(r); return; }
     if(b.id==='alMore'){ ALERTS_OPEN=!ALERTS_OPEN; renderAlerts(); return; }
     if(b.id==='alRules'){ guard(()=>controlPanel('alerts')); return; }
@@ -1407,6 +1641,8 @@ document.addEventListener('click',e=>{
   const dk=t.closest('[data-dgo]'); if(dk){ const g=dk.dataset.dgo; document.body.classList.remove('dash-full'); if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
     if(g==='alerts'){ document.getElementById('alerts').scrollIntoView({block:'start'}); ALERTS_OPEN=true; renderAlerts(); }
     if(g==='kw'){ filt.kw='*'; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); }
+    if(g==='slacol'){ guard(()=>controlPanel('cols')); return; }
+    if(g==='sla'||g==='slain'){ filt.sla=g==='sla'?'out':'in'; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); }
     if(g==='callers'){ view='callers'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); renderView(); }
     return; }
   const rect=t.closest('rect[data-day]'); if(rect){ filt.from=filt.to=rect.dataset.day; refresh(); return; }
@@ -1470,6 +1706,7 @@ function nowLocal(){ const d=new Date(); return `${iso(d)}T${String(d.getHours()
 function fieldValueHTML(r,c){
   const v=cellText(r,c.k);
   if(v===''||v==null) return '<span class="ro-empty">—</span>';
+  if(c.k===slaKey()) return slaBadge(v,slaState(r,c.k));
   return `<span${c.ltr||c.type==='datetime'||c.type==='date'||c.type==='number'?' dir="ltr"':''}>${esc(v)}</span>`;
 }
 function viewRecord(r){
@@ -1490,6 +1727,7 @@ function viewRecord(r){
 }
 function inputFor(c,v){
   const id=`e-${c.k}`, val=esc(v??'');
+  const SK=statusKeys(); if(SK && c.k===SK.t) return `<input class="inp" id="${id}" value="${val}" readonly tabindex="-1" style="background:var(--surface-2)" title="تُعبّأ تلقائياً من «${esc(STAT.src1)}» و«${esc(STAT.src2)}»"><span class="hint" style="font-size:11.5px">تلقائي: من «${esc(STAT.src1)}» و«${esc(STAT.src2)}»</span>`;
   const list=c.dl?` list="dl-${c.k}" autocomplete="off"`:'';
   if(c.k==='month') return `<input class="inp" id="${id}" value="${val}" placeholder="تلقائي من التاريخ">`;
   if(c.type==='long') return `<textarea class="inp" id="${id}">${val}</textarea>`;
@@ -1534,7 +1772,7 @@ function confirmDelete(ids){
 }
 function bulkEdit(){
   const ids=[...selected];
-  const fields=cols().filter(c=>!['no','date'].includes(c.k) && c.type!=='long').map(c=>c.k);
+  const SK=statusKeys(); const fields=cols().filter(c=>!['no','date'].includes(c.k) && c.type!=='long' && !(SK&&c.k===SK.t)).map(c=>c.k);
   dialog({title:`تعديل ${fmt(ids.length)} بلاغ دفعة واحدة`, html:`<p>اختر الحقل والقيمة الجديدة. تُطبَّق على كل البلاغات المحددة.</p>
     <div class="form"><div class="field"><label for="bk">الحقل</label><select class="inp" id="bk">${fields.map(k=>`<option value="${k}">${esc(label(k))}</option>`).join('')}</select></div>
     <div class="field"><label for="bv">القيمة الجديدة</label><input class="inp" id="bv" list="dl-sector" autocomplete="off"></div>${datalists()}</div>`,
@@ -1575,7 +1813,7 @@ const saveSecmap=()=>{ try{ localStorage.setItem(SECMAP_KEY,JSON.stringify(SECMA
 
 /* ---------- control panel ---------- */
 const IC={up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>',down:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',del:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>'};
-function schemaChanged(){ saveSchema(); RECS.forEach(prep); refresh(true); }
+function schemaChanged(){ saveSchema(); RECS.forEach(prep); refresh(true); setTimeout(()=>recomputeStatus(),0); }
 function controlPanel(tab){
   const layer=document.getElementById('layer');
   const tabs=[['home','الشاشة الرئيسية'],['alerts','التنبيهات'],['log','سجل التعديلات'],['cols','الأعمدة'],['lists','القوائم والقطاعات'],['lock','الحماية'],['brand','الهوية'],['data','البيانات']];
@@ -1592,7 +1830,7 @@ function controlPanel(tab){
     const r=await panelAction(b,body); if(r==='redraw') draw();
   });
   scrim.addEventListener('change',e=>{ if(panelChange(e.target)==='redraw') draw(); });
-  scrim.addEventListener('input',e=>{ const t=e.target; if(t.dataset.lbl){ const c=col(t.dataset.lbl); c.l=t.value.trim()||c.l; saveSchema(); clearTimeout(scrim._t); scrim._t=setTimeout(()=>refresh(true),400); } if(t.id==='ncType'){ body.querySelector('.addcol .opts').hidden=t.value!=='list'; } });
+  scrim.addEventListener('input',e=>{ const t=e.target; if(t.dataset.lbl){ const c=col(t.dataset.lbl); c.l=t.value.trim()||c.l; saveSchema(); clearTimeout(scrim._t); scrim._t=setTimeout(()=>{ refresh(true); recomputeStatus(); },400); } if(t.id==='ncType'){ body.querySelector('.addcol .opts').hidden=t.value!=='list'; } if(t.id==='dCatQ'){ const q=nrm(t.value); body.querySelectorAll('.catlist label').forEach(l=>{ l.hidden=!!q && !l.dataset.cq.includes(q); }); } });
   draw();
 }
 function panelCols(){
@@ -1606,7 +1844,7 @@ function panelCols(){
     <td class="ck"><input type="checkbox" data-flag="rep" data-k="${c.k}" ${c.rep?'checked':''} aria-label="في قائمة التقرير"></td>
     <td class="ck"><input type="checkbox" data-flag="pii" data-k="${c.k}" ${c.pii?'checked':''} aria-label="بيانات شخصية"></td>
     <td>${c.core?'<span class="hint">لا يُحذف</span>':`<button type="button" class="iconbtn del" data-delcol="${c.k}" aria-label="حذف العمود">${IC.del}</button>`}</td></tr>`).join('');
-  return `<p class="hint">غيّر اسم العمود بالكتابة فوقه، ورتّب الأعمدة بالأسهم. «في الجدول» يحدد ظهوره في جدول السجلات، و«في التقرير» في قائمة البلاغات التفصيلية بالتقارير، و«شخصي» يخفيه من التصدير إلا إذا اخترت تضمين البيانات الشخصية.</p>
+  return panelStatus()+panelSla()+`<p class="hint">غيّر اسم العمود بالكتابة فوقه، ورتّب الأعمدة بالأسهم. «في الجدول» يحدد ظهوره في جدول السجلات، و«في التقرير» في قائمة البلاغات التفصيلية بالتقارير، و«شخصي» يخفيه من التصدير إلا إذا اخترت تضمين البيانات الشخصية.</p>
     <div class="ctbl-wrap"><table class="ctbl"><thead><tr><th>الترتيب</th><th>اسم العمود</th><th>النوع</th><th>مطلوب</th><th>في الجدول</th><th>في التقرير</th><th>شخصي</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="addcol"><div class="field"><label for="ncName">إضافة عمود جديد</label><input class="inp" id="ncName" placeholder="مثال: حالة البلاغ"></div>
       <div class="field"><label for="ncType">النوع</label><select class="inp" id="ncType">${Object.entries(TYPES).map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select></div>
@@ -1633,7 +1871,14 @@ function panelHome(){
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="dTicker" ${dashCfg().ticker?'checked':''}><span>إظهار الشريط الإخباري في لوحة المؤشرات</span></label>
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="dHome" ${dashCfg().home?'checked':''}><span>إظهاره أيضاً أعلى الشاشة الرئيسية</span></label>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint">سرعة الشريط</span>${seg('dSpeed',[[40,'بطيء'],[70,'متوسط'],[110,'سريع']],dashCfg().speed)}</div>
-      <div style="display:flex;gap:14px;flex-wrap:wrap"><span class="hint">محتوى الشريط:</span>${[['stats','الأرقام والمقارنات'],['alerts','التنبيهات'],['kw','البلاغات الحساسة'],['latest','آخر البلاغات']].map(([k,l])=>`<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" data-ditem="${k}" ${dashCfg().items[k]?'checked':''}><span>${l}</span></label>`).join('')}</div></div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center"><span class="hint">تفاصيل كل بلاغ في الشريط:</span>${TK_FIELDS.map(([k,l])=>`<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" data-dfield="${k}" ${dashCfg().fields[k]?'checked':''}><span>${l}</span></label>`).join('')}</div>
+      <div class="hint" style="background:var(--surface-2);border-radius:8px;padding:6px 10px">مثال: <b id="tkPrev">${esc((()=>{ const r=RECS.slice().sort((a,b)=>String(b.date).localeCompare(a.date))[0]; return r?recTick(r):'—'; })())}</b></div>
+      <div class="field"><span class="hint">تصنيفات أحدث البلاغات في الشريط ${(dashCfg().cats||[]).length?`<b>(${fmt(dashCfg().cats.length)} مختار)</b> <button type="button" class="btn sm ghost" id="dCatsAll">عرض كل التصنيفات</button>`:'<b>(كل التصنيفات)</b>'}</span>
+        <details class="catpick"><summary>اختر التصنيفات التي تظهر بلاغاتها فقط</summary><input class="inp" id="dCatQ" placeholder="ابحث عن تصنيف…" style="margin:6px 0">
+        <div class="catlist">${(()=>{ const sel=new Set(dashCfg().cats||[]); const box=(k,v,n,sub)=>`<label class="${sub?'sub':''}" data-cq="${esc(nrm(v))}"><input type="checkbox" data-dcat="${esc(k)}" ${sel.has(k)?'checked':''}><span>${esc(v)} <small>(${fmt(n)})</small></span></label>`;
+          const mains=countBy(RECS,'main').filter(x=>x[0]); return mains.map(([m,n])=>{ const subs=countBy(RECS.filter(r=>r.main===m),'sub').filter(x=>x[0]); return box('m:'+m,m,n,0)+subs.map(([s2,c2])=>box('s:'+s2,s2,c2,1)).join(''); }).join(''); })()}</div></details></div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint">عدد أحدث البلاغات في الشريط</span>${seg('dLatestN',[[3,'3'],[5,'5'],[10,'10'],[20,'20']],dashCfg().latestN)}</div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap"><span class="hint">محتوى الشريط:</span>${[['stats','الأرقام والمقارنات'],['up','الزيادة عن الحد'],['down','الانخفاض عن الحد'],['sla','خارج مستوى الخدمة'],['value','التصنيفات والحالات المتابَعة'],['alerts','المتصلون المتكررون'],['kw','الكلمات الحساسة'],['latest','آخر البلاغات'],['rise','قاعدة النسبة القديمة']].map(([k,l])=>`<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" data-ditem="${k}" ${dashCfg().items[k]?'checked':''}><span>${l}</span></label>`).join('')}</div></div>
     <div class="pcard"><h4>أقسام أخرى</h4>
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="hAlerts" ${HOME.alerts?'checked':''}><span>إظهار شريط التنبيهات</span></label>
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="hPresets" ${HOME.presets?'checked':''}><span>إظهار أزرار الفترات الجاهزة (اليوم، هذا الأسبوع…)</span></label></div>
@@ -1646,16 +1891,38 @@ function panelAlerts(){
   const num=(r,f,v)=>`<input class="inp" type="number" min="1" data-rule="${r.id}" data-rf="${f}" value="${esc(v)}">`;
   const card=r=>{
     let body='', hits='';
-    if(r.type==='center'||r.type==='sub'){ const nm=r.type==='center'?'مركز صحي':'تصنيف فرعي'; body=`<div class="rf">نبّهني إذا وصل أي ${nm} إلى ${num(r,'n',r.n)} بلاغ ${perSel(r)}</div>`; hits=`${fmt(cnt(r.id))} حالة في كل القاعدة`; }
+    if(r.type==='center'||r.type==='sub'||r.type==='sector'){ const nm={center:'مركز صحي',sub:'تصنيف فرعي',sector:'قطاع'}[r.type];
+      const mode=`<div class="seg"><label><input type="radio" name="mode-${r.id}" data-rule="${r.id}" data-rf="auto" value="1" ${r.auto?'checked':''}><span>حد من الفترة السابقة</span></label><label><input type="radio" name="mode-${r.id}" data-rule="${r.id}" data-rf="auto" value="0" ${r.auto?'':'checked'}><span>حد ثابت</span></label></div>`;
+      body=`<div class="rf">${mode} ${perSel(r)}</div>`+(r.auto
+        ? `<div class="rf"><span>نبّهني عند:</span><div class="seg">${[['up','الزيادة'],['down','الانخفاض'],['both','الزيادة والانخفاض']].map(([v,l])=>`<label><input type="radio" name="dir-${r.id}" data-rule="${r.id}" data-rf="dir" value="${v}" ${(r.dir||'up')===v?'checked':''}><span>${l}</span></label>`).join('')}</div></div>
+           <div class="rf"><span>نوع الحد:</span><div class="seg"><label><input type="radio" name="kind-${r.id}" data-rule="${r.id}" data-rf="kind" value="count" ${r.kind!=='pct'?'checked':''}><span>بالعدد</span></label><label><input type="radio" name="kind-${r.id}" data-rule="${r.id}" data-rf="kind" value="pct" ${r.kind==='pct'?'checked':''}><span>بالنسبة المئوية</span></label></div></div>`+(r.kind==='pct'
+          ? `<div class="rf">نبّهني إذا ${(r.dir||'up')==='down'?'انخفضت':(r.dir||'up')==='both'?'زادت أو انخفضت':'زادت'} بلاغات أي ${nm} عن ${{day:'اليوم السابق',week:'الأسبوع السابق',month:'الشهر السابق'}[r.per||'day']} بنسبة ${num(r,'pct',r.pct||30)}% أو أكثر، ولا تنبّه إذا كان عدد البلاغات أقل من ${num(r,'floor',r.floor||5)}</div>
+             <span class="hint">مثال: مركز جاءه ${{day:'اليوم السابق',week:'الأسبوع السابق',month:'الشهر السابق'}[r.per||'day']} 20 بلاغاً، ومع 30% يظهر التنبيه إذا وصل إلى 26 أو أكثر (20 + 30% = 26). النسبة تناسب المراكز الكبيرة والصغيرة معاً.</span>`
+          : `<div class="rf">الحد = عدد بلاغات كل ${nm} في ${{day:'اليوم السابق',week:'الأسبوع السابق',month:'الشهر السابق'}[r.per||'day']}. نبّهني إذا ${(r.dir||'up')==='down'?'نقص عنه':(r.dir||'up')==='both'?'زاد عليه أو نقص عنه':'زاد عليه'} بـ ${num(r,'margin',r.margin||1)} بلاغ أو أكثر، ولا تنبّه إذا كان عدد البلاغات أقل من ${num(r,'floor',r.floor||5)}</div>
+           <span class="hint">مثال: مركز جاءه في ${{day:'اليوم السابق',week:'الأسبوع السابق',month:'الشهر السابق'}[r.per||'day']} 20 بلاغاً، فحده الآن <b>20 بلاغاً</b>؛ إذا جاءه ${(r.per||'day')==='day'?'اليوم':'في هذه الفترة'} 21 أو أكثر يظهر التنبيه. لكل ${nm} حد مختلف بالعدد.${(r.per||'day')==='day'?' تنبيه: المقارنة اليومية تتأثر بأيام الإجازة (الجمعة عادةً أقل)، فالأسبوعية أدق.':''}</span>`)+`
+           <details class="lims"><summary>عرض حد كل ${nm} بالعدد</summary>${(()=>{ const L=autoLimits(r); if(!L.length) return '<p class="hint">لا توجد بيانات كافية.</p>'; return `<div class="ctbl-wrap secmap"><table class="ctbl"><thead><tr><th>${nm}</th><th>الحد = ${{day:'اليوم السابق',week:'الأسبوع السابق',month:'الشهر السابق'}[r.per||'day']}</th><th>${esc(L[0].b.l)}</th><th>الفرق</th><th>النسبة</th></tr></thead><tbody>${L.map(g=>`<tr${g.hit?` style="background:color-mix(in srgb,var(--${g.hit==='up'?'bad':'good'}) 10%,transparent)"`:''}><td>${esc(g.v)}</td><td class="ck"><b>${fmt(g.th)}</b></td><td class="ck">${fmt(g.cur)}${g.hit==='up'?' ▲':g.hit==='down'?' ▼':''}</td><td class="ck" dir="ltr">${g.cur-g.th>0?'+':''}${fmt(g.cur-g.th)}</td><td class="ck" dir="ltr">${g.th?((g.cur-g.th)/g.th*100>0?'+':'')+((g.cur-g.th)/g.th*100).toFixed(0)+'%':'—'}</td></tr>`).join('')}</tbody></table></div>`; })()}</details>`
+        : `<div class="rf">نبّهني إذا وصل أي ${nm} إلى ${num(r,'n',r.n)} بلاغ</div>`)
+        + (r.subset==='sla'&&!slaKey()?`<span class="hint">بانتظار عمود «${esc(SLA.label)}». أضفه أو اختره من «الأعمدة» ← «اتفاقية مستوى الخدمة».</span>`:'')
+        + (r.type==='sector'&&!RECS.some(x=>x.sector)?'<span class="hint">لا توجد قطاعات مسجلة في البلاغات بعد. اربط المراكز بالقطاعات من «القوائم والقطاعات».</span>':'');
+      hits=r.subset==='sla'&&!slaKey()?'بانتظار العمود':`${fmt(cnt(r.id))} حالة في كل القاعدة`; }
     if(r.type==='total') { body=`<div class="rf">نبّهني إذا وصل إجمالي البلاغات إلى ${num(r,'n',r.n)} ${perSel(r)}</div>`; hits=`${fmt(cnt(r.id))} حالة في كل القاعدة`; }
     if(r.type==='caller'){ body=`<div class="rf">نبّهني إذا سجّل متصل ${num(r,'n',r.n)} بلاغات أو أكثر خلال ${num(r,'days',r.days||30)} يوماً</div>`; hits=`${fmt(cnt(r.id))} متصل في كل القاعدة`; }
+    if(r.type==='rise'){ const k=r.field==='sector'?'sector':'center';
+      body=`<div class="rf">نبّهني إذا زادت بلاغات أي <select class="inp" data-rule="${r.id}" data-rf="field"><option value="center" ${k==='center'?'selected':''}>مركز صحي</option><option value="sector" ${k==='sector'?'selected':''}>قطاع</option></select> بنسبة ${num(r,'pct',r.pct??30)}% أو أكثر، وكان عددها ${num(r,'min',r.min||10)} بلاغ على الأقل</div>
+      <div class="rf">مقارنةً بالفترة السابقة المساوية لها في الطول. الفترة = فترة التاريخ المحددة في البحث، وإذا لم تحدد فترة: آخر ${num(r,'days',r.days||7)} يوم</div>${!active(k)?'<span class="hint">العمود غير مفعّل.</span>':k==='sector'&&!RECS.some(x=>x.sector)?'<span class="hint">لا توجد قطاعات مسجلة في البلاغات بعد. اربط المراكز بالقطاعات من «القوائم والقطاعات» لتعمل هذه القاعدة.</span>':''}`;
+      hits=`${fmt(cnt(r.id))} ${k==='sector'?'قطاع':'مركز'} حالياً`; }
+    if(r.type==='value'){ const k=ruleField(r);
+      body=`<div class="rf"><span>الاسم</span><input class="inp" data-rule="${r.id}" data-rf="name" value="${esc(r.name||'')}" style="min-width:160px"><span>في عمود</span><select class="inp" data-rule="${r.id}" data-rf="field">${!k?`<option value="" selected>${esc(r.fieldLabel||'اختر العمود')} (غير موجود بعد)</option>`:''}${cols().filter(c=>c.type!=='long'&&!['no','date','month','caller','nid'].includes(c.k)).map(c=>`<option value="${c.k}" ${c.k===k?'selected':''}>${esc(c.l)}</option>`).join('')}</select></div>
+      <div class="field"><label>القيم المتابَعة (افصل بفاصلة؛ يكفي جزء من النص)</label><input class="inp" data-rule="${r.id}" data-rf="values" value="${esc(r.values||'')}"></div>
+      ${!k?`<span class="hint">ستعمل تلقائياً عند إضافة عمود «${esc(r.fieldLabel||'')}» من تبويب «الأعمدة» (اختر نوعه «قائمة اختيار» وضع فيه «${esc(r.values||'')}»)، أو اختر عموداً موجوداً.</span>`:''}`;
+      hits=k?`${fmt(RECS.filter(x=>valueMatch(x,r,k)).length)} بلاغ في كل القاعدة`:'بانتظار العمود'; }
     if(r.type==='kw'){ body=`<div class="rf"><span>اسم القاعدة</span><input class="inp" data-rule="${r.id}" data-rf="name" value="${esc(r.name||'')}" style="min-width:160px"></div>
       <div class="field"><label>الكلمات (افصل بينها بفاصلة، ولا تهم الهمزات والتاء المربوطة)</label><textarea class="inp" rows="2" data-rule="${r.id}" data-rf="words">${esc(r.words||'')}</textarea></div>`; hits=`${fmt(kwN(r.id))} بلاغ في كل القاعدة`; }
-    return `<div class="rulec ${r.on?'':'off'}"><div class="rh"><label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" data-rule="${r.id}" data-rf="on" ${r.on?'checked':''}><b>${esc(RULE_TYPES[r.type])}</b></label><span class="sp"></span>${r.on?`<span class="badge">${hits}</span>`:'<span class="hint">موقوفة</span>'}<button type="button" class="iconbtn del" data-ruledel="${r.id}" aria-label="حذف القاعدة">${IC.del}</button></div>${body}</div>`;
+    return `<div class="rulec ${r.on?'':'off'}"><div class="rh"><label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" data-rule="${r.id}" data-rf="on" ${r.on?'checked':''}><b>${esc(RULE_TYPES[r.type])}${r.subset==='sla'?' <span class="sla out">خارج مستوى الخدمة</span>':''}</b></label><span class="sp"></span>${r.on?`<span class="badge">${hits}</span>`:'<span class="hint">موقوفة</span>'}<button type="button" class="iconbtn del" data-ruledel="${r.id}" aria-label="حذف القاعدة">${IC.del}</button></div>${body}</div>`;
   };
   return `<p class="hint">تُطبَّق القواعد على البحث والفلاتر الحالية، فتظهر التنبيهات أعلى الشاشة الرئيسية. اضغط أي تنبيه لعرض بلاغاته. البلاغات التي فيها كلمات حساسة تُعلَّم بخط أحمر في الجدول، وتُلوَّن الكلمة داخل الوصف، ويظهر عددها بعد كل استيراد.</p>
     ${RULES.map(card).join('')||'<p class="hint">لا توجد قواعد.</p>'}
-    <div class="addcol"><div class="field"><label for="ruleType">إضافة قاعدة</label><select class="inp" id="ruleType">${Object.entries(RULE_TYPES).map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select></div><button type="button" class="btn primary" id="ruleAdd">إضافة</button></div>
+    <div class="addcol"><div class="field"><label for="ruleType">إضافة قاعدة</label><select class="inp" id="ruleType">${Object.entries(RULE_TYPES).map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}${['center','sector','sub'].map(k=>`<option value="${k}@sla">${RULE_TYPES[k]} (خارج مستوى الخدمة)</option>`).join('')}</select></div><button type="button" class="btn primary" id="ruleAdd">إضافة</button></div>
     <div><button type="button" class="btn sm ghost" id="ruleReset">استعادة القواعد الافتراضية</button></div>`;
 }
 function panelLog(){
@@ -1666,6 +1933,36 @@ function panelLog(){
   return `<p class="hint">يُسجَّل هنا كل تغيير على البلاغات في هذا الجهاز: الإضافة، والتعديل، والحذف، والاستيراد، والتعديل الجماعي، والاستبدال. يُحفظ آخر ${LOG_MAX} عملية، ويمكن التراجع عن أي منها ما دامت نسختها السابقة محفوظة (حتى ${fmt(LOG_SNAP_MAX)} بلاغ بالمجمل). التراجع يُعيد البلاغات لحالتها قبل العملية. لا يشمل السجل تغييرات الإعدادات والأعمدة.</p>
     ${LOG.length?`<div class="ctbl-wrap"><table class="ctbl logt"><thead><tr><th>الوقت</th><th>العملية</th><th>البلاغات</th><th>التفاصيل</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div><button type="button" class="btn sm ghost danger" id="logClear">مسح السجل</button></div>`:'<div class="pcard"><p class="hint" style="margin:0">لا توجد تعديلات مسجلة بعد. يبدأ التسجيل من أول تعديل بعد هذا التحديث.</p></div>'}`;
+}
+function panelStatus(){
+  const t=colByLabel(STAT.target), a=colByLabel(STAT.src1), b=colByLabel(STAT.src2);
+  const st=k=>k?'<span class="badge" style="color:var(--good)">موجود</span>':'<span class="badge" style="color:var(--bad)">غير موجود</span>';
+  const pool=SCHEMA.filter(c=>!c.removed && !['no','date','month','desc','caller','nid'].includes(c.k));
+  const pick=(f,k)=>`<select class="inp" data-stat="${f}" style="min-width:220px">${k?'':`<option value="" selected>${esc(STAT[f])} (غير موجود، اختر عموداً أو أضفه)</option>`}${pool.map(c=>`<option value="${esc(c.l)}" ${c.k===k?'selected':''}>${esc(c.l)}</option>`).join('')}</select>`;
+  const counts= t ? countBy(RECS,t).slice(0,6).map(([v,n])=>`${esc(v||'—')} (${fmt(n)})`).join('، ') : '';
+  const sel=(f,opts)=>`<select class="inp" data-stat="${f}" style="width:auto">${opts.map(([v,l])=>`<option value="${v}" ${STAT[f]===v?'selected':''}>${l}</option>`).join('')}</select>`;
+  return `<div class="pcard"><h4>حالة البلاغ التلقائية ${STAT.on?'<span class="badge">مفعّلة</span>':''}</h4>
+    <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" data-stat="on" ${STAT.on?'checked':''}><span>تعبئة عمود الحالة تلقائياً من المعيارين</span></label>
+    <div class="ctbl-wrap"><table class="ctbl"><tbody>
+      <tr><td>عمود الحالة</td><td>${pick('target',t)}</td><td>${st(t)}</td></tr>
+      <tr><td>المعيار الأول</td><td>${pick('src1',a)}</td><td>${st(a)}</td></tr>
+      <tr><td>المعيار الثاني (الأخير)</td><td>${pick('src2',b)}</td><td>${st(b)}</td></tr></tbody></table></div>
+    <p class="hint" style="margin:0">إذا كان العمود موجوداً باسم مختلف، اختره من القائمة. الأعمدة «غير الموجودة» فقط تُضاف بالزر.</p>
+    <div class="rf" style="display:grid;gap:6px;font-size:13px">
+      <div>• إذا كان «${esc(STAT.src2)}» مكتوباً، تصبح الحالة: ${sel('final',[['src2',`نص «${esc(STAT.src2)}»`],['closed','مغلق']])}</div>
+      <div>• إذا كان «${esc(STAT.src1)}» فقط مكتوباً، تصبح: ${sel('mid',[['src1',`نص «${esc(STAT.src1)}»`],['wait','بانتظار قرار المنطقة'],['pending',esc(STAT.pending)]])}</div>
+      <div>• إذا كان المعياران فارغين، تصبح: <b>${esc(STAT.pending)}</b></div></div>
+    ${!t||!a||!b?`<div><button type="button" class="btn primary" id="statAdd">إضافة ${[!t,!a,!b].filter(Boolean).length===1?'العمود الناقص':'الأعمدة الناقصة'} (${[!t&&STAT.target,!a&&STAT.src1,!b&&STAT.src2].filter(Boolean).map(x=>'«'+esc(x)+'»').join('، ')})</button></div>`:''}
+    ${t?`<p class="hint" style="margin:0">الحالات الآن: ${counts||'—'}. عمود الحالة لا يُعدَّل يدوياً؛ غيّر أحد المعيارين فتتغير الحالة. ولتحديث المعيارين لبلاغات كثيرة: استورد ملف Excel فيه «رقم البلاغ» والعمودان، واختر «تحديث الموجودة فقط».</p>`:''}
+  </div>`;
+}
+function panelSla(){
+  const k=slaKey(); const pool=SCHEMA.filter(c=>!c.removed && !['no','date','month','desc','caller','nid'].includes(c.k));
+  const o=k?RECS.filter(isOut).length:0, i=k?RECS.filter(r=>slaState(r,k)==='in').length:0;
+  return `<div class="pcard"><h4>اتفاقية مستوى الخدمة</h4>
+    <div class="rf" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span>العمود</span><select class="inp" data-sla="label" style="min-width:220px;width:auto">${k?'':`<option value="" selected>${esc(SLA.label)} (غير موجود)</option>`}${pool.map(c=>`<option value="${esc(c.l)}" ${c.k===k?'selected':''}>${esc(c.l)}</option>`).join('')}</select>${k?'<span class="badge" style="color:var(--good)">موجود</span>':'<button type="button" class="btn sm primary" id="slaAdd">إضافة العمود</button>'}</div>
+    <div class="rf" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input class="inp" data-sla="yes" value="${esc(SLA.yes)}" style="width:90px"> = <span class="sla out">خارج مستوى الخدمة</span> &nbsp; <input class="inp" data-sla="no" value="${esc(SLA.no)}" style="width:90px"> = <span class="sla in">داخل مستوى الخدمة</span></div>
+    ${k?`<p class="hint" style="margin:0">في القاعدة: <b style="color:var(--bad)">${fmt(o)}</b> خارج مستوى الخدمة · <b style="color:var(--good)">${fmt(i)}</b> داخله · ${fmt(RECS.length-o-i)} فارغ. حدودها وتنبيهاتها في تبويب «التنبيهات».</p>`:'<p class="hint" style="margin:0">إذا كان العمود في ملف Excel، استورده من «استيراد Excel» واختر «تحديث الموجودة فقط»، ثم اختره هنا.</p>'}</div>`;
 }
 function panelClinics(){
   return `<div class="pcard"><h4>العيادات والأقسام</h4><p class="hint">لكل عيادة اسم وكلمات يُبحث عنها في وصف البلاغ، وتُفصل الكلمات بفاصلة، ولا تهم الهمزات. الكلمة بدون «ال» واسعة: «اسنان» تطابق «أسنان» و«الأسنان» و«بالأسنان». والكلمة التي تبدأ بـ«ال» أدق: «الاستقبال» تطابق «الاستقبال» و«للاستقبال» فقط، ولا تطابق «تم استقبال المريض». وللدقة أكثر اكتب عبارة كاملة مثل «موظف الاستقبال».</p>
@@ -1720,10 +2017,13 @@ function panelData(){
     <div class="pcard"><h4>إعادة الضبط</h4><div style="display:flex;gap:8px;flex-wrap:wrap">${SEED&&SEED.length?'<button type="button" class="btn" data-more2="restore">استعادة بيانات الملف الأصلي</button>':''}<button type="button" class="btn" id="resetCols">استعادة الأعمدة الافتراضية</button><button type="button" class="btn danger" data-more2="clear">مسح كل البلاغات</button></div></div>`;
 }
 async function panelAction(b,body){
+  if(b.id==='slaAdd'){ if(!slaKey()){ SCHEMA.push({k:'c_'+uid(),l:SLA.label,type:'list',custom:1,table:1,rep:1,req:0,pii:0,options:[SLA.yes,SLA.no]}); schemaChanged(); toast(`أضيف عمود «${SLA.label}»`); } return 'redraw'; }
+  if(b.id==='statAdd'){ [['target','list'],['src1','text'],['src2','text']].forEach(([f,type])=>{ if(!colByLabel(STAT[f])) SCHEMA.push({k:'c_'+uid(),l:STAT[f],type,custom:1,table:1,rep:f==='target'?1:0,req:0,pii:0,options:f==='target'?[STAT.pending,'بانتظار قرار المنطقة','مغلق']:[]}); }); saveSchema(); RECS.forEach(prep); const n=await recomputeStatus(); toast(`أضيفت الأعمدة${n?` وعُبّئت الحالة في ${fmt(n)} بلاغ`:''}`); return 'redraw'; }
+  if(b.id==='dCatsAll'){ const d=dashCfg(); d.cats=[]; HOME.dash=d; saveHome(); renderView(); return 'redraw'; }
   if(b.dataset.hmv){ const L=HOME[b.dataset.hmv]; const i=L.findIndex(x=>x[0]===b.dataset.k); const vis=L.filter(([k])=>!(k==='sectors'&&!active('sector'))); const vi=vis.indexOf(L[i]); const other=vis[vi+(+b.dataset.d)]; if(!other) return; const j=L.indexOf(other); [L[i],L[j]]=[L[j],L[i]]; saveHome(); applyHome(); refresh(true); return 'redraw'; }
   if(b.id==='hReset'){ HOME=normHome(null); saveHome(); applyHome(); pageSize=HOME.pageSize; refresh(true); toast('استُعيدت الشاشة الافتراضية'); return 'redraw'; }
   if(b.dataset.ruledel){ if(!b.classList.contains('confirm')){ b.classList.add('confirm'); b.textContent='تأكيد'; return; } RULES=RULES.filter(r=>r.id!==b.dataset.ruledel); saveRules(); refresh(true); return 'redraw'; }
-  if(b.id==='ruleAdd'){ const t=body.querySelector('#ruleType').value; const r={id:'r'+uid(),type:t,on:1}; if(t==='center') Object.assign(r,{n:15,per:'day'}); if(t==='sub') Object.assign(r,{n:40,per:'day'}); if(t==='total') Object.assign(r,{n:200,per:'day'}); if(t==='caller') Object.assign(r,{n:3,days:30}); if(t==='kw') Object.assign(r,{name:'كلمات جديدة',words:''}); RULES.push(r); saveRules(); refresh(true); return 'redraw'; }
+  if(b.id==='ruleAdd'){ const [t,sub]=body.querySelector('#ruleType').value.split('@'); const r={id:'r'+uid(),type:t,on:1,...(sub?{subset:sub,dir:'both'}:{})}; if(t==='center') Object.assign(r,{n:15,per:'week',auto:1,margin:1,floor:10}); if(t==='sub') Object.assign(r,{n:40,per:'week',auto:1,margin:1,floor:15}); if(t==='sector') Object.assign(r,{n:60,per:'week',auto:1,margin:1,floor:30}); if(t==='total') Object.assign(r,{n:200,per:'day'}); if(t==='caller') Object.assign(r,{n:3,days:30}); if(t==='kw') Object.assign(r,{name:'كلمات جديدة',words:''}); if(t==='rise') Object.assign(r,{field:'center',pct:30,min:10,days:7}); if(t==='value') Object.assign(r,{name:'متابعة جديدة',field:active('sub')?'sub':'main',values:''}); RULES.push(r); saveRules(); refresh(true); return 'redraw'; }
   if(b.id==='ruleReset'){ RULES=DEF_RULES.map(x=>({...x})); saveRules(); refresh(true); toast('استُعيدت القواعد الافتراضية'); return 'redraw'; }
   if(b.dataset.undo){ undoDialog(b.dataset.undo); return; }
   if(b.id==='logClear'){ if(!b.classList.contains('confirm')){ b.classList.add('confirm'); b.textContent='اضغط مرة أخرى لمسح السجل'; return; } LOG=[]; LAST_LOG=null; saveLog(); toast('مُسح السجل'); return 'redraw'; }
@@ -1774,6 +2074,11 @@ async function panelAction(b,body){
 }
 function panelChange(t){
   if(t.dataset.hon){ const L=HOME[t.dataset.hon]; const x=L.find(v=>v[0]===t.dataset.k); if(x) x[1]=t.checked?1:0; if(t.dataset.hon==='views' && !HOME.views.some(v=>v[0]===HOME.defView&&v[1])) HOME.defView='table'; saveHome(); applyHome(); refresh(true); return t.dataset.hon==='views'?'redraw':undefined; }
+  if(t.dataset.sla){ const f=t.dataset.sla, v=t.value.trim(); if(!v) return 'redraw'; SLA[f]=v; saveSla(); refresh(true); return 'redraw'; }
+  if(t.dataset.stat && ['target','src1','src2'].includes(t.dataset.stat) && t.value && ['target','src1','src2'].some(f=>f!==t.dataset.stat && nrm(STAT[f])===nrm(t.value))){ toast('هذا العمود مختار لدور آخر، اختر عموداً مختلفاً'); return 'redraw'; }
+  if(t.dataset.stat){ const f=t.dataset.stat; if(f==='on') STAT.on=t.checked?1:0; else if(['target','src1','src2'].includes(f)){ const v=t.value.trim(); if(!v) return 'redraw'; STAT[f]=v; } else STAT[f]=t.value; saveStat(); recomputeStatus().then(n=>{ if(n) toast(`حُدّثت الحالة في ${fmt(n)} بلاغ`); }); return 'redraw'; }
+  if(t.dataset.dcat!==undefined){ const d=dashCfg(); const set=new Set(d.cats||[]); if(t.checked) set.add(t.dataset.dcat); else set.delete(t.dataset.dcat); d.cats=[...set]; HOME.dash=d; saveHome(); renderView(); const h=t.closest('.field').querySelector('.hint b'); if(h) h.textContent=d.cats.length?`(${fmt(d.cats.length)} مختار)`:'(كل التصنيفات)'; return; }
+  if(t.dataset.dfield||t.name==='dLatestN'){ const d=dashCfg(); if(t.name==='dLatestN') d.latestN=+t.value; else d.fields[t.dataset.dfield]=t.checked?1:0; HOME.dash=d; saveHome(); renderView(); const pv=document.getElementById('tkPrev'); if(pv){ const r=RECS.slice().sort((a,b)=>String(b.date).localeCompare(a.date))[0]; pv.textContent=r?recTick(r):'—'; } return; }
   if(t.id==='dTicker'||t.id==='dHome'||t.name==='dSpeed'||t.dataset.ditem){ const d=dashCfg(); if(t.id==='dTicker') d.ticker=t.checked?1:0; if(t.id==='dHome') d.home=t.checked?1:0; if(t.name==='dSpeed') d.speed=+t.value; if(t.dataset.ditem) d.items[t.dataset.ditem]=t.checked?1:0; HOME.dash=d; saveHome(); renderView(); return; }
   if(t.name==='hTheme'){ HOME.theme=t.value; saveHome(); applyHome(); return; }
   if(t.name==='hZoom'){ HOME.zoom=+t.value; saveHome(); applyHome(); return; }
@@ -1783,8 +2088,9 @@ function panelChange(t){
   if(t.id==='hAlerts'){ HOME.alerts=t.checked?1:0; saveHome(); renderAlerts(); return; }
   if(t.id==='hPresets'){ HOME.presets=t.checked?1:0; saveHome(); applyHome(); return; }
   if(t.dataset.rule){ const r=RULES.find(x=>x.id===t.dataset.rule); if(!r) return; const f=t.dataset.rf;
-    if(f==='on') r.on=t.checked?1:0; else if(f==='n'||f==='days') r[f]=Math.max(1,+t.value||1); else r[f]=t.value;
-    saveRules(); refresh(true); return f==='words'||f==='name'?undefined:'redraw'; }
+    if(f==='on') r.on=t.checked?1:0; else if(f==='auto') r.auto=+t.value?1:0; else if(f==='kind') r.kind=t.value; else if(f==='dir') r.dir=t.value; else if(f==='factor') r.factor=+t.value||2; else if(f==='n'||f==='days'||f==='min'||f==='floor'||f==='margin') r[f]=Math.max(1,+t.value||1); else if(f==='pct') r[f]=Math.max(0,+t.value||0); else r[f]=t.value;
+    if(f==='field' && r.type==='value') delete r.fieldLabel;
+    saveRules(); refresh(true); return ['words','name','values'].includes(f)?undefined:'redraw'; }
   if(t.name==='bkEvery'){ BK.every=+t.value; BK.snooze=''; saveBK(); renderBackupBanner(); toast(BK.every?'حُفظ موعد التذكير':'أُوقف تنبيه النسخة الاحتياطية'); return; }
   if(t.id==='maskOn'){ MASK_ON=t.checked; try{ localStorage.setItem(MASK_KEY,MASK_ON?'1':'0'); }catch(e){} toast(MASK_ON?'سيُخفى أي رقم جوال أو هوية في الوصف':'أُوقف الإخفاء التلقائي'); return; }
   if(t.dataset.flag){ const c=col(t.dataset.k); c[t.dataset.flag]=t.checked?1:0; schemaChanged(); return; }
@@ -1799,7 +2105,7 @@ function panelChange(t){
 const SETTINGS_APP='r937-db-settings';
 function settingsSnapshot(){
   return {app:SETTINGS_APP, version:1, exported:nowLocal(), brand:BRAND, schema:schemaSerial(), secmap:SECMAP, clinics:CLINICS,
-    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES};
+    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA};
 }
 async function exportSettings(){
   const blob=new Blob([JSON.stringify(settingsSnapshot(),null,2)],{type:'application/json'});
@@ -1826,6 +2132,8 @@ async function importSettings(file){
         if(s.backupEvery!==undefined){ BK.every=+s.backupEvery||0; saveBK(); }
         if(s.mask!==undefined){ MASK_ON=!!s.mask; localStorage.setItem(MASK_KEY,MASK_ON?'1':'0'); }
         if(s.home){ HOME=normHome(s.home); saveHome(); pageSize=HOME.pageSize; }
+        if(s.sla){ SLA={...DEF_SLA,...s.sla}; saveSla(); }
+        if(s.status){ STAT={...DEF_STAT,...s.status}; saveStat(); setTimeout(()=>recomputeStatus(),0); }
         if(Array.isArray(s.rules)){ RULES=s.rules.filter(r=>r&&r.type&&RULE_TYPES[r.type]).map(r=>({...r,id:String(r.id||'r'+uid())})); saveRules(); }
         if(withPin){ localStorage.setItem(PIN_KEY,s.pin); unlocked=true; }
       }catch(e){ console.error(e); toast('طُبّق جزء من الإعدادات فقط، لأن هذا المتصفح لم يسمح بحفظ الباقي'); }
@@ -2493,13 +2801,14 @@ try{ navigator.storage && navigator.storage.persist && navigator.storage.persist
   }
   setAll(list);
   await loadLog();
+  setTimeout(()=>recomputeStatus(true),0);
   pageSize=+HOME.pageSize||50;
   if(HOME.defView && HOME.views.some(v=>v[0]===HOME.defView&&v[1])){ view=HOME.defView; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); }
   applyHome();
   renderAll();
   renderBackupBanner();
 })();
-window.__db={get LOG(){return LOG;}, evalRules, undoEntry, get HOME(){return HOME;}, kwIndex, parseNos, get BK(){return BK;}, maskNums, staffGroups, clinicGroups, pairGroups, buildReportXlsx, get recs(){return RECS;}, readXlsx, parseRecords, buildXlsx, buildReport, get filtered(){return filtered;}};
+window.__db={applyChange, slaKey, prep, get LOG(){return LOG;}, evalRules, undoEntry, get HOME(){return HOME;}, kwIndex, parseNos, get BK(){return BK;}, maskNums, staffGroups, clinicGroups, pairGroups, buildReportXlsx, get recs(){return RECS;}, readXlsx, parseRecords, buildXlsx, buildReport, get filtered(){return filtered;}};
 </script>
 
 </body>
