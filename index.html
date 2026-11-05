@@ -1049,7 +1049,7 @@ function evalRules(list){
       groups.sort((a,b)=>String(b.b.k).localeCompare(a.b.k)||(rule.auto?mag(b)-mag(a):b.n-a.n)).forEach(g=>{ const th=g.th, up=g.dir==='up';
         const chg = isP ? (isFinite(g.pc)?`${g.pc.toFixed(0)}%`:'جديد') : nB(Math.abs(g.n-th));
         const SP=isS?' خارج مستوى الخدمة':'';
-        out.push({rule,dir:g.dir,sla:isS,sev:up?(g.n>=Math.max(1,th)*1.5?2:1):1,n:g.n,
+        out.push({rule,dir:g.dir,sla:isS,sev:up?(g.n>=Math.max(1,th)*1.5?2:1):1,n:g.n,th,diff:Math.abs(g.n-th),pc:isP?(isFinite(g.pc)?g.pc:1e9):null,bk:g.b.k,
         title:k?`${g.v}: ${nB(g.n)}${SP}`:nB(g.n)+SP,
         sub: rule.auto ? `${g.b.l} · ${prevL} ${nB(th)} · ${up?'زيادة':'انخفاض'} ${chg}${isP?` (الحد ${+rule.pct||30}%)`:''}` : `${g.b.l} · الحد ${nB(th)}`,
         act:{...(k?{[k]:g.v}:{}),from:g.b.from,to:g.b.to,...(isS?{sla:'out'}:{})},
@@ -1427,6 +1427,10 @@ function alertGroups(al){
   const G=[['up','زيادة عن الحد','u'],['down','انخفاض عن الحد','d'],['slaUp','زيادة خارج مستوى الخدمة','u'],['slaDown','انخفاض خارج مستوى الخدمة','d'],['kw','كلمات حساسة','b'],['value','تصنيفات وحالات متابَعة','b'],['caller','متصلون متكررون','w'],['other','تنبيهات أخرى','w']];
   const key=a=>{ const t=a.rule.type; if(a.sla) return a.dir==='down'?'slaDown':'slaUp'; if(['center','sub','sector','total'].includes(t)) return a.dir==='down'?'down':'up'; if(t==='kw') return 'kw'; if(t==='value') return 'value'; if(t==='caller') return 'caller'; return 'other'; };
   const m=new Map(G.map(([k])=>[k,[]])); al.forEach((a,i)=>m.get(key(a)).push([a,i]));
+  // الزيادة والانخفاض: من الأكثر إلى الأقل (بالعدد، أو بالنسبة إذا كانت القاعدة بالنسبة المئوية)
+  const mag=a=>a.pc!=null?a.pc:(a.diff??a.n);
+  ['up','down','slaUp','slaDown'].forEach(k=>m.get(k).sort((x,y)=>mag(y[0])-mag(x[0])||String(y[0].bk||'').localeCompare(x[0].bk||'')));
+  ['kw','value','caller','other'].forEach(k=>m.get(k).sort((x,y)=>(y[0].n||0)-(x[0].n||0)));
   return G.map(([k,l,c])=>({k,l,c,items:m.get(k)})).filter(g=>g.items.length);
 }
 function alertsTile(){
@@ -1458,19 +1462,19 @@ function kpiCompare(){
   // goodUp: الزيادة جيدة (داخل مستوى الخدمة) فتُلوَّن بالأخضر
   const arrow=(c,p,goodUp)=>{ if(!hasPrev||!p) return `<span class="kd">${fmt(c)}</span>`; if(c===p) return `<span class="kd">${fmt(c)} =</span>`; const up=c>p, good=goodUp?up:!up, pc=Math.abs((c-p)/p*100).toFixed(0);
     return `<span class="kd ${good?'g':'b'}">${fmt(c)} ${up?'↑':'↓'}${pc}%</span>`; };
-  return (pred,note)=>{
+  return (pred,note,goodUp)=>{
     const c=C.filter(pred), p=P.filter(pred);
-    let h=`<span class="kc"><span class="kg"><span class="kl">${lbl}${note?` (${note})`:''}:</span> ${arrow(c.length,p.length,false)}</span>${hasPrev?`<span class="kp">السابق ${fmt(p.length)}</span>`:''}</span>`;
+    let h=`<span class="kc"><span class="kg"><span class="kl">${lbl}${note?` (${note})`:''}:</span> ${arrow(c.length,p.length,!!goodUp)}</span>${hasPrev?`<span class="kp">السابق ${fmt(p.length)}</span>`:''}</span>`;
     // سطر داخل/خارج مستوى الخدمة أُزيل من المربعات (يظهر في مربعيه المنفصلين)
     return h;
   };
 }
 // مؤشر داخل/خارج مستوى الخدمة في الشاشة الرئيسية
-function slaTile(w){
+function slaTile(w,CMP){
   const out=w==='out', col=out?'--bad':'--good', lbl=out?'خارج مستوى الخدمة':'داخل مستوى الخدمة', k=slaKey();
   if(!k) return `<div role="button" tabindex="0" class="kpi" data-dgo="slacol" style="text-align:start;cursor:pointer;border-color:color-mix(in srgb,var(${col}) 45%,var(--line));font:inherit;color:inherit"><span class="lbl">${lbl}</span><span class="val" style="color:var(--muted)">—</span><span class="sub">اضغط لإضافة العمود</span></div>`;
   const o=filtered.filter(r=>slaState(r,k)==='out').length, i=filtered.filter(r=>slaState(r,k)==='in').length, n=out?o:i;
-  return `<div role="button" tabindex="0" class="kpi" data-dgo="${out?'sla':'slain'}" style="text-align:start;cursor:pointer;border-color:color-mix(in srgb,var(${col}) 45%,var(--line));font:inherit;color:inherit"><span class="lbl">${lbl}</span><span class="val" style="color:var(${col})">${fmt(n)}</span><span class="sub">${o+i?`${pct(n,o+i)} من البلاغات`:'لا توجد قيم بعد'}</span></div>`;
+  return `<div role="button" tabindex="0" class="kpi" data-dgo="${out?'sla':'slain'}" style="text-align:start;cursor:pointer;border-color:color-mix(in srgb,var(${col}) 45%,var(--line));font:inherit;color:inherit"><span class="lbl">${lbl}</span><span class="val" style="color:var(${col})">${fmt(n)}</span><span class="sub">${o+i?`${pct(n,o+i)} من البلاغات`:'لا توجد قيم بعد'}</span>${CMP&&o+i?CMP(r=>slaState(r,k)===w,'',!out):''}</div>`;
 }
 const WEEKDAYS=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
 function renderSummary(){
@@ -1489,8 +1493,8 @@ function renderSummary(){
     callers:()=>{ const g=(active('caller')||active('nid'))?repeatGroups(filtered,RPT.min):[]; return kpi('متصلون متكررون',fmt(g.length),`${RPT.min}+ بلاغ لكل متصل`); },
     flagged:()=>{ const idx=kwIndex(); const n=filtered.filter(r=>idx.has(r.id)).length; return kpi('بلاغات بكلمات حساسة',fmt(n),n?pct(n,tot)+' من النتائج':'حسب قواعد التنبيه'); },
     alerts:()=>alertsTile(),
-    sla:()=>slaTile('out'),
-    slaIn:()=>slaTile('in'),
+    sla:()=>slaTile('out',CMP),
+    slaIn:()=>slaTile('in',CMP),
     sectors:()=>{ const sc=countBy(filtered,'sector').filter(x=>x[0]); return kpi('أعلى قطاع',esc(sc[0]?shortName(sc[0][0]):'—'),sc[0]?`${fmt(sc[0][1])} بلاغ · ${pct(sc[0][1],tot)}`:'لا توجد قطاعات مسجلة',1,sc[0]?CMP(r=>r.sector===sc[0][0]):'',sc[0]?.[0]); }
   };
   if(!active('sector')) delete K.sectors;
