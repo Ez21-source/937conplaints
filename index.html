@@ -748,26 +748,44 @@ function staffIndex(){
   const nxt=w=>NAMES_LEX.has(w) || (w.length>=4 && w.endsWith('ي') && (freq.get(w)||0)<=8 && (w.startsWith('ال') || !/^[يتوفبل]/.test(w) || (/^[بفل]/.test(w) && w.length>=5 && (freq.get(w)||0)<=6 && !/^(بال|فال|لل|وال)/.test(w))));
   const tokz=t=>String(t||'').replace(/[ً-ْـ]/g,'').replace(/د\s*[.\/]/g,'د ').replace(/[^ء-ي\s]/g,' ').split(/\s+/).filter(Boolean);
   const m=new Map();
-  const add=(r,first,full,title,pos)=>{ const key=first+'|'+(r.center||'');
-    if(!m.has(key)) m.set(key,{k:key,first,full:'',titles:new Map(),center:r.center||'',recs:[],pos:new Map()});
+  const add=(r,first,full,title,pos,fl)=>{ const key=first+'|'+(r.center||'');
+    if(!m.has(key)) m.set(key,{k:key,first,full:'',titles:new Map(),center:r.center||'',recs:[],pos:new Map(),praise:new Set(),resolve:new Set()});
     const g=m.get(key); if(!g.pos.has(r.id)) g.recs.push(r);
-    const old=g.pos.get(r.id); if(!old || old==='end') g.pos.set(r.id,pos); // إذا ورد الاسم في موضعين يُعتمد غير «آخر الوصف»
+    const old=g.pos.get(r.id); if(!old || old==='end') g.pos.set(r.id,pos); // إذا ورد الاسم في موضعين يُعتمد غير التوقيع
+    if(fl&&fl.pr) g.praise.add(r.id); if(fl&&fl.rs) g.resolve.add(r.id);
     if(full.length>g.full.length) g.full=full; if(title) g.titles.set(title,(g.titles.get(title)||0)+1); };
   RECS.forEach(r=>{
-    dcols.forEach(ck=>{ const text=r[ck]; if(!text) return;
+    dcols.forEach(ck=>{ const text=r[ck]; if(!text) return; const isDesc=ck==='desc'||dcols.length===1;
       const orig=tokz(text), raw=orig.map(nrm), L=raw.length; const used=new Set();
       for(let i=0;i<L-1;i++){
         if(!STAFF_TITLES.has(raw[i]) || !NAMES_LEX.has(raw[i+1])) continue;
         const name=[raw[i+1]]; let j=i+2; while(j<L && name.length<3 && nxt(raw[j])){ name.push(raw[j]); j++; }
-        for(let x=i+1;x<j;x++) used.add(x);
-        // «آخر الوصف» = لا يوجد بعد الاسم أي كلام، والصفة ليست وظيفية (طبيب، ممرض، مدير…)
-        const left=L-j, rel=i/Math.max(1,L);
-        const pos = (left===0 && !STAFF_PRO.has(raw[i])) ? 'end' : rel<0.33 ? 'start' : 'mid';
-        add(r,raw[i+1],orig.slice(i+1,j).join(' '),raw[i],pos);
+        for(let x=i-1;x<j;x++) used.add(x);
+        const rel=i/Math.max(1,L);
+        // الاسم مع صفة (الموظف، الطبيب…) لا يكون مشرف إغلاق: إما موظف مقصود أو موظف منشأة
+        const pos = rel<0.33 ? 'start' : 'mid';
+        let pr=false; for(let x=Math.max(0,i-8); x<Math.min(L,j+8); x++){ if(isPraiseTok(raw[x])){ pr=true; break; } }
+        // «تم حلها من قبل الطبيب فلان» = موظف منشأة
+        let rs=(!isDesc && STAFF_SRC!=='pos'); if(!rs){ for(let x=Math.max(0,i-6); x<Math.min(L,j+3); x++){ if(isResolveTok(raw[x])){ rs=true; break; } } }
+        add(r,raw[i+1],orig.slice(i+1,j).join(' '),raw[i],pos,{pr,rs});
       }
-      // توقيع في نهاية النص بدون لقب، مثل «…المتبعه///نزهه»
-      const tt=String(text).replace(/[ً-ْـ]/g,''); const tail=/([\/\\\-–—:|،,]+)\s*([ء-ي]+(?:\s+[ء-ي]+){0,2})\s*[.!؟]*\s*$/.exec(tt);
-      if(tail){ const w=tokz(tail[2]); const f=nrm(w[0]||''); const strong=tail[1].length>=2||/[—–]/.test(tail[1]); /* اسم معروف بعد فاصل، أو أي كلمة بعد فاصل قوي مثل /// (توقيع موظف البلاغ) */ if(w.length && w.length<=3 && !STAFF_TITLES.has(f) && (NAMES_LEX.has(f)||(strong&&f.length>=3)) && !used.has(L-w.length)) add(r,f,w.join(' '),'','end'); }
+      // مشرف الإغلاق: اسمه في آخر النص دون صفة، مثل «…المتبعه///نزهه» أو «…تم الإغلاق نزهه»
+      const tt=String(text).replace(/[\u064B-\u0652\u0640]/g,'');
+      const tail=/([\/\\\-–—:|،,]*)\s*([\u0621-\u064A]+(?:\s+[\u0621-\u064A]+){0,2})\s*[.!؟)]*\s*$/.exec(tt);
+      if(tail){ const w=tokz(tail[2]); const sep=tail[1]||'', strong=sep.length>=2||/[—–]/.test(sep);
+        // نحدد بداية الاسم: أول كلمة معروفة كاسم ضمن الكلمات الأخيرة، وكل ما بعدها يجب أن يكون اسماً أيضاً
+        const NOTN=new Set(['صباح','مساء','ظهر','فجر','اليوم','غدا','امس','صباحا','مساءا','عليه','عليها','عليهم','لكم','لك','له','لها','منه','منها','فيه','فيها','انقليزي','انجليزي','عربي','اردو','الانقليزي','الانجليزية','العربية'].map(nrm));
+        const isNm=(o,q)=>{ const n=nrm(o); if(o==='على'||o==='إلى'||o==='الى'||NOTN.has(n)) return false; return q===0?NAMES_LEX.has(n):(NAMES_LEX.has(n)||nxt(n)); };
+        let st=-1; for(let q=0;q<w.length;q++){ if(isNm(w[q],0) && w.slice(q+1).every(x=>isNm(x,1))){ st=q; break; } }
+        let ctx=false;
+        { const lw0=nrm(w[w.length-1]||''); if(st<0 && strong && lw0.length>=3 && !STAFF_TITLES.has(lw0) && !/^(ال|بال|لل|وال|فال)/.test(lw0) && !/(ه|ها|هم|كم|نا)$/.test(lw0) && (freq.get(lw0)||0)<=15){ w.splice(0,w.length-1); st=0; } }
+        // كلمة أخيرة بعد عبارة إغلاق، مثل «…وتم إغلاق البلاغ نزهه»
+        if(st<0 && L>=3){ const lw=raw[L-1], pw=raw[L-2]; const CLOSE=['البلاغ','الطلب','الشكوي','الشكوى','التذكره','الاغلاق','اغلاق','بنجاح','المتبعه','المعالجه','الحل','وشكرا','شكرا','تحياتي'].map(nrm); if(lw.length>=3 && !STAFF_TITLES.has(lw) && !NOTN.has(lw) && CLOSE.includes(pw) && (freq.get(lw)||0)<=40){ w.splice(0,w.length,orig[L-1]); st=0; ctx=true; } }
+        if(st>=0){ const nm=w.slice(st), f=nrm(nm[0]), pos0=L-nm.length, prev=raw[pos0-1];
+          const PLACE=new Set(['مستشفي','مستشفى','مركز','حي','مدينه','شارع','مجمع','عياده','قسم','مدرسه','محافظه','منطقه','جامعه','نظام','برنامج','تطبيق','منصه','موقع','بوابه'].map(nrm));
+          if(NOTN.has(f)) { /* ليست اسماً */ } else
+          if(!STAFF_TITLES.has(f) && !(prev&&STAFF_TITLES.has(prev)) && !(prev&&PLACE.has(prev)) && !used.has(pos0) && (sep||ctx||NAMES_LEX.has(f))) add(r,f,nm.join(' '),'','end'); }
+      }
     });
   });
   return staffIdx=m;
@@ -780,22 +798,45 @@ const staffCatField=()=> active('main')?'main':(active('sub')?'sub':null);
 let STAFF_CAT_EX=(()=>{ try{ const s=JSON.parse(localStorage.getItem(SCAT_KEY)||'null'); return Array.isArray(s)?new Set(s):null; }catch(e){ return null; } })();
 function staffCatEx(){ if(STAFF_CAT_EX) return STAFF_CAT_EX; const f=staffCatField(); const s=new Set(); if(f) RECS.forEach(r=>{ const v=r[f]; if(v && /^طلب/.test(v.trim())) s.add(v); }); return s; }
 const saveStaffCatEx=()=>{ try{ localStorage.setItem(SCAT_KEY,JSON.stringify([...staffCatEx()])); }catch(e){} };
-// فلتر موضع الاسم في الوصف
+// تصنيف الموظف المذكور: المقصود (سبب الشكوى) / مشرف الإغلاق / موظف المنشأة (ومنه عبارات الشكر والثناء)
 const SPOS_KEY='r937-staffpos-v1';
-const SPOS_OPTS=[['all','الكل'],['intent','الموظف المقصود'],['start','أول الوصف'],['mid','وسط الوصف'],['end','مشرف الإغلاق']];
+const SPOS_OPTS=[['all','الكل'],['intent','الموظف المقصود'],['start','أول الوصف'],['mid','وسط الوصف'],['end','مشرف الإغلاق'],['fac','موظف المنشأة'],['praise','الشكر والثناء']];
 let STAFF_POS=(()=>{ try{ return localStorage.getItem(SPOS_KEY)||'all'; }catch(e){ return 'all'; } })();
-// أسماء يحددها المستخدم كموظفي بلاغ (تُستبعد من «الموظف المقصود» وتظهر في «آخر الوصف»)
-const CLOSERS_KEY='r937-closers-v1';
-let CLOSERS=(()=>{ try{ return new Set(JSON.parse(localStorage.getItem(CLOSERS_KEY)||'[]')); }catch(e){ return new Set(); } })();
-const saveClosers=()=>{ try{ localStorage.setItem(CLOSERS_KEY,JSON.stringify([...CLOSERS])); }catch(e){} };
-// أسماء يحددها المستخدم كموظفي منشأة حتى لو جاءت آخر الوصف
-const KEEP_KEY='r937-staffkeep-v1';
-let KEEP=(()=>{ try{ return new Set(JSON.parse(localStorage.getItem(KEEP_KEY)||'[]')); }catch(e){ return new Set(); } })();
-const saveKeep=()=>{ try{ localStorage.setItem(KEEP_KEY,JSON.stringify([...KEEP])); }catch(e){} };
-const posOf=(g,r)=>{ if(CLOSERS.has(g.first)) return 'end'; const p=g.pos?.get(r.id); return (p==='end'&&KEEP.has(g.first))?'mid':p; };
-const posOk=(g,r)=>{ if(STAFF_POS==='all') return true; const p=posOf(g,r); if(!p) return true; return STAFF_POS==='intent' ? p!=='end' : p===STAFF_POS; };
+// أسماء أعمدة الإفادة (إفادة الضابط…): 'closer' = مشرف إغلاق، 'pos' = حسب موضعها مثل الوصف
+const SSRC_KEY='r937-staffsrc-v1';
+let STAFF_SRC=(()=>{ try{ const v=localStorage.getItem(SSRC_KEY)||'fac'; return v==='closer'?'fac':v; }catch(e){ return 'fac'; } })();
+// تصنيف يدوي لكل شخص (الاسم|المركز): intent | closer | fac
+const SOVR_KEY='r937-staffovr-v1';
+let SOVR=(()=>{ try{ const o=JSON.parse(localStorage.getItem(SOVR_KEY)||'null'); if(o) return o;
+  const m={}; try{ JSON.parse(localStorage.getItem('r937-closers-v1')||'[]').forEach(k=>m[k]='closer'); JSON.parse(localStorage.getItem('r937-staffkeep-v1')||'[]').forEach(k=>m[k]='intent'); }catch(e){} return m; }catch(e){ return {}; } })();
+const saveSovr=()=>{ try{ localStorage.setItem(SOVR_KEY,JSON.stringify(SOVR)); }catch(e){} };
+const ovrOf=g=>SOVR[g.k]||SOVR[g.first]||'';
+const CAT_L={intent:'الموظف المقصود',closer:'مشرف الإغلاق',fac:'موظف المنشأة',praise:'شكر وثناء'};
+// تصنيف ذكر الموظف في بلاغ معيّن
+function catOf(g,r){ const p=g.pos?.get(r.id)||'mid', o=ovrOf(g);
+  if(isCloserName(g)) return {c:'closer',p};
+  if(o==='fac') return {c:'fac',p}; if(o==='intent') return {c:'intent',p:p==='end'?'mid':p};
+  if(p==='end') return {c:'closer',p};
+  if(g.praise?.has(r.id)) return {c:'praise',p};
+  if(g.resolve?.has(r.id)) return {c:'fac',p};
+  return {c:'intent',p}; }
+const posOk=(g,r)=>{ if(STAFF_POS==='all') return true; const x=catOf(g,r);
+  if(STAFF_POS==='intent') return x.c==='intent'; if(STAFF_POS==='start'||STAFF_POS==='mid') return x.c==='intent'&&x.p===STAFF_POS;
+  if(STAFF_POS==='end') return x.c==='closer'; if(STAFF_POS==='fac') return x.c==='fac'||x.c==='praise'; if(STAFF_POS==='praise') return x.c==='praise'; return true; };
+// كلمات الشكر والثناء (تُطابق بداية الكلمة بعد التطبيع)
+const PRAISE=['شكر','اشكر','يشكر','نشكر','تشكر','مشكور','شاكر','بالشكر','والشكر','ثناء','الثناء','بالثناء','يثني','اثني','تثني','نثني','اشاد','يشيد','اشيد','نشيد','الاشاد','اشاده','ممتن','امتنان','تقدير','والتقدير','متميز','التميز','تميز','رائع','جزاه','جزاها','جزاهم','جزاكم','بيض','الله يعطيه','يعطيها','احسن','احسنت','اخلاص','بتعامله الراقي','الراقي','راقي','خلوق','خلوقه','لطيف','لطيفه','متعاون','متعاونه','تعاون'].map(w=>nrm(w));
+const isPraiseTok=t=>PRAISE.some(w=>t.startsWith(w));
+const RESOLVE=['حل','الحل','حلها','حله','بحل','وحل','وحلها','حلت','وتم','عالج','معالج','المعالج','انهاء','انهي','ساعد','مساعد','تسهيل','سهل','اغلق','الاغلاق'].map(w=>nrm(w));
+const isResolveTok=t=>t!=='وتم'&&RESOLVE.some(w=>t===w||(w.length>=3&&t.startsWith(w)));
+// قائمة أسماء مشرفي الإغلاق (من لوحة التحكم) — تُطابق الاسم الأول أو الاسم الكامل
+const CLN_KEY='r937-closernames-v1';
+let CLOSER_NAMES=(()=>{ try{ const v=JSON.parse(localStorage.getItem(CLN_KEY)||'null'); if(Array.isArray(v)) return v;
+  const out=[]; try{ Object.entries(JSON.parse(localStorage.getItem('r937-staffovr-v1')||'{}')).forEach(([k,c])=>{ if(c==='closer') out.push(k.split('|')[0]); }); JSON.parse(localStorage.getItem('r937-closers-v1')||'[]').forEach(k=>out.push(k.split('|')[0])); }catch(e){} return [...new Set(out)]; }catch(e){ return []; } })();
+const saveClosers=()=>{ try{ localStorage.setItem(CLN_KEY,JSON.stringify(CLOSER_NAMES)); }catch(e){} };
+const clSetN=()=>new Set(CLOSER_NAMES.map(nrm));
+const isCloserName=g=>{ const S=clSetN(); return S.has(nrm(g.first))||S.has(nrm(g.full)); };
 function complaintsOnly(list){ const f=staffCatField(); if(!f) return list; const ex=staffCatEx(); if(!ex.size) return list; return list.filter(r=>!ex.has(r[f])); }
-function staffGroups(list,min){ list=complaintsOnly(list); const ids=new Set(list.map(r=>r.id)); return [...staffIndex().values()].filter(g=>!STAFF_HIDE.has(g.k)).map(g=>{ const recs=g.recs.filter(r=>ids.has(r.id)&&posOk(g,r)); const pc={start:0,mid:0,end:0}; g.recs.forEach(r=>{ if(ids.has(r.id)){ const p=posOf(g,r); if(p) pc[p]++; } }); return {...g,recsF:recs,n:recs.length,pc}; }).filter(g=>g.n>=min).map(g=>{ const s=[...g.recsF].sort((a,b)=>String(a.date).localeCompare(String(b.date))); return {...g,sub:(countBy(s,active('sub')?'sub':'main')[0]||[''])[0],first_d:s[0].date,last_d:s[s.length-1].date}; }).sort((a,b)=>b.n-a.n||String(b.last_d).localeCompare(String(a.last_d))); }
+function staffGroups(list,min){ list=complaintsOnly(list); const ids=new Set(list.map(r=>r.id)); return [...staffIndex().values()].filter(g=>!STAFF_HIDE.has(g.k)).map(g=>{ const recs=g.recs.filter(r=>ids.has(r.id)&&posOk(g,r)); const pc={intent:0,closer:0,fac:0,praise:0}; g.recs.forEach(r=>{ if(ids.has(r.id)) pc[catOf(g,r).c]++; }); return {...g,recsF:recs,n:recs.length,pc}; }).filter(g=>g.n>=min).map(g=>{ const s=[...g.recsF].sort((a,b)=>String(a.date).localeCompare(String(b.date))); return {...g,sub:(countBy(s,active('sub')?'sub':'main')[0]||[''])[0],first_d:s[0].date,last_d:s[s.length-1].date}; }).sort((a,b)=>b.n-a.n||String(b.last_d).localeCompare(String(a.last_d))); }
 // متصل ذكر نفس الموظف في أكثر من شكوى
 function pairGroups(list,min){
   list=complaintsOnly(list);
@@ -1446,7 +1487,7 @@ function renderFilters(){
   if(filt.q) tags.push(['q',`بحث: ${filt.q}`]);
   if(filt.from||filt.to) tags.push(['dates',`الفترة: ${filt.from||'…'} ← ${filt.to||'…'}`]);
   if(filt.ck) tags.push(['ck',`المتصل: ${callerLabel(filt.ck)}`]);
-  if(filt.emp) tags.push(['emp',`الموظف: ${staffLabel(filt.emp)}${filt.empc&&staffCatEx().size?' · الشكاوى فقط':''}${STAFF_POS!=='all'?' · '+SPOS_OPTS.find(x=>x[0]===STAFF_POS)[1]:''}`]);
+  if(filt.emp) tags.push(['emp',`الموظف: ${staffLabel(filt.emp)}${filt.empc&&staffCatEx().size?' · الشكاوى فقط':''}${STAFF_POS!=='all'?' · '+(SPOS_OPTS.find(x=>x[0]===STAFF_POS)||['',''])[1]:''}`]);
   if(filt.cl) tags.push(['cl',`العيادة: ${filt.cl}`]);
   if(filt.kw) tags.push(['kw',`تنبيه: ${kwRuleName(filt.kw)}`]);
   if(filt.sla) tags.push(['sla',filt.sla==='out'?'خارج مستوى الخدمة':'داخل مستوى الخدمة']);
@@ -1633,14 +1674,14 @@ function renderStaff(v){
   v.innerHTML=`<div class="panel" style="padding:12px 14px;display:grid;gap:10px">
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="hint">الحد الأدنى للشكاوى</span>${seg}${hidden?`<button type="button" class="btn sm ghost" id="staffUnhide">إظهار المستبعدين (${fmt(hidden)})</button>`:''}${staffCatField()?`<button type="button" class="btn sm" id="staffCats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4-2v-4z"/></svg>التصنيفات المحسوبة شكوى</button>`:''}</div>
     ${staffCatField()&&staffCatEx().size?`<div class="chips" style="align-items:center"><span class="hint">مستبعد من العدّ (${fmt(filtered.filter(r=>staffCatEx().has(r[staffCatField()])).length)} بلاغ):</span>${[...staffCatEx()].map(v=>`<span class="tag">${esc(v)}<button type="button" data-unex="${esc(v)}" aria-label="إرجاع">×</button></span>`).join('')}</div>`:''}
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint">موضع الاسم في الوصف</span><div class="seg">${SPOS_OPTS.map(([v,l])=>`<label><input type="radio" name="spos" value="${v}" ${v===STAFF_POS?'checked':''}><span>${l}</span></label>`).join('')}</div></div>
-    <p class="hint" style="margin:0"><b>مشرف الإغلاق</b> = من حلّ أو أغلق البلاغ: اسم في آخر الوصف لا يأتي بعده أي كلام ولا يحمل صفة وظيفية (طبيب، ممرض، مدير…)، أو توقيع في نهاية النص مثل «///نزهه». <b>الموظف المقصود</b> = سبب الشكوى. اضغط «مشرف إغلاق» لنقل اسم إلى مشرفي الإغلاق دائماً، أو «الموظف المقصود» إذا كان الاسم سبب الشكوى.</p>
-    ${KEEP.size?`<div class="chips" style="align-items:center"><span class="hint">موظفون مقصودون رغم ورودهم آخر الوصف (${fmt(KEEP.size)}):</span>${[...KEEP].map(v=>`<span class="tag">${esc(v)}<button type="button" data-unkeep="${esc(v)}" aria-label="إرجاع">×</button></span>`).join('')}</div>`:''}
-    ${CLOSERS.size?`<div class="chips" style="align-items:center"><span class="hint">أسماء مشرفي الإغلاق (${fmt(CLOSERS.size)}):</span>${[...CLOSERS].map(v=>`<span class="tag">${esc(v)}<button type="button" data-uncloser="${esc(v)}" aria-label="إرجاع">×</button></span>`).join('')}</div>`:''}
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint">عرض</span><div class="seg" style="flex-wrap:wrap">${SPOS_OPTS.map(([v,l])=>`<label><input type="radio" name="spos" value="${v}" ${v===STAFF_POS?'checked':''}><span>${l}</span></label>`).join('')}</div></div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint">الأسماء في «إفادة الضابط» وأعمدة الإفادة</span><div class="seg"><label><input type="radio" name="ssrc" value="fac" ${STAFF_SRC!=='pos'?'checked':''}><span>موظف منشأة</span></label><label><input type="radio" name="ssrc" value="pos" ${STAFF_SRC==='pos'?'checked':''}><span>حسب موضعها مثل الوصف</span></label></div></div>
+    <p class="hint" style="margin:0"><b>مشرف الإغلاق</b> = من يكتب اسمه في آخر البلاغ دون صفة وظيفية (مثل «…///نزهه»)، أو من في <b>قائمة مشرفي الإغلاق</b> (لوحة التحكم ← القوائم). <b>موظف المنشأة</b> = اسم مع صفة جاء في سياق الحل (مثل «تم حلها من قبل الطبيب…») أو في أعمدة الإفادة، أو في عبارات <b>الشكر والثناء</b>. <b>الموظف المقصود</b> = ما سوى ذلك، أي سبب الشكوى. غيّر تصنيف أي اسم من القائمة أمامه. ${CLOSER_NAMES.length?`<button type="button" class="btn sm ghost" id="editClosers">قائمة مشرفي الإغلاق (${fmt(CLOSER_NAMES.length)})</button>`:`<button type="button" class="btn sm ghost" id="editClosers">إضافة أسماء مشرفي الإغلاق</button>`}</p>
+    ${Object.keys(SOVR).length?`<div class="chips" style="align-items:center"><span class="hint">تصنيف يدوي (${fmt(Object.keys(SOVR).length)}):</span>${Object.entries(SOVR).map(([k,v])=>`<span class="tag">${esc(k.includes('|')?staffLabel(k):k)} ← ${esc(CAT_L[v]||v)}<button type="button" data-unovr="${esc(k)}" aria-label="إلغاء">×</button></span>`).join('')}</div>`:''}
     <div class="stats"><div><b>${fmt(gs.length)}</b><span>موظف مذكور</span></div><div><b>${fmt(ment)}</b><span>شكوى ذُكر فيها موظف</span></div><div><b>${gs[0]?fmt(gs[0].n):'—'}</b><span>أعلى عدد لموظف واحد</span></div></div>
     <p class="hint" style="margin:0">يُحسب فقط ما يقع في «التصنيفات المحسوبة شكوى». تُستخرج الأسماء تلقائياً من «وصف البلاغ» عندما يأتي الاسم بعد لقب مثل الدكتور أو الممرضة أو الموظف. يُجمع الاسم الأول مع المركز، لأن الاسم نفسه في مركزين قد يكون لشخصين مختلفين. قد يفوت الاستخراج بعض الأسماء، وإذا التقط كلمة ليست اسماً استبعدها بزر «ليس اسماً». النتائج تتبع البحث والفلاتر الحالية.</p></div>
-  ${gs.length?`<div class="panel" style="margin-top:12px"><div class="tbl-wrap"><table class="rec"><thead><tr><th class="nosort">#</th><th class="nosort">الاسم كما ورد</th><th class="nosort">الصفة</th><th class="nosort">المركز</th><th class="nosort">الشكاوى</th><th class="nosort" title="عدد مرات وروده في أول / وسط / آخر الوصف (مشرف الإغلاق)">الموضع (أول·وسط·إغلاق)</th><th class="nosort">أكثر تصنيف</th><th class="nosort">آخر شكوى</th><th class="nosort"></th></tr></thead><tbody>
-    ${show.map((g,i)=>`<tr data-emp="${esc(g.k)}"><td class="num">${i+1}</td><td class="c"><b>${esc(g.full||g.first)}</b></td><td>${esc(staffTitle(g))}</td><td class="c">${esc(g.center)}</td><td class="num"><span class="cnt">${fmt(g.n)}</span></td><td class="num" style="white-space:nowrap"><span title="أول الوصف">${fmt(g.pc.start)}</span> · <span title="وسط الوصف">${fmt(g.pc.mid)}</span> · <span title="آخر الوصف" style="${g.pc.end>g.pc.start+g.pc.mid?'color:var(--warn);font-weight:700':''}">${fmt(g.pc.end)}</span></td><td class="c">${esc(g.sub)}</td><td class="dt">${esc(fmtDate(g.last_d))}</td><td>${(g.pc.end>0||KEEP.has(g.first))&&!CLOSERS.has(g.first)?`<button type="button" class="btn sm ${KEEP.has(g.first)?'primary':'ghost'}" data-keep="${esc(g.first)}" title="${KEEP.has(g.first)?'إرجاع القاعدة التلقائية':'هذا سبب الشكوى وليس مشرف الإغلاق'}">${KEEP.has(g.first)?'✓ الموظف المقصود':'الموظف المقصود'}</button> `:''}<button type="button" class="btn sm ${CLOSERS.has(g.first)?'primary':'ghost'}" data-closer="${esc(g.first)}" title="${CLOSERS.has(g.first)?'إرجاعه موظفاً مقصوداً':'اعتباره مشرف إغلاق'}">${CLOSERS.has(g.first)?'✓ مشرف إغلاق':'مشرف إغلاق'}</button> <button type="button" class="btn sm ghost" data-staffhide="${esc(g.k)}">ليس اسماً</button></td></tr>`).join('')}
+  ${gs.length?`<div class="panel" style="margin-top:12px"><div class="tbl-wrap"><table class="rec"><thead><tr><th class="nosort">#</th><th class="nosort">الاسم كما ورد</th><th class="nosort">الصفة</th><th class="nosort">المركز</th><th class="nosort">الشكاوى</th><th class="nosort" title="عدد البلاغات حسب التصنيف">مقصود · إغلاق · منشأة · ثناء</th><th class="nosort">أكثر تصنيف</th><th class="nosort">آخر شكوى</th><th class="nosort"></th></tr></thead><tbody>
+    ${show.map((g,i)=>`<tr data-emp="${esc(g.k)}"><td class="num">${i+1}</td><td class="c"><b>${esc(g.full||g.first)}</b></td><td>${esc(staffTitle(g))}</td><td class="c">${esc(g.center)}</td><td class="num"><span class="cnt">${fmt(g.n)}</span></td><td class="num" style="white-space:nowrap"><span title="الموظف المقصود" style="color:var(--bad);font-weight:600">${fmt(g.pc.intent)}</span> · <span title="مشرف الإغلاق">${fmt(g.pc.closer)}</span> · <span title="موظف المنشأة">${fmt(g.pc.fac)}</span> · <span title="شكر وثناء" style="color:var(--good);font-weight:600">${fmt(g.pc.praise)}</span></td><td class="c">${esc(g.sub)}</td><td class="dt">${esc(fmtDate(g.last_d))}</td><td style="white-space:nowrap"><select class="inp" data-sovr="${esc(g.k)}" style="width:auto;padding:3px 6px;font-size:12px" title="تصنيف هذا الشخص في هذا المركز"><option value="">تلقائي</option>${['intent','fac'].map(c=>`<option value="${c}" ${!isCloserName(g)&&ovrOf(g)===c?'selected':''}>${CAT_L[c]}</option>`).join('')}<option value="closer" ${isCloserName(g)?'selected':''}>مشرف الإغلاق (يُضاف للقائمة)</option></select> <button type="button" class="btn sm ghost" data-staffhide="${esc(g.k)}">ليس اسماً</button></td></tr>`).join('')}
   </tbody></table></div><div class="pager"><span>${fmt(gs.length)} موظف · اضغط أي اسم لعرض الشكاوى التي ذُكر فيها</span></div></div>`:`<div class="panel empty" style="margin-top:12px"><b>لا توجد أسماء موظفين</b>بهذا الحد الأدنى ضمن النتائج الحالية.</div>`}${pairsHTML}`;
 }
 function renderClinics(v){
@@ -1665,6 +1706,7 @@ function staffCatsDialog(){
     actions:[{label:'حفظ',cls:'primary',run:s=>{ const n=new Set(); s.querySelectorAll('[data-scat]').forEach(c=>{ if(!c.checked) n.add(c.dataset.scat); }); STAFF_CAT_EX=n; saveStaffCatEx(); staffIdx=null; renderView(); toast(n.size?`استُبعد ${fmt(n.size)} تصنيف من العدّ`:'كل التصنيفات محسوبة'); }},{label:'إلغاء'}],
     onOpen:s=>{ s.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; if(b.dataset.scall!==undefined) s.querySelectorAll('[data-scat]').forEach(c=>c.checked=b.dataset.scall==='1'); if(b.dataset.screq) s.querySelectorAll('[data-scat]').forEach(c=>c.checked=!/^طلب/.test(c.dataset.scat.trim())); }); }});
 }
+document.addEventListener('click',e=>{ if(e.target.closest('select[data-sovr]')) e.stopPropagation(); },true);
 function showStaff(k){ filt.emp=k; filt.empc=1; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); document.getElementById('view').scrollIntoView({block:'start'}); }
 function showCaller(k){ filt.ck=k; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); document.getElementById('view').scrollIntoView({block:'start'}); }
 /* ---------- القائمة الجانبية والتنقل ---------- */
@@ -1904,6 +1946,11 @@ document.addEventListener('change',e=>{
   if(t.name==='smin'){ STAFF_MIN=+t.value; try{ localStorage.setItem('r937-staffmin-v1',String(STAFF_MIN)); }catch(e){} renderView(); return; }
   if(t.name==='rmin'){ RPT.min=+t.value; saveRpt(); renderView(); return; }
   if(t.id==='rShort'){ RPT.short=t.checked; saveRpt(); callerIdx=null; renderView(); return; }
+  if(t.id==='clnList'){ CLOSER_NAMES=[...new Set(t.value.split(/[\n،,]+/).map(x=>x.trim()).filter(Boolean))]; saveClosers(); _empSet=null; refresh(true); toast('حُفظت قائمة مشرفي الإغلاق'); return 'redraw'; }
+  if(t.dataset.sovr!==undefined){ const k=t.dataset.sovr, f=k.split('|')[0], g=staffIndex().get(k);
+    const wasC=g&&isCloserName(g); if(wasC){ const S=new Set([nrm(g.first),nrm(g.full)]); CLOSER_NAMES=CLOSER_NAMES.filter(n=>!S.has(nrm(n))); saveClosers(); }
+    delete SOVR[f]; delete SOVR[k]; if(t.value==='closer'){ CLOSER_NAMES.push(g?(g.full||g.first):f); saveClosers(); } else if(t.value) SOVR[k]=t.value; saveSovr(); _empSet=null; refresh(true); toast(t.value?`«${staffLabel(k)}» ← ${CAT_L[t.value]}`:'عاد التصنيف تلقائياً'); return; }
+  if(t.name==='ssrc'){ STAFF_SRC=t.value; try{ localStorage.setItem(SSRC_KEY,STAFF_SRC); }catch(e){} staffIdx=null; _empSet=null; refresh(true); return; }
   if(t.name==='spos'){ STAFF_POS=t.value; try{ localStorage.setItem(SPOS_KEY,STAFF_POS); }catch(e){} refresh(true); return; }
   if(t.name==='rdF'){ filt.unread=t.value; refresh(); return; }
   if(t.id==='pageSize'){ pageSize=+t.value; page=0; renderView(); }
@@ -1920,6 +1967,7 @@ document.addEventListener('click',e=>{
     if(b.dataset.view){ view=b.dataset.view; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); renderView(); return; }
     if(b.dataset.pg){ const pages=Math.ceil(filtered.length/pageSize); page={first:0,prev:page-1,next:page+1,last:pages-1}[b.dataset.pg]; renderView(); document.getElementById('view').scrollIntoView({block:'start'}); return; }
     if(b.dataset.staffhide){ STAFF_HIDE.add(b.dataset.staffhide); saveStaffHide(); renderView(); toast('استُبعد من قائمة الموظفين'); return; }
+    if(b.id==='editClosers'){ guard(()=>controlPanel('lists')); setTimeout(()=>document.getElementById('clnCard')?.scrollIntoView({block:'start'}),250); return; }
     if(b.id==='editClinics'){ guard(()=>controlPanel('lists')); return; }
     if(b.dataset.alert!==undefined){ const al=document.getElementById('alerts')._al; const a=al&&al[+b.dataset.alert]; if(a) applyAlert(a); return; }
     if(b.id==='dashFull'){ toggleDashFull(); return; }
@@ -1928,10 +1976,7 @@ document.addEventListener('click',e=>{
     if(b.dataset.dal!==undefined){ const al=document.getElementById('dash')?._al; const a=al&&al[+b.dataset.dal]; if(a){ document.body.classList.remove('dash-full'); if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); applyAlert(a); } return; }
     if(b.dataset.slac!==undefined){ filt.center=b.dataset.slac; filt.sla='out'; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); return; }
     if(b.dataset.rid){ const r=byId.get(b.dataset.rid); if(r) viewRecord(r); return; }
-    if(b.dataset.closer!==undefined){ const n=b.dataset.closer; if(CLOSERS.has(n)) CLOSERS.delete(n); else { CLOSERS.add(n); KEEP.delete(n); saveKeep(); } saveClosers(); _empSet=null; refresh(true); toast(CLOSERS.has(n)?`«${n}» أصبح مشرف إغلاق`:`أُرجع «${n}» موظفاً مقصوداً`); return; }
-    if(b.dataset.keep!==undefined){ const n=b.dataset.keep; if(KEEP.has(n)) KEEP.delete(n); else { KEEP.add(n); CLOSERS.delete(n); saveClosers(); } saveKeep(); _empSet=null; refresh(true); toast(KEEP.has(n)?`«${n}» موظف مقصود`:`أُرجعت القاعدة التلقائية لـ«${n}»`); return; }
-    if(b.dataset.unkeep!==undefined){ KEEP.delete(b.dataset.unkeep); saveKeep(); _empSet=null; refresh(true); return; }
-    if(b.dataset.uncloser!==undefined){ CLOSERS.delete(b.dataset.uncloser); saveClosers(); _empSet=null; refresh(true); return; }
+    if(b.dataset.unovr!==undefined){ delete SOVR[b.dataset.unovr]; saveSovr(); _empSet=null; refresh(true); return; }
     if(b.id==='rdAll'){ if(!b.classList.contains('confirm')){ b.classList.add('confirm'); b.textContent='اضغط مرة أخرى للتأكيد'; return; } markAllSeen(filtered.length<RECS.length?filtered:RECS); toast('عُلّمت كمقروءة'); refresh(true); return; }
     if(b.id==='alMore'){ ALERTS_OPEN=!ALERTS_OPEN; renderAlerts(); return; }
     if(b.id==='alRules'){ guard(()=>controlPanel('alerts')); return; }
@@ -2303,11 +2348,40 @@ function panelClinics(){
     <div class="addcol"><div class="field"><label for="clNew">عيادة جديدة</label><input class="inp" id="clNew" placeholder="مثال: الصحة المدرسية"></div><div class="field"><label for="clNewKw">الكلمات</label><input class="inp" id="clNewKw" placeholder="الصحه المدرسيه، المدارس"></div><button type="button" class="btn primary" id="clAdd">إضافة</button></div>
     <div><button type="button" class="btn sm ghost" id="clReset">استعادة القائمة الافتراضية</button></div></div>`;
 }
+function panelClosers(){
+  // اقتراحات: تواقيع في نهاية النصوص دون صفة
+  const S=clSetN(); const sug=new Map(); staffIndex().forEach(g=>{ let n=0; g.pos.forEach(p=>{ if(p==='end') n++; }); if(n && !S.has(nrm(g.first)) && !S.has(nrm(g.full)) && !SOVR[g.k]){ const k=g.full||g.first; sug.set(k,(sug.get(k)||0)+n); } });
+  const sugs=[...sug.entries()].sort((a,b)=>b[1]-a[1]).slice(0,30);
+  return `<div class="pcard" id="clnCard"><h4>أسماء مشرفي الإغلاق</h4>
+    <p class="hint" style="margin:0">من يكتب اسمه في آخر البلاغ عند إغلاقه. الأسماء هنا تظهر دائماً في «مشرف الإغلاق» في صفحة الموظفين المذكورين، وفي كل المراكز. اكتب كل اسم في سطر.</p>
+    <textarea class="inp" id="clnList" rows="5" placeholder="مثال:&#10;نزهه&#10;أحد علي">${esc(CLOSER_NAMES.join('\n'))}</textarea>
+    ${sugs.length?`<div class="chips" style="align-items:center"><span class="hint">أسماء وُجدت في آخر النصوص دون صفة (اضغط للإضافة):</span>${sugs.map(([n,c])=>`<span class="chip" style="gap:4px;padding-inline-end:4px">${esc(n)} <small>(${fmt(c)})</small><button type="button" class="btn sm ghost" style="padding:0 6px" data-viewcln="${esc(n)}" title="عرض البلاغات">عرض</button><button type="button" class="btn sm" style="padding:0 7px" data-addcln="${esc(n)}" title="إضافة إلى مشرفي الإغلاق">+</button></span>`).join('')}</div>`:''}
+  </div>`;
+}
+// عرض بلاغات اسم مقترح قبل تصنيفه
+function closerPreview(name){
+  const n=nrm(name); const gs=[...staffIndex().values()].filter(g=>nrm(g.full||g.first)===n||nrm(g.first)===n);
+  const rows=[]; gs.forEach(g=>g.recs.forEach(r=>{ if(g.pos.get(r.id)==='end') rows.push({g,r}); }));
+  const dcols=SCHEMA.filter(c=>c.type==='long'&&!c.removed).map(c=>c.k);
+  const RX=new RegExp(kwPattern(name),'g');
+  const tail=r=>{ for(const k of dcols){ const t=String(r[k]||'').replace(/[\u064B-\u0652\u0640]/g,''); let m,last=null; RX.lastIndex=0; while((m=RX.exec(t))) last=m; if(last){ const i=last.index; return {l:label(k),t:(i>160?'…':'')+t.slice(Math.max(0,i-160))}; } }
+    const t=String(r.desc||''); return {l:label('desc'),t:(t.length>200?'…':'')+t.slice(-200)}; };
+  const html=`<p class="hint" style="margin-top:0">${fmt(rows.length)} بلاغ ورد فيه «${esc(name)}» في آخر النص دون صفة. اقرأ نهاية النص ثم اختر التصنيف بالأسفل.</p>
+    <div style="display:grid;gap:8px;max-height:55vh;overflow:auto">${rows.slice(0,60).map(({g,r})=>{ const x=tail(r); return `<div class="pcard" style="padding:8px 12px"><div style="display:flex;gap:8px;flex-wrap:wrap;font-size:12.5px"><b dir="ltr">${esc(r.no)}</b><span class="hint">${esc(fmtDate(r.date))}</span><span>${esc(shortName(r.center||''))}</span><span class="hint">${esc(r.sub||r.main||'')}</span><button type="button" class="btn sm ghost" data-cpopen="${r.id}" style="margin-inline-start:auto">فتح البلاغ</button></div><div style="font-size:13px;line-height:1.7"><span class="hint">${esc(x.l)}:</span> ${esc(x.t).replace(RX,m=>`<mark>${m}</mark>`)}</div></div>`; }).join('')||'<p>لا توجد بلاغات.</p>'}</div>`;
+  const setAll=c=>{ gs.forEach(g=>{ delete SOVR[g.k]; if(c) SOVR[g.k]=c; }); saveSovr(); };
+  const back=()=>setTimeout(()=>{ controlPanel('lists'); setTimeout(()=>document.getElementById('clnCard')?.scrollIntoView({block:'start'}),200); },0);
+  dialog({title:`«${name}»`, wide:true, html, actions:[
+    {label:'مشرف إغلاق',cls:'primary',run:()=>{ if(!clSetN().has(n)){ CLOSER_NAMES.push(name); saveClosers(); } setAll(''); _empSet=null; refresh(true); toast(`أضيف «${name}» إلى مشرفي الإغلاق`); back(); }},
+    {label:'موظف منشأة',run:()=>{ setAll('fac'); _empSet=null; refresh(true); toast(`«${name}» موظف منشأة`); back(); }},
+    {label:'الموظف المقصود',run:()=>{ setAll('intent'); _empSet=null; refresh(true); toast(`«${name}» موظف مقصود`); back(); }},
+    {label:'رجوع',run:()=>back()}],
+    onOpen:sc=>{ sc.querySelectorAll('[data-cpopen]').forEach(b=>b.onclick=()=>{ const r=byId.get(b.dataset.cpopen); if(r) viewRecord(r); }); }});
+}
 function panelLists(){
   const lists=cols().filter(c=>c.type==='list');
   const centers=countBy(RECS,'center').filter(x=>x[0]);
   const noSec=c=>RECS.filter(r=>r.center===c && !r.sector).length;
-  return panelClinics()+`${lists.length?lists.map(c=>`<div class="pcard"><h4>خيارات «${esc(c.l)}»</h4><textarea class="inp" rows="4" data-opts="${c.k}">${esc((c.options||[]).join('\n'))}</textarea><span class="hint">كل خيار في سطر. تظهر في نموذج الإدخال وكفلتر في البحث.</span></div>`).join(''):`<div class="pcard"><h4>قوائم الاختيار</h4><p class="hint">لا توجد أعمدة من نوع «قائمة اختيار». أضف عموداً بهذا النوع من تبويب «الأعمدة» لتدير خياراته هنا.</p></div>`}
+  return panelClosers()+panelClinics()+`${lists.length?lists.map(c=>`<div class="pcard"><h4>خيارات «${esc(c.l)}»</h4><textarea class="inp" rows="4" data-opts="${c.k}">${esc((c.options||[]).join('\n'))}</textarea><span class="hint">كل خيار في سطر. تظهر في نموذج الإدخال وكفلتر في البحث.</span></div>`).join(''):`<div class="pcard"><h4>قوائم الاختيار</h4><p class="hint">لا توجد أعمدة من نوع «قائمة اختيار». أضف عموداً بهذا النوع من تبويب «الأعمدة» لتدير خياراته هنا.</p></div>`}
     ${active('sector')?`<div class="pcard"><h4>ربط المراكز بالقطاعات</h4><p class="hint">اكتب قطاع كل مركز مرة واحدة، فيُعبّأ تلقائياً عند إدخال بلاغ جديد، ويمكنك تطبيقه على البلاغات الحالية.</p>
       <div class="ctbl-wrap secmap"><table class="ctbl"><thead><tr><th>المركز الصحي</th><th>البلاغات</th><th>بدون قطاع</th><th>القطاع</th></tr></thead><tbody>${centers.map(([c,n])=>`<tr><td>${esc(c)}</td><td>${fmt(n)}</td><td>${fmt(noSec(c))}</td><td><input class="inp" list="dl-sector" data-secmap="${esc(c)}" value="${esc(SECMAP[c]||'')}" aria-label="القطاع"></td></tr>`).join('')}</tbody></table></div>
       ${datalists()}
@@ -2355,6 +2429,8 @@ async function panelAction(b,body){
   if(b.dataset.fmv){ const L=filterList(); const i=L.findIndex(x=>x[0]===b.dataset.fmv), j=i+(+b.dataset.d); if(j<0||j>=L.length) return; [L[i],L[j]]=[L[j],L[i]]; FCFG.list=L; saveFcfg(); document.getElementById('fExtra').dataset.keys=''; refresh(true); return 'redraw'; }
   if(b.id==='fShowAll'){ FCFG.list=filterList().map(([k])=>[k,1]); saveFcfg(); document.getElementById('fExtra').dataset.keys=''; refresh(true); return 'redraw'; }
   if(b.id==='fReset'){ FCFG={list:[],desk:'full',mob:'compact'}; saveFcfg(); document.getElementById('fExtra').dataset.keys=''; refresh(true); toast('استُعيدت الفلاتر الافتراضية'); return 'redraw'; }
+  if(b.dataset.viewcln!==undefined){ const n=b.dataset.viewcln; setTimeout(()=>closerPreview(n),0); return; }
+  if(b.dataset.addcln!==undefined){ const n=b.dataset.addcln; if(!clSetN().has(nrm(n))){ CLOSER_NAMES.push(n); saveClosers(); staffIdx=null; _empSet=null; refresh(true); toast(`أضيف «${n}» إلى مشرفي الإغلاق`); } return 'redraw'; }
   if(b.id==='dCatsAll'){ const d=dashCfg(); d.cats=[]; HOME.dash=d; saveHome(); renderView(); return 'redraw'; }
   if(b.dataset.hmv){ const L=HOME[b.dataset.hmv]; const i=L.findIndex(x=>x[0]===b.dataset.k); const vis=L.filter(([k])=>!(k==='sectors'&&!active('sector'))); const vi=vis.indexOf(L[i]); const other=vis[vi+(+b.dataset.d)]; if(!other) return; const j=L.indexOf(other); [L[i],L[j]]=[L[j],L[i]]; saveHome(); applyHome(); refresh(true); return 'redraw'; }
   if(b.id==='hReset'){ HOME=normHome(null); saveHome(); applyHome(); pageSize=HOME.pageSize; refresh(true); toast('استُعيدت الشاشة الافتراضية'); return 'redraw'; }
@@ -2447,7 +2523,7 @@ function panelChange(t){
 const SETTINGS_APP='r937-db-settings';
 function settingsSnapshot(){
   return {app:SETTINGS_APP, version:1, exported:nowLocal(), brand:BRAND, schema:schemaSerial(), secmap:SECMAP, clinics:CLINICS,
-    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE, filters:FCFG, closers:[...CLOSERS], staffKeep:[...KEEP], staffPos:STAFF_POS};
+    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE, filters:FCFG, staffOvr:SOVR, staffSrc:STAFF_SRC, staffPos:STAFF_POS, closerNames:CLOSER_NAMES};
 }
 async function exportSettings(){
   const blob=new Blob([JSON.stringify(settingsSnapshot(),null,2)],{type:'application/json'});
@@ -2474,8 +2550,9 @@ async function importSettings(file){
         if(s.backupEvery!==undefined){ BK.every=+s.backupEvery||0; saveBK(); }
         if(s.mask!==undefined){ MASK_ON=!!s.mask; localStorage.setItem(MASK_KEY,MASK_ON?'1':'0'); }
         if(s.home){ HOME=normHome(s.home); saveHome(); pageSize=HOME.pageSize; }
-        if(Array.isArray(s.staffKeep)){ KEEP=new Set(s.staffKeep); saveKeep(); }
-        if(Array.isArray(s.closers)){ CLOSERS=new Set(s.closers); saveClosers(); }
+        if(Array.isArray(s.closerNames)){ CLOSER_NAMES=s.closerNames; saveClosers(); }
+        if(s.staffOvr&&typeof s.staffOvr==='object'){ SOVR=s.staffOvr; saveSovr(); }
+        if(s.staffSrc){ STAFF_SRC=s.staffSrc; localStorage.setItem(SSRC_KEY,STAFF_SRC); staffIdx=null; }
         if(s.filters){ FCFG={list:[],desk:'full',mob:'compact',...s.filters}; saveFcfg(); const ex=document.getElementById('fExtra'); if(ex) ex.dataset.keys=''; }
         if(s.rstyle){ RSTYLE={...DEF_RS,...s.rstyle,cover:{...DEF_RS.cover,...(s.rstyle.cover||{})},wm:{...DEF_RS.wm,...(s.rstyle.wm||{})}}; saveRS(); }
         if(s.weekStart!==undefined){ WEEK_START=+s.weekStart; localStorage.setItem(WS_KEY,String(WEEK_START)); }
