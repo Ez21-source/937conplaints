@@ -395,6 +395,9 @@ table.rec td.ms,table.rec th.ms{width:34px;padding-inline:2px;text-align:center}
 .env.upd{color:var(--warn)}
 .env b{position:absolute;top:-6px;left:-6px;min-width:15px;height:15px;border-radius:8px;background:var(--bad);color:#fff;font-size:9.5px;line-height:15px;padding:0 3px;font-weight:700}
 tr.unread td.no{font-weight:800}
+.rseg label span{display:inline-flex;align-items:center;gap:4px}
+.rseg b{font-size:11.5px;color:var(--muted);font-weight:600}
+.env.sm{width:18px;height:16px} .env.sm svg{width:15px;height:15px}
 .readbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line);font-size:13px}
 .msel{display:flex;align-items:center;gap:6px;text-align:start;cursor:pointer;min-height:38px;width:100%}
 .msel span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1319,7 +1322,7 @@ function apply(){ _empSet=null; _clSet=null;
     if(filt.cl && !clSet().has(r.id)) return false;
     if(filt.kw && !kwMatch(r,filt.kw)) return false;
     if(filt.sla && slaState(r)!==filt.sla) return false;
-    if(filt.unread && readState(r).st==='read') return false;
+    if(filt.unread){ const st=readState(r).st; if(filt.unread==='1'?st==='read':st!==filt.unread) return false; }
     for(const c of extraFilterCols()) if(!fOk(c.k,r[c.k])) return false;
     for(const w of words) if(!r._s.includes(w)) return false;
     return true;
@@ -1417,7 +1420,7 @@ function renderFilters(){
   if(filt.cl) tags.push(['cl',`العيادة: ${filt.cl}`]);
   if(filt.kw) tags.push(['kw',`تنبيه: ${kwRuleName(filt.kw)}`]);
   if(filt.sla) tags.push(['sla',filt.sla==='out'?'خارج مستوى الخدمة':'داخل مستوى الخدمة']);
-  if(filt.unread) tags.push(['unread','غير المقروءة فقط']);
+  if(filt.unread) tags.push(['unread',({new:'غير مقروء',upd:'محدّث',read:'تم الفتح'})[filt.unread]||'غير المقروءة']);
   activeFilterKeys().forEach(k=>{ if(fVals(k).length) tags.push([k,`${short(k)}: ${fText(k)}`]); });
   document.getElementById('fstate').innerHTML = `<span><b>${fmt(total(filtered))}</b> بلاغ${filtered.length!==RECS.length?` من أصل ${fmt(total(RECS))}`:''}</span>` + tags.map(([k,t])=>`<span class="tag">${esc(t)}<button type="button" data-untag="${k}" aria-label="إزالة">×</button></span>`).join('') + (tags.length?`<button type="button" class="btn sm ghost" data-untag="all">مسح الفلاتر</button>`:'');
 }
@@ -1727,7 +1730,12 @@ function renderView(){
     return;
   }
   if(!RECS.length){ v.innerHTML=`<div class="panel empty"><b>القاعدة فارغة</b>أضف بلاغاً بزر «بلاغ جديد» أو استورد ملف Excel.</div>`; return; }
-  if(!filtered.length){ v.innerHTML=`<div class="panel empty"><b>لا توجد نتائج</b>غيّر كلمات البحث أو وسّع الفترة أو امسح الفلاتر.</div>`; return; }
+  // عدّ الحالات ضمن الفلاتر الحالية (بدون فلتر القراءة نفسه)
+  const fu=filt.unread; filt.unread=''; apply(); const pool=filtered; filt.unread=fu; apply();
+  const RC={new:0,upd:0,read:0}; pool.forEach(r=>RC[readState(r).st]++);
+  const RO=[['','الكل',pool.length],['new','غير مقروء',RC.new],['upd','محدّث',RC.upd],['read','تم الفتح',RC.read]];
+  const RB=`<div class="readbar"><div class="seg rseg">${RO.map(([v,l,n])=>`<label><input type="radio" name="rdF" value="${v}" ${(filt.unread==='1'?'':filt.unread)===v?'checked':''}><span>${v==='new'?`<span class="env new sm">${ENV_C}</span>`:v==='upd'?`<span class="env upd sm">${ENV_C}</span>`:v==='read'?`<span class="env sm">${ENV_O}</span>`:''}${l} <b>${fmt(n)}</b></span></label>`).join('')}</div><span style="flex:1"></span><button type="button" class="btn sm ghost" id="rdAll" ${RC.new+RC.upd?'':'disabled'}>تعليم ${filtered.length<RECS.length?'النتائج':'الكل'} كمقروء</button></div>`;
+  if(!filtered.length){ v.innerHTML=`<div class="panel">${RB}</div><div class="panel empty" style="margin-top:10px"><b>لا توجد نتائج</b>غيّر كلمات البحث أو وسّع الفترة أو امسح الفلاتر.</div>`; return; }
   const pages=Math.ceil(filtered.length/pageSize); page=Math.min(page,pages-1);
   const rows=filtered.slice(page*pageSize,(page+1)*pageSize);
   const allSel = rows.every(r=>selected.has(r.id));
@@ -1735,8 +1743,6 @@ function renderView(){
   const th=COLS.map(c=>`<th data-sort="${c.k}" scope="col">${esc(short(c.k))}${sort.k===c.k?`<span class="ar">${sort.dir>0?'▲':'▼'}</span>`:''}</th>`).join('');
   const KWI=kwIndex(); const SK2=slaKey();
   const body=rows.map(r=>{ const fl=KWI.get(r.id); return `<tr data-id="${r.id}" class="${selected.has(r.id)?'sel':''}${fl?' flag':''}${readState(r).st!=='read'?' unread':''}"${fl?` title="كلمات حساسة: ${esc([...new Set(fl.map(x=>x.w))].join('، '))}"`:''}><td class="cb"><input type="checkbox" data-sel="${r.id}" ${selected.has(r.id)?'checked':''} aria-label="تحديد"></td><td class="ms">${envHTML(r)}</td>${COLS.map(c=>{ const raw=c.fmt?c.fmt(r[c.k],r):r[c.k]; const t= c.k==='count'?raw: (c.k===SK2&&raw) ? slaBadge(raw,slaState(r,SK2)) : hl(raw,fl&&c.cls==='desc'); return `<td class="${c.cls||''}">${c.cls==='desc'?`<div title="${esc(r[c.k])}">${t}</div>`:t}</td>`; }).join('')}</tr>`; }).join('');
-  const nUn=RECS.reduce((n,r)=>n+(readState(r).st!=='read'?1:0),0), nUpd=RECS.reduce((n,r)=>n+(readState(r).st==='upd'?1:0),0);
-  const RB=`<div class="readbar"><span class="env new">${ENV_C}</span><span><b>${fmt(nUn)}</b> غير مقروء${nUpd?` · منها <b style="color:var(--warn)">${fmt(nUpd)}</b> محدّث`:''}</span><span style="flex:1"></span><button type="button" class="btn sm ${filt.unread?'primary':''}" id="rdOnly">${filt.unread?'عرض الكل':'غير المقروءة فقط'}</button><button type="button" class="btn sm ghost" id="rdAll" ${nUn?'':'disabled'}>تعليم ${filt.unread||filtered.length<RECS.length?'النتائج':'الكل'} كمقروء</button></div>`;
   v.innerHTML=`<div class="panel">${RB}<div class="tbl-wrap"><table class="rec"><thead><tr><th class="cb nosort"><input type="checkbox" id="selPage" ${allSel?'checked':''} aria-label="تحديد الصفحة"></th><th class="ms nosort" title="حالة القراءة">${ENV_O}</th>${th}</tr></thead><tbody>${body}</tbody></table></div>
     <div class="pager"><span>عرض ${fmt(page*pageSize+1)}–${fmt(page*pageSize+rows.length)} من ${fmt(filtered.length)}</span>
       <label>صفوف <select class="inp" id="pageSize" style="width:auto;display:inline-block">${[25,50,100,200].map(n=>`<option ${n===pageSize?'selected':''}>${n}</option>`).join('')}</select></label>
@@ -1864,6 +1870,7 @@ document.addEventListener('change',e=>{
   if(t.name==='smin'){ STAFF_MIN=+t.value; try{ localStorage.setItem('r937-staffmin-v1',String(STAFF_MIN)); }catch(e){} renderView(); return; }
   if(t.name==='rmin'){ RPT.min=+t.value; saveRpt(); renderView(); return; }
   if(t.id==='rShort'){ RPT.short=t.checked; saveRpt(); callerIdx=null; renderView(); return; }
+  if(t.name==='rdF'){ filt.unread=t.value; refresh(); return; }
   if(t.id==='pageSize'){ pageSize=+t.value; page=0; renderView(); }
   if(t.dataset.sel){ if(t.checked) selected.add(t.dataset.sel); else selected.delete(t.dataset.sel); t.closest('tr').classList.toggle('sel',t.checked); renderBulk(); }
   if(t.id==='selPage'){ const rows=filtered.slice(page*pageSize,(page+1)*pageSize); rows.forEach(r=> t.checked?selected.add(r.id):selected.delete(r.id)); renderView(); }
@@ -1886,7 +1893,6 @@ document.addEventListener('click',e=>{
     if(b.dataset.dal!==undefined){ const al=document.getElementById('dash')?._al; const a=al&&al[+b.dataset.dal]; if(a){ document.body.classList.remove('dash-full'); if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); applyAlert(a); } return; }
     if(b.dataset.slac!==undefined){ filt.center=b.dataset.slac; filt.sla='out'; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); return; }
     if(b.dataset.rid){ const r=byId.get(b.dataset.rid); if(r) viewRecord(r); return; }
-    if(b.id==='rdOnly'){ filt.unread=filt.unread?'':'1'; refresh(); return; }
     if(b.id==='rdAll'){ if(!b.classList.contains('confirm')){ b.classList.add('confirm'); b.textContent='اضغط مرة أخرى للتأكيد'; return; } markAllSeen(filtered.length<RECS.length?filtered:RECS); toast('عُلّمت كمقروءة'); refresh(true); return; }
     if(b.id==='alMore'){ ALERTS_OPEN=!ALERTS_OPEN; renderAlerts(); return; }
     if(b.id==='alRules'){ guard(()=>controlPanel('alerts')); return; }
