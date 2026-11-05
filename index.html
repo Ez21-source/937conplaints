@@ -752,25 +752,31 @@ function staffIndex(){
     if(!m.has(key)) m.set(key,{k:key,first,full:'',titles:new Map(),center:r.center||'',recs:[],pos:new Map(),praise:new Set(),resolve:new Set()});
     const g=m.get(key); if(!g.pos.has(r.id)) g.recs.push(r);
     const old=g.pos.get(r.id); if(!old || old==='end') g.pos.set(r.id,pos); // إذا ورد الاسم في موضعين يُعتمد غير التوقيع
-    if(fl&&fl.pr) g.praise.add(r.id); if(fl&&fl.rs) g.resolve.add(r.id);
+    if(!g.last) g.last=new Set();
+    if(fl&&fl.pr) g.praise.add(r.id); if(fl&&fl.rs) g.resolve.add(r.id); if(fl&&fl.last) g.last.add(r.id);
     if(full.length>g.full.length) g.full=full; if(title) g.titles.set(title,(g.titles.get(title)||0)+1); };
   RECS.forEach(r=>{
     dcols.forEach(ck=>{ const text=r[ck]; if(!text) return; const isDesc=ck==='desc'||dcols.length===1;
       const orig=tokz(text), raw=orig.map(nrm), L=raw.length; const used=new Set();
       for(let i=0;i<L-1;i++){
         if(!STAFF_TITLES.has(raw[i]) || !NAMES_LEX.has(raw[i+1])) continue;
-        const name=[raw[i+1]]; let j=i+2; while(j<L && name.length<3 && nxt(raw[j])){ name.push(raw[j]); j++; }
+        const NOTNM=new Set(['على','إلى','الى','عن','في','من','مع']);
+        const name=[raw[i+1]]; let j=i+2; while(j<L && name.length<3 && !NOTNM.has(orig[j]) && nxt(raw[j])){ name.push(raw[j]); j++; }
         for(let x=i-1;x<j;x++) used.add(x);
         const rel=i/Math.max(1,L);
         // الاسم مع صفة (الموظف، الطبيب…) لا يكون مشرف إغلاق: إما موظف مقصود أو موظف منشأة
         const pos = rel<0.33 ? 'start' : 'mid';
         let pr=false; for(let x=Math.max(0,i-8); x<Math.min(L,j+8); x++){ if(isPraiseTok(raw[x])){ pr=true; break; } }
+        // «على» (حرف جر، بالألف المقصورة) بعد الاسم مباشرة يليها «حسن/جهود/تعاون…» = ثناء، مثل «الموظفة سماح على حسن الاستقبال». أما «علي» بالياء فاسم.
+        if(!pr && orig[j]==='على' && j+1<L && PRAISE_ALA.has(raw[j+1])) pr=true;
         // «تم حلها من قبل الطبيب فلان» = موظف منشأة
         let rs=(!isDesc && STAFF_SRC!=='pos'); if(!rs){ for(let x=Math.max(0,i-6); x<Math.min(L,j+3); x++){ if(isResolveTok(raw[x])){ rs=true; break; } } }
-        add(r,raw[i+1],orig.slice(i+1,j).join(' '),raw[i],pos,{pr,rs});
+        add(r,raw[i+1],orig.slice(i+1,j).join(' '),raw[i],pos,{pr,rs,last:L-j===0});
       }
       // مشرف الإغلاق: اسمه في آخر النص دون صفة، مثل «…المتبعه///نزهه» أو «…تم الإغلاق نزهه»
       const tt=String(text).replace(/[\u064B-\u0652\u0640]/g,'');
+      // اسم من قائمة مشرفي الإغلاق في آخر النص تماماً (كلمة أو كلمتان أو ثلاث)
+      { const CL=clSetN(); for(let q=Math.min(3,L);q>=1;q--){ const nmN=raw.slice(L-q).join(' '); if(CL.has(nmN) && !used.has(L-q) && !STAFF_TITLES.has(raw[L-q])){ add(r,raw[L-q],orig.slice(L-q).join(' '),'','end'); for(let x=L-q;x<L;x++) used.add(x); break; } } }
       const tail=/([\/\\\-–—:|،,]*)\s*([\u0621-\u064A]+(?:\s+[\u0621-\u064A]+){0,2})\s*[.!؟)]*\s*$/.exec(tt);
       if(tail){ const w=tokz(tail[2]); const sep=tail[1]||'', strong=sep.length>=2||/[—–]/.test(sep);
         // نحدد بداية الاسم: أول كلمة معروفة كاسم ضمن الكلمات الأخيرة، وكل ما بعدها يجب أن يكون اسماً أيضاً
@@ -814,7 +820,8 @@ const ovrOf=g=>SOVR[g.k]||SOVR[g.first]||'';
 const CAT_L={intent:'الموظف المقصود',closer:'مشرف الإغلاق',fac:'موظف المنشأة',praise:'شكر وثناء'};
 // تصنيف ذكر الموظف في بلاغ معيّن
 function catOf(g,r){ const p=g.pos?.get(r.id)||'mid', o=ovrOf(g);
-  if(isCloserName(g)) return {c:'closer',p};
+  // اسم في قائمة مشرفي الإغلاق يُعد مشرف إغلاق فقط إذا جاء في آخر النص (توقيع أو لا كلام بعده)، وإلا يُصنَّف كبقية الأسماء
+  if(isCloserName(g) && (p==='end' || g.last?.has(r.id))) return {c:'closer',p};
   if(o==='fac') return {c:'fac',p}; if(o==='intent') return {c:'intent',p:p==='end'?'mid':p};
   if(p==='end') return {c:'closer',p};
   if(g.praise?.has(r.id)) return {c:'praise',p};
@@ -826,13 +833,14 @@ const posOk=(g,r)=>{ if(STAFF_POS==='all') return true; const x=catOf(g,r);
 // كلمات الشكر والثناء (تُطابق بداية الكلمة بعد التطبيع)
 const PRAISE=['شكر','اشكر','يشكر','نشكر','تشكر','مشكور','شاكر','بالشكر','والشكر','ثناء','الثناء','بالثناء','يثني','اثني','تثني','نثني','اشاد','يشيد','اشيد','نشيد','الاشاد','اشاده','ممتن','امتنان','تقدير','والتقدير','متميز','التميز','تميز','رائع','جزاه','جزاها','جزاهم','جزاكم','بيض','الله يعطيه','يعطيها','احسن','احسنت','اخلاص','بتعامله الراقي','الراقي','راقي','خلوق','خلوقه','لطيف','لطيفه','متعاون','متعاونه','تعاون'].map(w=>nrm(w));
 const isPraiseTok=t=>PRAISE.some(w=>t.startsWith(w));
+const PRAISE_ALA=new Set(['حسن','جهود','جهوده','جهودها','تعاون','تعاونه','تعاونها','تعامل','تعامله','تعاملها','اهتمام','اهتمامه','اهتمامها','سرعه','حرص','حرصه','حرصها','تفاني','اخلاص','ادب','لطف','رقي','مساعده','مساعدته','مساعدتها','خدمه','خدمته','خدمتها','استقبال','استقباله','استقبالها','حسن'].map(w=>nrm(w)));
 const RESOLVE=['حل','الحل','حلها','حله','بحل','وحل','وحلها','حلت','وتم','عالج','معالج','المعالج','انهاء','انهي','ساعد','مساعد','تسهيل','سهل','اغلق','الاغلاق'].map(w=>nrm(w));
 const isResolveTok=t=>t!=='وتم'&&RESOLVE.some(w=>t===w||(w.length>=3&&t.startsWith(w)));
 // قائمة أسماء مشرفي الإغلاق (من لوحة التحكم) — تُطابق الاسم الأول أو الاسم الكامل
 const CLN_KEY='r937-closernames-v1';
 let CLOSER_NAMES=(()=>{ try{ const v=JSON.parse(localStorage.getItem(CLN_KEY)||'null'); if(Array.isArray(v)) return v;
   const out=[]; try{ Object.entries(JSON.parse(localStorage.getItem('r937-staffovr-v1')||'{}')).forEach(([k,c])=>{ if(c==='closer') out.push(k.split('|')[0]); }); JSON.parse(localStorage.getItem('r937-closers-v1')||'[]').forEach(k=>out.push(k.split('|')[0])); }catch(e){} return [...new Set(out)]; }catch(e){ return []; } })();
-const saveClosers=()=>{ try{ localStorage.setItem(CLN_KEY,JSON.stringify(CLOSER_NAMES)); }catch(e){} };
+const saveClosers=()=>{ try{ localStorage.setItem(CLN_KEY,JSON.stringify(CLOSER_NAMES)); }catch(e){} staffIdx=null; };
 const clSetN=()=>new Set(CLOSER_NAMES.map(nrm));
 const isCloserName=g=>{ const S=clSetN(); return S.has(nrm(g.first))||S.has(nrm(g.full)); };
 function complaintsOnly(list){ const f=staffCatField(); if(!f) return list; const ex=staffCatEx(); if(!ex.size) return list; return list.filter(r=>!ex.has(r[f])); }
@@ -1676,7 +1684,7 @@ function renderStaff(v){
     ${staffCatField()&&staffCatEx().size?`<div class="chips" style="align-items:center"><span class="hint">مستبعد من العدّ (${fmt(filtered.filter(r=>staffCatEx().has(r[staffCatField()])).length)} بلاغ):</span>${[...staffCatEx()].map(v=>`<span class="tag">${esc(v)}<button type="button" data-unex="${esc(v)}" aria-label="إرجاع">×</button></span>`).join('')}</div>`:''}
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint">عرض</span><div class="seg" style="flex-wrap:wrap">${SPOS_OPTS.map(([v,l])=>`<label><input type="radio" name="spos" value="${v}" ${v===STAFF_POS?'checked':''}><span>${l}</span></label>`).join('')}</div></div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint">الأسماء في «إفادة الضابط» وأعمدة الإفادة</span><div class="seg"><label><input type="radio" name="ssrc" value="fac" ${STAFF_SRC!=='pos'?'checked':''}><span>موظف منشأة</span></label><label><input type="radio" name="ssrc" value="pos" ${STAFF_SRC==='pos'?'checked':''}><span>حسب موضعها مثل الوصف</span></label></div></div>
-    <p class="hint" style="margin:0"><b>مشرف الإغلاق</b> = من يكتب اسمه في آخر البلاغ دون صفة وظيفية (مثل «…///نزهه»)، أو من في <b>قائمة مشرفي الإغلاق</b> (لوحة التحكم ← القوائم). <b>موظف المنشأة</b> = اسم مع صفة جاء في سياق الحل (مثل «تم حلها من قبل الطبيب…») أو في أعمدة الإفادة، أو في عبارات <b>الشكر والثناء</b>. <b>الموظف المقصود</b> = ما سوى ذلك، أي سبب الشكوى. غيّر تصنيف أي اسم من القائمة أمامه. ${CLOSER_NAMES.length?`<button type="button" class="btn sm ghost" id="editClosers">قائمة مشرفي الإغلاق (${fmt(CLOSER_NAMES.length)})</button>`:`<button type="button" class="btn sm ghost" id="editClosers">إضافة أسماء مشرفي الإغلاق</button>`}</p>
+    <p class="hint" style="margin:0"><b>مشرف الإغلاق</b> = من يكتب اسمه في آخر البلاغ دون صفة وظيفية (مثل «…///نزهه»)، أو اسم من <b>قائمة مشرفي الإغلاق</b> جاء في آخر النص (إذا ذُكر في أوله أو وسطه يُصنَّف كبقية الأسماء). <b>موظف المنشأة</b> = اسم مع صفة جاء في سياق الحل (مثل «تم حلها من قبل الطبيب…») أو في أعمدة الإفادة، أو في عبارات <b>الشكر والثناء</b>. <b>الموظف المقصود</b> = ما سوى ذلك، أي سبب الشكوى. غيّر تصنيف أي اسم من القائمة أمامه. ${CLOSER_NAMES.length?`<button type="button" class="btn sm ghost" id="editClosers">قائمة مشرفي الإغلاق (${fmt(CLOSER_NAMES.length)})</button>`:`<button type="button" class="btn sm ghost" id="editClosers">إضافة أسماء مشرفي الإغلاق</button>`}</p>
     ${Object.keys(SOVR).length?`<div class="chips" style="align-items:center"><span class="hint">تصنيف يدوي (${fmt(Object.keys(SOVR).length)}):</span>${Object.entries(SOVR).map(([k,v])=>`<span class="tag">${esc(k.includes('|')?staffLabel(k):k)} ← ${esc(CAT_L[v]||v)}<button type="button" data-unovr="${esc(k)}" aria-label="إلغاء">×</button></span>`).join('')}</div>`:''}
     <div class="stats"><div><b>${fmt(gs.length)}</b><span>موظف مذكور</span></div><div><b>${fmt(ment)}</b><span>شكوى ذُكر فيها موظف</span></div><div><b>${gs[0]?fmt(gs[0].n):'—'}</b><span>أعلى عدد لموظف واحد</span></div></div>
     <p class="hint" style="margin:0">يُحسب فقط ما يقع في «التصنيفات المحسوبة شكوى». تُستخرج الأسماء تلقائياً من «وصف البلاغ» عندما يأتي الاسم بعد لقب مثل الدكتور أو الممرضة أو الموظف. يُجمع الاسم الأول مع المركز، لأن الاسم نفسه في مركزين قد يكون لشخصين مختلفين. قد يفوت الاستخراج بعض الأسماء، وإذا التقط كلمة ليست اسماً استبعدها بزر «ليس اسماً». النتائج تتبع البحث والفلاتر الحالية.</p></div>
@@ -2353,9 +2361,9 @@ function panelClosers(){
   const S=clSetN(); const sug=new Map(); staffIndex().forEach(g=>{ let n=0; g.pos.forEach(p=>{ if(p==='end') n++; }); if(n && !S.has(nrm(g.first)) && !S.has(nrm(g.full)) && !SOVR[g.k]){ const k=g.full||g.first; sug.set(k,(sug.get(k)||0)+n); } });
   const sugs=[...sug.entries()].sort((a,b)=>b[1]-a[1]).slice(0,30);
   return `<div class="pcard" id="clnCard"><h4>أسماء مشرفي الإغلاق</h4>
-    <p class="hint" style="margin:0">من يكتب اسمه في آخر البلاغ عند إغلاقه. الأسماء هنا تظهر دائماً في «مشرف الإغلاق» في صفحة الموظفين المذكورين، وفي كل المراكز. اكتب كل اسم في سطر.</p>
+    <p class="hint" style="margin:0">من يكتب اسمه في آخر البلاغ عند إغلاقه. الاسم هنا يُعد «مشرف إغلاق» عندما يأتي في <b>آخر النص</b> (الوصف أو الإفادة) في أي مركز، حتى لو كان معه لقب. وإذا ذُكر في أول النص أو وسطه، أو جاء بعده كلام، يُصنَّف كبقية الأسماء (مقصود أو منشأة أو ثناء). اكتب كل اسم في سطر.</p>
     <textarea class="inp" id="clnList" rows="5" placeholder="مثال:&#10;نزهه&#10;أحد علي">${esc(CLOSER_NAMES.join('\n'))}</textarea>
-    ${sugs.length?`<div class="chips" style="align-items:center"><span class="hint">أسماء وُجدت في آخر النصوص دون صفة (اضغط للإضافة):</span>${sugs.map(([n,c])=>`<span class="chip" style="gap:4px;padding-inline-end:4px">${esc(n)} <small>(${fmt(c)})</small><button type="button" class="btn sm ghost" style="padding:0 6px" data-viewcln="${esc(n)}" title="عرض البلاغات">عرض</button><button type="button" class="btn sm" style="padding:0 7px" data-addcln="${esc(n)}" title="إضافة إلى مشرفي الإغلاق">+</button></span>`).join('')}</div>`:''}
+    ${sugs.length?`<div class="chips" style="align-items:center"><span class="hint">أسماء وُجدت في آخر النصوص دون صفة (اضغط للإضافة):</span>${sugs.map(([n,c])=>`<span class="chip" style="gap:4px;padding-inline-end:4px">${esc(n)} <small>(${fmt(c)})</small><button type="button" class="btn sm ghost" style="padding:0 8px;margin-inline-start:6px" data-viewcln="${esc(n)}" title="عرض البلاغات">عرض</button><button type="button" class="btn sm" style="padding:0 10px;margin-inline-start:14px" data-addcln="${esc(n)}" title="إضافة إلى مشرفي الإغلاق">+ إضافة</button></span>`).join('')}</div>`:''}
   </div>`;
 }
 // عرض بلاغات اسم مقترح قبل تصنيفه
