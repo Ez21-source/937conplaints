@@ -811,11 +811,11 @@ async function applyChange(puts,dels,meta){
 const HOME_KEY='r937-home-v1';
 const DEF_DASH={ticker:1,speed:70,home:1,cats:[],items:{alerts:1,stats:1,latest:1,kw:1,rise:1,value:1,up:1,down:1,sla:1},fields:{day:1,date:1,time:1,center:1,cat:1,no:0},latestN:10};
 const TK_FIELDS=[['day','اليوم'],['date','التاريخ'],['time','الساعة'],['center','المركز'],['cat','التصنيف'],['no','رقم البلاغ']];
-const KPI_DEF={sla:'خارج مستوى الخدمة',slaIn:'داخل مستوى الخدمة',total:'عدد البلاغات',centers:'المراكز الصحية',topCenter:'أعلى مركز',topCat:'أعلى تصنيف',lastDay:'آخر يوم مسجل',callers:'متصلون متكررون',flagged:'بلاغات بكلمات حساسة',sectors:'القطاعات'};
+const KPI_DEF={alerts:'التنبيهات',sla:'خارج مستوى الخدمة',slaIn:'داخل مستوى الخدمة',total:'عدد البلاغات',centers:'المراكز الصحية',topCenter:'أعلى مركز',topCat:'أعلى تصنيف',lastDay:'آخر يوم مسجل',callers:'متصلون متكررون',flagged:'بلاغات بكلمات حساسة',sectors:'أعلى قطاع'};
 const CARD_DEF={daily:'البلاغات اليومية',centers:'أعلى المراكز',cats:'أعلى التصنيفات',sectors:'البلاغات حسب القطاع',weekday:'البلاغات حسب أيام الأسبوع',hours:'البلاغات حسب ساعة الاتصال'};
 const VIEW_DEF={table:'السجلات',dash:'لوحة المؤشرات',callers:'المتصلون المتكررون',staff:'الموظفون المذكورون',clinics:'العيادات المذكورة',report:'معاينة التقرير'};
 const DEF_HOME={theme:'system',zoom:100,bars:6,pageSize:50,alerts:1,presets:1,defView:'table',
-  kpis:[['total',1],['centers',1],['topCenter',1],['topCat',1],['lastDay',0],['callers',0],['flagged',0],['sectors',0],['slaIn',0],['sla',0]],
+  kpis:[['alerts',1],['total',1],['centers',1],['topCenter',1],['topCat',1],['lastDay',0],['callers',0],['flagged',0],['sectors',0],['slaIn',0],['sla',0]],
   cards:[['daily',1],['centers',1],['cats',1],['sectors',0],['weekday',0],['hours',0]],
   views:[['table',1],['dash',1],['callers',1],['staff',1],['clinics',1],['report',1]]};
 function mergeOrder(saved,def){ const out=[]; const seen=new Set(); (Array.isArray(saved)?saved:[]).forEach(x=>{ if(Array.isArray(x) && def.some(d=>d[0]===x[0]) && !seen.has(x[0])){ out.push([x[0],x[1]?1:0]); seen.add(x[0]); } }); def.forEach(d=>{ if(!seen.has(d[0])) out.push([...d]); }); return out; }
@@ -839,7 +839,11 @@ function applyHome(){
 /* ---------- rules & automatic alerts ---------- */
 const RULES_KEY='r937-rules-v1';
 const RULE_TYPES={rise:'زيادة البلاغات عن الفترة السابقة',value:'متابعة تصنيف أو حالة',center:'مركز يتجاوز حده من البلاغات',sector:'قطاع يتجاوز حده من البلاغات',sub:'تصنيف يتجاوز حده من البلاغات',total:'إجمالي البلاغات يتجاوز حداً',caller:'متصل يتكرر خلال فترة قصيرة',kw:'كلمات حساسة في الوصف'};
-const PERIODS={day:'في يوم واحد',week:'في أسبوع (يبدأ السبت)',month:'في شهر'};
+const PERIODS={day:'في يوم واحد',week:'في أسبوع',month:'في شهر'};
+// بداية الأسبوع (0=الأحد … 4=الخميس … 6=السبت)
+const WS_KEY='r937-weekstart-v1';
+let WEEK_START=(()=>{ try{ const v=localStorage.getItem(WS_KEY); return v==null?4:+v; }catch(e){ return 4; } })();
+const weekOff=d=>(d.getDay()-WEEK_START+7)%7;
 const DEF_RULES=[
   {id:'r1',dir:'both',type:'center',on:1,n:15,per:'week',auto:1,kind:'count',margin:1,pct:30,floor:10},
   {id:'r2',type:'caller',on:1,n:3,days:30},
@@ -907,7 +911,7 @@ function bucketOf(d,per){
   if(!d) return null; const day=d.slice(0,10);
   if(per==='day') return {k:day,from:day,to:day,l:`يوم ${day.slice(8,10)}/${day.slice(5,7)}`};
   if(per==='month'){ const m=day.slice(0,7); const last=iso(new Date(+m.slice(0,4),+m.slice(5,7),0)); return {k:m,from:m+'-01',to:last,l:`شهر ${MONTHS[+m.slice(5,7)-1]}`}; }
-  const dt=new Date(day+'T00:00:00'); dt.setDate(dt.getDate()-((dt.getDay()+1)%7)); const a=iso(dt); const e=new Date(dt); e.setDate(e.getDate()+6); const b=iso(e);
+  const dt=new Date(day+'T00:00:00'); dt.setDate(dt.getDate()-weekOff(dt)); const a=iso(dt); const e=new Date(dt); e.setDate(e.getDate()+6); const b=iso(e);
   return {k:a,from:a,to:b,l:`أسبوع ${a.slice(8,10)}/${a.slice(5,7)}`};
 }
 // حد كل مركز/قطاع/تصنيف بالعدد للفترة الأخيرة (يُحسب من بلاغاته في الأسابيع السابقة)
@@ -1125,7 +1129,7 @@ function renderDash(v){
       ${tile('آخر 7 أيام',fmt(st.wk),deltaHTML(st.wk,st.prevWk,'الأسبوع السابق'))}
       ${tile(`${MONTHS[+st.d.slice(5,7)-1]} حتى يوم ${st.dom}`,fmt(st.mo),deltaHTML(st.mo,st.prevMo,'الشهر السابق'))}
       ${tile('إجمالي الفترة',fmt(tot),days?`${fmt(days)} يوم · ${(tot/days).toFixed(1)} يومياً`:'')}
-      ${tile('التنبيهات',fmt(al.length),al.length?'اضغط للعرض':'لا توجد تنبيهات',al.length?'warn click" data-dgo="alerts':'')}
+      ${tile('التنبيهات',fmt(al.length),al.length?'اضغط للعرض':'لا توجد تنبيهات',al.length?'warn click" data-dgo="alertsdlg':'')}
       ${st.sla?tile('خارج مستوى الخدمة',fmt(st.sla.all),`${pct(st.sla.all,st.sla.all+st.sla.allIn)} من الفترة`,'bad click" data-dgo="sla'):''}
       ${st.sla?tile('داخل مستوى الخدمة',fmt(st.sla.allIn),pct(st.sla.allIn,st.sla.all+st.sla.allIn)+' من الفترة','good click" data-dgo="slain'):''}
       ${tile('بلاغات بكلمات حساسة',fmt(flagged),flagged?pct(flagged,tot)+' من الفترة':'—',flagged?'bad click" data-dgo="kw':'')}
@@ -1314,7 +1318,7 @@ function iso(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,
 function presetList(){
   const t=new Date(); const today=iso(t);
   const back=n=>{ const d=new Date(t); d.setDate(d.getDate()-n+1); return iso(d); };
-  const ws=new Date(t); ws.setDate(t.getDate()-((t.getDay()+1)%7)); // week starts Saturday
+  const ws=new Date(t); ws.setDate(t.getDate()-weekOff(t)); // بداية الأسبوع حسب الإعداد
   const ms=new Date(t.getFullYear(),t.getMonth(),1), pms=new Date(t.getFullYear(),t.getMonth()-1,1), pme=new Date(t.getFullYear(),t.getMonth(),0);
   const list=[['اليوم',today,today],['هذا الأسبوع',iso(ws),today],['آخر 7 أيام',back(7),today],['آخر 30 يوماً',back(30),today],['هذا الشهر',iso(ms),today],['الشهر الماضي',iso(pms),iso(pme)]];
   const ds=RECS.map(r=>r.date).filter(Boolean).sort();
@@ -1347,6 +1351,29 @@ function dayChartSVG(list, w=640, h=140, interactive=true){
   return s+'</svg>';
 }
 let CAT_CARD=(()=>{ try{ return localStorage.getItem('r937-catcard-v1')||'sub'; }catch(e){ return 'sub'; } })();
+// مربع التنبيهات: العدد والتوزيع، والضغط يفتح التفاصيل
+function alertGroups(al){
+  const G=[['up','زيادة عن الحد','u'],['down','انخفاض عن الحد','d'],['slaUp','زيادة خارج مستوى الخدمة','u'],['slaDown','انخفاض خارج مستوى الخدمة','d'],['kw','كلمات حساسة','b'],['value','تصنيفات وحالات متابَعة','b'],['caller','متصلون متكررون','w'],['other','تنبيهات أخرى','w']];
+  const key=a=>{ const t=a.rule.type; if(a.sla) return a.dir==='down'?'slaDown':'slaUp'; if(['center','sub','sector','total'].includes(t)) return a.dir==='down'?'down':'up'; if(t==='kw') return 'kw'; if(t==='value') return 'value'; if(t==='caller') return 'caller'; return 'other'; };
+  const m=new Map(G.map(([k])=>[k,[]])); al.forEach((a,i)=>m.get(key(a)).push([a,i]));
+  return G.map(([k,l,c])=>({k,l,c,items:m.get(k)})).filter(g=>g.items.length);
+}
+function alertsTile(){
+  const al=evalRules(filtered); const gs=alertGroups(al);
+  const parts=gs.slice(0,4).map(g=>`<span class="kg"><span class="kd ${g.c==='u'||g.c==='b'?'b':g.c==='d'?'g':''}">${fmt(g.items.length)}</span> ${esc(g.l)}</span>`).join('');
+  return `<div role="button" tabindex="0" class="kpi" data-dgo="alertsdlg" style="cursor:pointer;border-color:color-mix(in srgb,var(--warn) 55%,var(--line))"><span class="lbl">التنبيهات</span><span class="val" style="color:var(--warn)">${fmt(al.length)}</span><span class="sub">${al.length?'اضغط لعرض التفاصيل':'لا توجد تنبيهات'}</span>${parts?`<span class="kc">${parts}</span>`:''}</div>`;
+}
+function alertsDialog(){
+  const al=evalRules(filtered); const gs=alertGroups(al);
+  const html=`<p class="hint" style="margin-top:0">${fmt(al.length)} تنبيه ضمن البحث والفلاتر الحالية. اضغط أي تنبيه لعرض بلاغاته.</p>
+    <div class="chips" style="margin-bottom:8px">${gs.map(g=>`<a class="chip" href="#ag-${g.k}" style="text-decoration:none">${esc(g.l)} (${fmt(g.items.length)})</a>`).join('')}</div>
+    ${gs.map(g=>`<div class="pcard" id="ag-${g.k}" style="margin-bottom:10px"><h4 style="display:flex;justify-content:space-between"><span>${esc(g.l)}</span><span class="badge">${fmt(g.items.length)}</span></h4>
+      <div class="alist">${g.items.slice(0,80).map(([a,i])=>`<button type="button" class="aitem ${a.dir==='down'?'dn':a.sev>1?'':'w'}" data-alx="${i}"><span class="dot"></span><div><b>${esc(a.title)}</b><span>${esc(a.sub)}</span></div></button>`).join('')}</div>
+      ${g.items.length>80?`<span class="hint">و${fmt(g.items.length-80)} أخرى — ضيّق الفترة لرؤيتها.</span>`:''}</div>`).join('')||'<p>لا توجد تنبيهات.</p>'}`;
+  dialog({title:'التنبيهات', html, wide:true, actions:[{label:'القواعد',run:()=>{ setTimeout(()=>guard(()=>controlPanel('alerts')),0); }},{label:'إغلاق',cls:'primary'}],
+    onOpen:sc=>{ sc.querySelectorAll('[data-alx]').forEach(b=>b.onclick=()=>{ const a=al[+b.dataset.alx]; document.getElementById('layer').innerHTML=''; if(a) applyAlert(a); });
+      sc.querySelectorAll('a.chip[href^="#ag-"]').forEach(x=>x.onclick=e=>{ e.preventDefault(); sc.querySelector(x.getAttribute('href'))?.scrollIntoView({block:'start',behavior:'smooth'}); }); }});
+}
 // مقارنة داخل مربعات الشاشة الرئيسية: البلاغات، ثم داخل/خارج مستوى الخدمة، مقابل الفترة السابقة
 function kpiCompare(){
   const ds=filtered.map(r=>r.date).filter(Boolean).sort(); if(!ds.length) return ()=>'';
@@ -1363,8 +1390,7 @@ function kpiCompare(){
   return (pred,note)=>{
     const c=C.filter(pred), p=P.filter(pred);
     let h=`<span class="kc"><span class="kg"><span class="kl">${lbl}${note?` (${note})`:''}:</span> ${arrow(c.length,p.length,false)}</span>${hasPrev?`<span class="kp">السابق ${fmt(p.length)}</span>`:''}</span>`;
-    if(k){ const ci=c.filter(r=>slaState(r,k)==='in').length, co=c.filter(r=>slaState(r,k)==='out').length, pi=p.filter(r=>slaState(r,k)==='in').length, po=p.filter(r=>slaState(r,k)==='out').length;
-      if(ci+co+pi+po) h+=`<span class="kc"><span class="kg"><span class="sla in sm">داخل</span> ${arrow(ci,pi,true)}</span><span class="kg"><span class="sla out sm">خارج</span> ${arrow(co,po,false)}</span></span>`; }
+    // سطر داخل/خارج مستوى الخدمة أُزيل من المربعات (يظهر في مربعيه المنفصلين)
     return h;
   };
 }
@@ -1391,9 +1417,10 @@ function renderSummary(){
     lastDay:()=>{ const ds=filtered.map(r=>r.date).filter(Boolean).sort(); const d=ds.length?ds[ds.length-1].slice(0,10):''; const n=d?filtered.filter(r=>r.date&&r.date.startsWith(d)).length:0; return kpi('آخر يوم مسجل',d?d.replace(/-/g,'/'):'—',d?`${fmt(n)} بلاغ في ذلك اليوم`:'',1); },
     callers:()=>{ const g=(active('caller')||active('nid'))?repeatGroups(filtered,RPT.min):[]; return kpi('متصلون متكررون',fmt(g.length),`${RPT.min}+ بلاغ لكل متصل`); },
     flagged:()=>{ const idx=kwIndex(); const n=filtered.filter(r=>idx.has(r.id)).length; return kpi('بلاغات بكلمات حساسة',fmt(n),n?pct(n,tot)+' من النتائج':'حسب قواعد التنبيه'); },
+    alerts:()=>alertsTile(),
     sla:()=>slaTile('out'),
     slaIn:()=>slaTile('in'),
-    sectors:()=>{ const sc=countBy(filtered,'sector').filter(x=>x[0]); return kpi('القطاعات',fmt(sc.length),sc[0]?`الأعلى: ${esc(sc[0][0])} (${fmt(sc[0][1])})`:'—',0,sc[0]?CMP(r=>r.sector===sc[0][0],'الأعلى'):''); }
+    sectors:()=>{ const sc=countBy(filtered,'sector').filter(x=>x[0]); return kpi('أعلى قطاع',esc(sc[0]?.[0]||'—'),sc[0]?`${fmt(sc[0][1])} بلاغ · ${pct(sc[0][1],tot)} · من ${fmt(sc.length)} قطاع`:'لا توجد قطاعات مسجلة',1,sc[0]?CMP(r=>r.sector===sc[0][0]):''); }
   };
   if(!active('sector')) delete K.sectors;
   const ks=HOME.kpis.filter(([k,on])=>on&&K[k]).map(([k])=>k);
@@ -1407,8 +1434,8 @@ function renderSummary(){
       const sw=can.length>1?`<span class="seg sm-seg">${can.map(x=>`<label><input type="radio" name="catcard" value="${x}" ${x===k?'checked':''}><span>${x==='sub'?'الفرعية':'الرئيسية'}</span></label>`).join('')}</span>`:'';
       return `<div class="panel ins"><h3><span>أعلى التصنيفات ${k==='sub'?'الفرعية':'الرئيسية'} <small>· ${fmt(list.length)} تصنيف</small></span>${sw}</h3>${barsHTML(list,k,B,tot)}</div>`; },
     sectors:()=>{ if(!active('sector')) return ''; const sc=countBy(filtered,'sector'); return `<div class="panel ins"><h3>البلاغات حسب القطاع<small>${fmt(sc.length)} قطاع</small></h3>${barsHTML(sc,'sector',B,tot)}</div>`; },
-    weekday:()=>{ const m=new Map(); filtered.forEach(r=>{ if(r.date){ const w=new Date(r.date.slice(0,10)+'T00:00:00').getDay(); m.set(w,(m.get(w)||0)+1); } }); const order=[6,0,1,2,3,4,5]; const list=order.map(w=>[WEEKDAYS[w],m.get(w)||0]); const max=Math.max(1,...list.map(x=>x[1]));
-      return `<div class="panel ins"><h3>حسب أيام الأسبوع<small>من السبت</small></h3><div class="bars">${list.map(([v,n])=>`<div class="barrow"><span class="nm">${v}</span><span class="n">${fmt(n)}</span><span class="track"><span style="width:${(n/max*100).toFixed(1)}%"></span></span></div>`).join('')}</div></div>`; },
+    weekday:()=>{ const m=new Map(); filtered.forEach(r=>{ if(r.date){ const w=new Date(r.date.slice(0,10)+'T00:00:00').getDay(); m.set(w,(m.get(w)||0)+1); } }); const order=[0,1,2,3,4,5,6].map(i=>(WEEK_START+i)%7); const list=order.map(w=>[WEEKDAYS[w],m.get(w)||0]); const max=Math.max(1,...list.map(x=>x[1]));
+      return `<div class="panel ins"><h3>حسب أيام الأسبوع<small>من ${WEEKDAYS[WEEK_START]}</small></h3><div class="bars">${list.map(([v,n])=>`<div class="barrow"><span class="nm">${v}</span><span class="n">${fmt(n)}</span><span class="track"><span style="width:${(n/max*100).toFixed(1)}%"></span></span></div>`).join('')}</div></div>`; },
     hours:()=>{ const sl=[['12–6 فجراً',0,6],['6–9 صباحاً',6,9],['9–12 ظهراً',9,12],['12–3 عصراً',12,15],['3–6 مساءً',15,18],['6–9 مساءً',18,21],['9–12 ليلاً',21,24]]; const hs=filtered.map(r=>r.date&&r.date.length>=13?+r.date.slice(11,13):null).filter(h=>h!=null&&!isNaN(h)); if(!hs.length) return ''; const list=sl.map(([l,a,b])=>[l,hs.filter(h=>h>=a&&h<b).length]); const max=Math.max(1,...list.map(x=>x[1]));
       return `<div class="panel ins"><h3>حسب ساعة البلاغ<small>${fmt(hs.length)} بلاغ بوقت</small></h3><div class="bars">${list.map(([v,n])=>`<div class="barrow"><span class="nm">${v}</span><span class="n">${fmt(n)}</span><span class="track"><span style="width:${(n/max*100).toFixed(1)}%"></span></span></div>`).join('')}</div></div>`; }
   };
@@ -1641,6 +1668,7 @@ document.addEventListener('click',e=>{
   const dk=t.closest('[data-dgo]'); if(dk){ const g=dk.dataset.dgo; document.body.classList.remove('dash-full'); if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
     if(g==='alerts'){ document.getElementById('alerts').scrollIntoView({block:'start'}); ALERTS_OPEN=true; renderAlerts(); }
     if(g==='kw'){ filt.kw='*'; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); }
+    if(g==='alertsdlg'){ alertsDialog(); return; }
     if(g==='slacol'){ guard(()=>controlPanel('cols')); return; }
     if(g==='sla'||g==='slain'){ filt.sla=g==='sla'?'out':'in'; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); }
     if(g==='callers'){ view='callers'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); renderView(); }
@@ -1887,7 +1915,7 @@ function panelHome(){
 function panelAlerts(){
   const al=evalRules(RECS); const cnt=id=>al.filter(a=>a.rule.id===id).length;
   const kwN=id=>{ const idx=kwIndex(); let n=0; idx.forEach(h=>{ if(h.some(x=>x.rid===id)) n++; }); return n; };
-  const perSel=r=>`<select class="inp" data-rule="${r.id}" data-rf="per">${Object.entries(PERIODS).map(([k,l])=>`<option value="${k}" ${k===(r.per||'day')?'selected':''}>${l}</option>`).join('')}</select>`;
+  const perSel=r=>`<select class="inp" data-rule="${r.id}" data-rf="per">${Object.entries(PERIODS).map(([k,l])=>`<option value="${k}" ${k===(r.per||'day')?'selected':''}>${k==='week'?`${l} (يبدأ ${WEEKDAYS[WEEK_START]})`:l}</option>`).join('')}</select>`;
   const num=(r,f,v)=>`<input class="inp" type="number" min="1" data-rule="${r.id}" data-rf="${f}" value="${esc(v)}">`;
   const card=r=>{
     let body='', hits='';
@@ -1920,7 +1948,8 @@ function panelAlerts(){
       <div class="field"><label>الكلمات (افصل بينها بفاصلة، ولا تهم الهمزات والتاء المربوطة)</label><textarea class="inp" rows="2" data-rule="${r.id}" data-rf="words">${esc(r.words||'')}</textarea></div>`; hits=`${fmt(kwN(r.id))} بلاغ في كل القاعدة`; }
     return `<div class="rulec ${r.on?'':'off'}"><div class="rh"><label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" data-rule="${r.id}" data-rf="on" ${r.on?'checked':''}><b>${esc(RULE_TYPES[r.type])}${r.subset==='sla'?' <span class="sla out">خارج مستوى الخدمة</span>':''}</b></label><span class="sp"></span>${r.on?`<span class="badge">${hits}</span>`:'<span class="hint">موقوفة</span>'}<button type="button" class="iconbtn del" data-ruledel="${r.id}" aria-label="حذف القاعدة">${IC.del}</button></div>${body}</div>`;
   };
-  return `<p class="hint">تُطبَّق القواعد على البحث والفلاتر الحالية، فتظهر التنبيهات أعلى الشاشة الرئيسية. اضغط أي تنبيه لعرض بلاغاته. البلاغات التي فيها كلمات حساسة تُعلَّم بخط أحمر في الجدول، وتُلوَّن الكلمة داخل الوصف، ويظهر عددها بعد كل استيراد.</p>
+  return `<div class="pcard" style="padding:8px 12px"><div class="rf" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b>بداية الأسبوع</b><select class="inp" id="weekStart" style="width:auto">${[6,0,1,2,3,4,5].map(d=>`<option value="${d}" ${d===WEEK_START?'selected':''}>${WEEKDAYS[d]}</option>`).join('')}</select><span class="hint">تُطبَّق على كل الحدود الأسبوعية وعلى زر «هذا الأسبوع».</span></div></div>
+    <p class="hint">تُطبَّق القواعد على البحث والفلاتر الحالية، فتظهر التنبيهات أعلى الشاشة الرئيسية. اضغط أي تنبيه لعرض بلاغاته. البلاغات التي فيها كلمات حساسة تُعلَّم بخط أحمر في الجدول، وتُلوَّن الكلمة داخل الوصف، ويظهر عددها بعد كل استيراد.</p>
     ${RULES.map(card).join('')||'<p class="hint">لا توجد قواعد.</p>'}
     <div class="addcol"><div class="field"><label for="ruleType">إضافة قاعدة</label><select class="inp" id="ruleType">${Object.entries(RULE_TYPES).map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}${['center','sector','sub'].map(k=>`<option value="${k}@sla">${RULE_TYPES[k]} (خارج مستوى الخدمة)</option>`).join('')}</select></div><button type="button" class="btn primary" id="ruleAdd">إضافة</button></div>
     <div><button type="button" class="btn sm ghost" id="ruleReset">استعادة القواعد الافتراضية</button></div>`;
@@ -2077,6 +2106,7 @@ function panelChange(t){
   if(t.dataset.sla){ const f=t.dataset.sla, v=t.value.trim(); if(!v) return 'redraw'; SLA[f]=v; saveSla(); refresh(true); return 'redraw'; }
   if(t.dataset.stat && ['target','src1','src2'].includes(t.dataset.stat) && t.value && ['target','src1','src2'].some(f=>f!==t.dataset.stat && nrm(STAT[f])===nrm(t.value))){ toast('هذا العمود مختار لدور آخر، اختر عموداً مختلفاً'); return 'redraw'; }
   if(t.dataset.stat){ const f=t.dataset.stat; if(f==='on') STAT.on=t.checked?1:0; else if(['target','src1','src2'].includes(f)){ const v=t.value.trim(); if(!v) return 'redraw'; STAT[f]=v; } else STAT[f]=t.value; saveStat(); recomputeStatus().then(n=>{ if(n) toast(`حُدّثت الحالة في ${fmt(n)} بلاغ`); }); return 'redraw'; }
+  if(t.id==='weekStart'){ WEEK_START=+t.value; try{ localStorage.setItem(WS_KEY,String(WEEK_START)); }catch(e){} refresh(true); toast(`أصبح الأسبوع يبدأ يوم ${WEEKDAYS[WEEK_START]}`); return 'redraw'; }
   if(t.dataset.dcat!==undefined){ const d=dashCfg(); const set=new Set(d.cats||[]); if(t.checked) set.add(t.dataset.dcat); else set.delete(t.dataset.dcat); d.cats=[...set]; HOME.dash=d; saveHome(); renderView(); const h=t.closest('.field').querySelector('.hint b'); if(h) h.textContent=d.cats.length?`(${fmt(d.cats.length)} مختار)`:'(كل التصنيفات)'; return; }
   if(t.dataset.dfield||t.name==='dLatestN'){ const d=dashCfg(); if(t.name==='dLatestN') d.latestN=+t.value; else d.fields[t.dataset.dfield]=t.checked?1:0; HOME.dash=d; saveHome(); renderView(); const pv=document.getElementById('tkPrev'); if(pv){ const r=RECS.slice().sort((a,b)=>String(b.date).localeCompare(a.date))[0]; pv.textContent=r?recTick(r):'—'; } return; }
   if(t.id==='dTicker'||t.id==='dHome'||t.name==='dSpeed'||t.dataset.ditem){ const d=dashCfg(); if(t.id==='dTicker') d.ticker=t.checked?1:0; if(t.id==='dHome') d.home=t.checked?1:0; if(t.name==='dSpeed') d.speed=+t.value; if(t.dataset.ditem) d.items[t.dataset.ditem]=t.checked?1:0; HOME.dash=d; saveHome(); renderView(); return; }
@@ -2105,7 +2135,7 @@ function panelChange(t){
 const SETTINGS_APP='r937-db-settings';
 function settingsSnapshot(){
   return {app:SETTINGS_APP, version:1, exported:nowLocal(), brand:BRAND, schema:schemaSerial(), secmap:SECMAP, clinics:CLINICS,
-    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA};
+    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START};
 }
 async function exportSettings(){
   const blob=new Blob([JSON.stringify(settingsSnapshot(),null,2)],{type:'application/json'});
@@ -2132,6 +2162,7 @@ async function importSettings(file){
         if(s.backupEvery!==undefined){ BK.every=+s.backupEvery||0; saveBK(); }
         if(s.mask!==undefined){ MASK_ON=!!s.mask; localStorage.setItem(MASK_KEY,MASK_ON?'1':'0'); }
         if(s.home){ HOME=normHome(s.home); saveHome(); pageSize=HOME.pageSize; }
+        if(s.weekStart!==undefined){ WEEK_START=+s.weekStart; localStorage.setItem(WS_KEY,String(WEEK_START)); }
         if(s.sla){ SLA={...DEF_SLA,...s.sla}; saveSla(); }
         if(s.status){ STAT={...DEF_STAT,...s.status}; saveStat(); setTimeout(()=>recomputeStatus(),0); }
         if(Array.isArray(s.rules)){ RULES=s.rules.filter(r=>r&&r.type&&RULE_TYPES[r.type]).map(r=>({...r,id:String(r.id||'r'+uid())})); saveRules(); }
