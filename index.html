@@ -119,7 +119,7 @@ select.inp{padding-inline-end:6px}
 .kpi .lbl{font-size:12px;color:var(--muted);font-weight:500}
 .kpi .val{font-family:var(--f-display);font-size:24px;font-weight:600;line-height:1.3}
 .kpi .sub{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.kpi .val.txt{font-size:15px;font-family:var(--f-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi .val.txt{font-size:15px;font-family:var(--f-body);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal}
 .insights{display:grid;grid-template-columns:var(--ic,1.4fr 1fr 1fr);gap:12px}
 .ins{padding:12px 14px;min-width:0}
 .ins h3{margin:0 0 8px;font-size:13.5px;font-weight:600;display:flex;justify-content:space-between;gap:8px}
@@ -180,7 +180,9 @@ mark{background:color-mix(in srgb,var(--warn) 30%,transparent);color:inherit;bor
 .dialog.wide{max-width:760px}
 .dialog h3{margin:0;font-family:var(--f-display);font-size:18px;font-weight:600}
 .dialog p{margin:0;color:var(--muted)}
-.dialog .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.dialog .acts{display:flex;gap:8px;flex-wrap:wrap;margin:4px -20px -20px;padding:12px 20px;position:sticky;bottom:-20px;background:var(--surface);border-top:1px solid var(--line);z-index:3}
+.dialog .dlg-h{position:sticky;top:-20px;margin:-20px -20px 0;padding:14px 20px 12px;background:var(--surface);display:flex;align-items:center;justify-content:space-between;gap:10px;z-index:3;border-bottom:1px solid var(--line);border-radius:14px 14px 0 0}
+.dialog .dlg-x{width:34px;height:34px;flex:none}
 .form{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}
 .form .full{grid-column:1/-1}
 .form textarea{min-height:90px;resize:vertical}
@@ -277,9 +279,38 @@ table.ctbl .mv{display:flex;gap:2px}
 .rp.portrait{width:780px;padding:26px 28px}
 .rp .blk{padding-bottom:16px;background:#fff}
 .rp-top{display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center;padding-bottom:14px;border-bottom:3px solid var(--rp-a);margin-bottom:6px}
-.rp-top .lg img{max-height:64px;max-width:170px;display:block;object-fit:contain}
+.rp-top .lg img{max-height:var(--rp-logo,64px);max-width:calc(var(--rp-logo,64px) * 2.7);display:block;object-fit:contain}
+.rp-top .lgs{display:flex;gap:14px;align-items:center}
+.rp-top.c{grid-template-columns:1fr auto}
+.rp-top.c .lgrow{grid-column:1/-1;display:flex;justify-content:center;gap:22px;align-items:center;padding-bottom:6px}
+.rp-top.c .ttl{text-align:center}
+.rp-top.l{grid-template-columns:auto 1fr auto}
+.rp-cover{position:relative;display:flex;flex-direction:column;justify-content:space-between;background:#fff;border:1px solid var(--rp-line);border-radius:8px;overflow:hidden;break-after:page;page-break-after:always}
+.rp-cover .cimg{height:58%;background-size:cover;background-position:center;background-color:var(--rp-soft)}
+.rp-cover .cbar{height:8px;background:var(--rp-a)}
+.rp-cover .cbody{padding:26px 34px 30px;display:grid;gap:8px;text-align:center;justify-items:center}
+.rp-cover .clogos{display:flex;gap:24px;align-items:center;justify-content:center;margin-bottom:6px}
+.rp-cover .clogos img{max-height:80px;max-width:220px;object-fit:contain}
+.rp-cover .corg{color:var(--rp-a);font-weight:600;font-size:16px}
+.rp-cover h1{margin:0;font-family:"Readex Pro","IBM Plex Sans Arabic","Segoe UI",Tahoma,sans-serif;font-size:36px;color:var(--rp-title,var(--rp-ink))}
+.rp-cover .csub{color:var(--rp-mut);font-size:16px}
+.rp-cover .cmeta{margin-top:14px;font-size:13px;color:var(--rp-mut);display:flex;gap:22px;justify-content:center;flex-wrap:wrap}
+.rp-cover .cmeta b{color:var(--rp-ink)}
+.rs-prev{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#E9EEED;height:300px;position:relative}
+.rs-prev .in{transform-origin:top right;position:absolute;top:10px;right:10px}
+.rs-swatches{display:flex;gap:8px;flex-wrap:wrap}
+.rs-swatches label{display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:9px;padding:5px 10px;cursor:pointer;font-size:13px}
+.rs-swatches label:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.rs-swatches input{position:absolute;opacity:0;pointer-events:none}
+.rs-swatches i{display:inline-flex;width:34px;height:14px;border-radius:4px;overflow:hidden}
+.rs-swatches i b{flex:1}
+.rs-colors{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.rs-colors label{display:flex;gap:8px;align-items:center;font-size:13px}
+.rs-colors input[type=color]{width:40px;height:30px;border:1px solid var(--line);border-radius:7px;background:none;padding:2px}
+.rs-img{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.rs-img .th{width:84px;height:52px;border:1px dashed var(--line);border-radius:8px;display:grid;place-items:center;font-size:11px;color:var(--muted);background-size:contain;background-repeat:no-repeat;background-position:center}
 .rp-top .org{font-size:12.5px;color:var(--rp-a);font-weight:600}
-.rp-top h2{font-family:"Readex Pro","IBM Plex Sans Arabic","Segoe UI",Tahoma,sans-serif;font-size:24px;margin:2px 0 0;font-weight:600;color:var(--rp-ink)}
+.rp-top h2{font-family:"Readex Pro","IBM Plex Sans Arabic","Segoe UI",Tahoma,sans-serif;font-size:24px;margin:2px 0 0;font-weight:600;color:var(--rp-title,var(--rp-ink))}
 .rp-top .sub{font-size:12px;color:var(--rp-mut)}
 .rp-top .meta{font-size:11.5px;color:var(--rp-mut);text-align:left;line-height:1.75;border-right:1px solid var(--rp-line);padding-right:14px}
 .rp-top .meta b{color:var(--rp-ink);font-weight:600}
@@ -308,9 +339,9 @@ table.rpt td.n{text-align:center;white-space:nowrap;width:58px;font-weight:600}
 table.rpt td.p{text-align:center;white-space:nowrap;width:52px;color:var(--rp-mut)}
 table.rpt td.bar{width:110px;vertical-align:middle}
 .rp .barline{height:7px;border-radius:4px;background:#EEF3F2;overflow:hidden}
-.rp .barline span{display:block;height:100%;background:var(--rp-a);border-radius:4px}
+.rp .barline span{display:block;height:100%;background:var(--rp-bar,var(--rp-a));border-radius:4px}
 table.rpl{width:100%;border-collapse:collapse;font-size:11.5px}
-table.rpl th{background:var(--rp-a);color:#fff;text-align:start;padding:6px 5px;font-weight:600;white-space:nowrap}
+table.rpl th{background:var(--rp-th,var(--rp-a));color:#fff;text-align:start;padding:6px 5px;font-weight:600;white-space:nowrap}
 table.rpl td{padding:5px;border-bottom:1px solid #EEF3F2;vertical-align:top}
 table.rpl tr:nth-child(even) td{background:var(--rp-band)}
 table.rpl td.ltr{direction:ltr;text-align:right;white-space:nowrap}
@@ -353,6 +384,33 @@ mark.kw{background:color-mix(in srgb,var(--bad) 22%,transparent)}
 .rulec .rf{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
 .rulec .rf .inp{width:auto}
 .rulec .rf input[type=number]{width:80px}
+/* sidebar */
+.side{position:fixed;top:0;bottom:0;right:0;width:256px;max-width:86vw;background:var(--surface);border-left:1px solid var(--line);z-index:46;transform:translateX(105%);transition:transform .22s ease;display:flex;flex-direction:column;gap:6px;padding:calc(env(safe-area-inset-top,0px) + 12px) 10px calc(env(safe-area-inset-bottom,0px) + 12px);overflow-y:auto;box-shadow:-10px 0 30px rgba(0,0,0,.18)}
+.side.open{transform:none}
+.side-scrim{position:fixed;inset:0;background:rgba(5,15,13,.45);z-index:45}
+.side .sh{display:flex;align-items:center;gap:8px;padding:2px 4px 8px;border-bottom:1px solid var(--line)}
+.side .sh b{flex:1;font-family:var(--f-display);font-size:15px}
+.side .sh .iconbtn{width:32px;height:32px}
+.side .snav{display:flex;gap:6px;padding:4px 2px}
+.side .snav .btn{flex:1;justify-content:center;padding:6px 8px;font-size:13px}
+.side .sg{font-size:11.5px;color:var(--muted);font-weight:600;padding:10px 12px 2px}
+.side .si{display:flex;gap:11px;align-items:center;width:100%;border:0;background:none;padding:9px 12px;border-radius:10px;font:inherit;font-size:14px;color:var(--ink);cursor:pointer;text-align:start;position:relative}
+.side .si svg{width:19px;height:19px;flex:none;color:var(--muted)}
+.side .si:hover{background:var(--surface-2)}
+.side .si[aria-current="page"]{background:var(--accent-soft);font-weight:600}
+.side .si[aria-current="page"] svg{color:var(--accent)}
+.side .si[aria-current="page"]::before{content:"";position:absolute;right:0;top:8px;bottom:8px;width:3px;border-radius:3px;background:var(--accent)}
+.side .si .cn{margin-inline-start:auto;font-size:11.5px;color:var(--muted);font-weight:600}
+.side .si .cn.w{color:var(--warn)}
+.side .sf{margin-top:auto;font-size:11.5px;color:var(--muted);padding:8px 12px 0;border-top:1px solid var(--line)}
+@media (min-width:1100px){
+  body.side-pin .side{transform:none;box-shadow:none;z-index:18}
+  body.side-pin .side-scrim{display:none}
+  body.side-pin #app{margin-right:256px}
+  body.side-pin .actionbar{right:256px}
+  body.side-pin .side .closeS{display:none}
+}
+@media (max-width:1099px){ .side .pinS{display:none} }
 .sla{display:inline-block;border-radius:6px;padding:0 8px;font-weight:600;font-size:12.5px;white-space:nowrap}
 .sla.out{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
 .sla.in{background:color-mix(in srgb,var(--good) 16%,transparent);color:var(--good)}
@@ -391,7 +449,7 @@ mark.kw{background:color-mix(in srgb,var(--bad) 22%,transparent)}
 .dk{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:grid;gap:3px;min-width:0;text-align:start;font:inherit;color:var(--ink)}
 .dk .lbl{font-size:12.5px;color:var(--muted);font-weight:500}
 .dk .val{font-family:var(--f-display);font-size:30px;font-weight:600;line-height:1.2}
-.dk.txt .val{font-size:16px;font-family:var(--f-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:7px 0}
+.dk.txt .val{font-size:16px;font-family:var(--f-body);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal;padding:4px 0}
 .dk .sub{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dk.warn{border-color:color-mix(in srgb,var(--warn) 55%,var(--line))} .dk.warn .val{color:var(--warn)}
 .dk.bad{border-color:color-mix(in srgb,var(--bad) 55%,var(--line))} .dk.bad .val{color:var(--bad)}
@@ -418,11 +476,14 @@ body.dash-full .actionbar{display:none}
 @media (max-width:600px){ .dgrid{grid-template-columns:1fr} .dgrid .dwide{grid-column:auto} .dk .val{font-size:24px} .dfl{display:none} }
 </style>
 
+<aside id="side" class="side" aria-label="القائمة الجانبية" dir="rtl"></aside>
+<div class="side-scrim" id="sideScrim" hidden></div>
 </head>
 <body>
 <div id="app" dir="rtl">
   <header class="topbar">
     <div class="wrap">
+      <button class="btn ghost" id="btnSide" type="button" aria-label="القائمة" title="القائمة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
       <div class="brand">
         <span id="brandLogo" class="brand-logo" hidden></span>
         <span id="brandMark" class="brand-mark">937</span>
@@ -814,13 +875,15 @@ const TK_FIELDS=[['day','اليوم'],['date','التاريخ'],['time','الس�
 const KPI_DEF={alerts:'التنبيهات',sla:'خارج مستوى الخدمة',slaIn:'داخل مستوى الخدمة',total:'عدد البلاغات',centers:'المراكز الصحية',topCenter:'أعلى مركز',topCat:'أعلى تصنيف',lastDay:'آخر يوم مسجل',callers:'متصلون متكررون',flagged:'بلاغات بكلمات حساسة',sectors:'أعلى قطاع'};
 const CARD_DEF={daily:'البلاغات اليومية',centers:'أعلى المراكز',cats:'أعلى التصنيفات',sectors:'البلاغات حسب القطاع',weekday:'البلاغات حسب أيام الأسبوع',hours:'البلاغات حسب ساعة الاتصال'};
 const VIEW_DEF={table:'السجلات',dash:'لوحة المؤشرات',callers:'المتصلون المتكررون',staff:'الموظفون المذكورون',clinics:'العيادات المذكورة',report:'معاينة التقرير'};
-const DEF_HOME={theme:'system',zoom:100,bars:6,pageSize:50,alerts:1,presets:1,defView:'table',
+const DEF_HOME={side:'pin',theme:'system',zoom:100,bars:6,pageSize:50,alerts:0,presets:1,defView:'table',
   kpis:[['alerts',1],['total',1],['centers',1],['topCenter',1],['topCat',1],['lastDay',0],['callers',0],['flagged',0],['sectors',0],['slaIn',0],['sla',0]],
   cards:[['daily',1],['centers',1],['cats',1],['sectors',0],['weekday',0],['hours',0]],
   views:[['table',1],['dash',1],['callers',1],['staff',1],['clinics',1],['report',1]]};
 function mergeOrder(saved,def){ const out=[]; const seen=new Set(); (Array.isArray(saved)?saved:[]).forEach(x=>{ if(Array.isArray(x) && def.some(d=>d[0]===x[0]) && !seen.has(x[0])){ out.push([x[0],x[1]?1:0]); seen.add(x[0]); } }); def.forEach(d=>{ if(!seen.has(d[0])) out.push([...d]); }); return out; }
 function normHome(h){ h={...DEF_HOME,...(h||{})}; h.dash={...DEF_DASH,...(h.dash||{}),items:{...DEF_DASH.items,...((h.dash||{}).items||{})},fields:{...DEF_DASH.fields,...((h.dash||{}).fields||{})}}; h.kpis=mergeOrder(h.kpis,DEF_HOME.kpis); h.cards=mergeOrder(h.cards,DEF_HOME.cards); h.views=mergeOrder(h.views,DEF_HOME.views); h.views.find(v=>v[0]==='table')[1]=1; return h; }
 let HOME=(()=>{ try{ return normHome(JSON.parse(localStorage.getItem(HOME_KEY)||'null')); }catch(e){ return normHome(null); } })();
+// مرة واحدة: إخفاء شريط التنبيهات الكبير بعد إضافة مربع التنبيهات (يمكن إظهاره من الإعدادات)
+try{ if(!localStorage.getItem('r937-alstrip-v1')){ HOME.alerts=0; const a=HOME.kpis.find(x=>x[0]==='alerts'); if(a) a[1]=1; localStorage.setItem(HOME_KEY,JSON.stringify(HOME)); localStorage.setItem('r937-alstrip-v1','1'); } }catch(e){}
 try{ if(!localStorage.getItem('r937-slatiles-v1')){ HOME.kpis.forEach(x=>{ if(x[0]==='sla'||x[0]==='slaIn') x[1]=0; }); localStorage.setItem(HOME_KEY,JSON.stringify(HOME)); localStorage.setItem('r937-slatiles-v1','1'); } }catch(e){}
 // مرة واحدة: إظهار الشريط أعلى الصفحة الرئيسية لمن ثبّت التطبيق قبل هذا التحديث
 try{ if(!localStorage.getItem('r937-tkhome-v1')){ HOME.dash.home=1; localStorage.setItem(HOME_KEY,JSON.stringify(HOME)); localStorage.setItem('r937-tkhome-v1','1'); } }catch(e){}
@@ -1134,7 +1197,7 @@ function renderDash(v){
       ${st.sla?tile('داخل مستوى الخدمة',fmt(st.sla.allIn),pct(st.sla.allIn,st.sla.all+st.sla.allIn)+' من الفترة','good click" data-dgo="slain'):''}
       ${tile('بلاغات بكلمات حساسة',fmt(flagged),flagged?pct(flagged,tot)+' من الفترة':'—',flagged?'bad click" data-dgo="kw':'')}
       ${tile('متصلون متكررون',fmt(rep),`${RPT.min}+ بلاغ لكل متصل`,rep?'click" data-dgo="callers':'')}
-      ${tile('أعلى مركز في آخر يوم',st.topDay?esc(st.topDay[0]):'—',st.topDay?`${fmt(st.topDay[1])} بلاغ`:'','txt')}
+      ${tile('أعلى مركز في آخر يوم',st.topDay?esc(shortName(st.topDay[0])):'—',st.topDay?`${fmt(st.topDay[1])} بلاغ`:'','txt')}
     </div>`:`<div class="panel empty"><b>لا توجد بلاغات بتاريخ</b>ضمن الفلاتر الحالية.</div>`}
     <div class="dgrid">
       <div class="panel ins dwide"><h3>البلاغات اليومية<small>اضغط يوماً للفلترة</small></h3>${dayChartSVG(filtered,900,170)}</div>
@@ -1351,6 +1414,14 @@ function dayChartSVG(list, w=640, h=140, interactive=true){
   return s+'</svg>';
 }
 let CAT_CARD=(()=>{ try{ return localStorage.getItem('r937-catcard-v1')||'sub'; }catch(e){ return 'sub'; } })();
+// اسم مختصر للبطاقات: «مركز صحي العوالي» ← «العوالي»، «المراكز التابعة لمستشفى …» ← «مستشفى …»
+function shortName(v){
+  let x=String(v||'').trim();
+  x=x.replace(/^مركز\s+صحي\s+/,'');
+  x=x.replace(/^(ال)?مراكز\s+(الصحي[ةه]\s+)?(ال)?تابع[ةه]\s+(ل|الى\s+|إلى\s+)/,'');
+  x=x.replace(/\s*\(\s*/g,' (').replace(/\s*\)/g,')');
+  return x||String(v||'');
+}
 // مربع التنبيهات: العدد والتوزيع، والضغط يفتح التفاصيل
 function alertGroups(al){
   const G=[['up','زيادة عن الحد','u'],['down','انخفاض عن الحد','d'],['slaUp','زيادة خارج مستوى الخدمة','u'],['slaDown','انخفاض خارج مستوى الخدمة','d'],['kw','كلمات حساسة','b'],['value','تصنيفات وحالات متابَعة','b'],['caller','متصلون متكررون','w'],['other','تنبيهات أخرى','w']];
@@ -1407,20 +1478,20 @@ function renderSummary(){
   const centers=countBy(filtered,'center'), mains=countBy(filtered,'main'), subs=countBy(filtered,'sub');
   const days=new Set(filtered.map(r=>r.date&&r.date.slice(0,10)).filter(Boolean)).size;
   const catK=active('sub')?'sub':'main', cats=catK==='sub'?subs:mains;
-  const kpi=(l,v,sub,txt,extra)=>`<div class="kpi"><span class="lbl">${l}</span><span class="val${txt?' txt':''}">${v}</span><span class="sub">${sub||''}</span>${extra||''}</div>`;
+  const kpi=(l,v,sub,txt,extra,full)=>`<div class="kpi"${full?` title="${esc(full)}"`:''}><span class="lbl">${l}</span><span class="val${txt?' txt':''}">${v}</span><span class="sub">${sub||''}</span>${extra||''}</div>`;
   const CMP=kpiCompare();
   const K={
     total:()=>kpi('عدد البلاغات',fmt(tot),days?`${fmt(days)} يوم · ${(tot/days).toFixed(1)} بلاغ يومياً`:'—',0,CMP(()=>true)),
     centers:()=>kpi('المراكز الصحية',fmt(centers.length),'مركز ورد منه بلاغ'),
-    topCenter:()=>kpi('أعلى مركز',esc(centers[0]?.[0]||'—'),centers[0]?`${fmt(centers[0][1])} بلاغ · ${pct(centers[0][1],tot)}`:'',1,centers[0]?CMP(r=>r.center===centers[0][0]):''),
-    topCat:()=>kpi(`أعلى ${catK==='sub'?'تصنيف فرعي':'تصنيف رئيسي'}`,esc(cats[0]?.[0]||'—'),cats[0]?`${fmt(cats[0][1])} بلاغ · ${pct(cats[0][1],tot)}`:'',1,cats[0]?CMP(r=>r[catK]===cats[0][0]):''),
+    topCenter:()=>kpi('أعلى مركز',esc(centers[0]?shortName(centers[0][0]):'—'),centers[0]?`${fmt(centers[0][1])} بلاغ · ${pct(centers[0][1],tot)}`:'',1,centers[0]?CMP(r=>r.center===centers[0][0]):'',centers[0]?.[0]),
+    topCat:()=>kpi(`أعلى ${catK==='sub'?'تصنيف فرعي':'تصنيف رئيسي'}`,esc(cats[0]?.[0]||'—'),cats[0]?`${fmt(cats[0][1])} بلاغ · ${pct(cats[0][1],tot)}`:'',1,cats[0]?CMP(r=>r[catK]===cats[0][0]):'',cats[0]?.[0]),
     lastDay:()=>{ const ds=filtered.map(r=>r.date).filter(Boolean).sort(); const d=ds.length?ds[ds.length-1].slice(0,10):''; const n=d?filtered.filter(r=>r.date&&r.date.startsWith(d)).length:0; return kpi('آخر يوم مسجل',d?d.replace(/-/g,'/'):'—',d?`${fmt(n)} بلاغ في ذلك اليوم`:'',1); },
     callers:()=>{ const g=(active('caller')||active('nid'))?repeatGroups(filtered,RPT.min):[]; return kpi('متصلون متكررون',fmt(g.length),`${RPT.min}+ بلاغ لكل متصل`); },
     flagged:()=>{ const idx=kwIndex(); const n=filtered.filter(r=>idx.has(r.id)).length; return kpi('بلاغات بكلمات حساسة',fmt(n),n?pct(n,tot)+' من النتائج':'حسب قواعد التنبيه'); },
     alerts:()=>alertsTile(),
     sla:()=>slaTile('out'),
     slaIn:()=>slaTile('in'),
-    sectors:()=>{ const sc=countBy(filtered,'sector').filter(x=>x[0]); return kpi('أعلى قطاع',esc(sc[0]?.[0]||'—'),sc[0]?`${fmt(sc[0][1])} بلاغ · ${pct(sc[0][1],tot)} · من ${fmt(sc.length)} قطاع`:'لا توجد قطاعات مسجلة',1,sc[0]?CMP(r=>r.sector===sc[0][0]):''); }
+    sectors:()=>{ const sc=countBy(filtered,'sector').filter(x=>x[0]); return kpi('أعلى قطاع',esc(sc[0]?shortName(sc[0][0]):'—'),sc[0]?`${fmt(sc[0][1])} بلاغ · ${pct(sc[0][1],tot)}`:'لا توجد قطاعات مسجلة',1,sc[0]?CMP(r=>r.sector===sc[0][0]):'',sc[0]?.[0]); }
   };
   if(!active('sector')) delete K.sectors;
   const ks=HOME.kpis.filter(([k,on])=>on&&K[k]).map(([k])=>k);
@@ -1511,7 +1582,76 @@ function staffCatsDialog(){
 }
 function showStaff(k){ filt.emp=k; filt.empc=1; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); document.getElementById('view').scrollIntoView({block:'start'}); }
 function showCaller(k){ filt.ck=k; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); document.getElementById('view').scrollIntoView({block:'start'}); }
+/* ---------- القائمة الجانبية والتنقل ---------- */
+const NAV={stack:[],i:-1,lock:false,t:0};
+const SIDE_IC={home:'<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/>',table:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/>',dash:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',callers:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.5-3.4 3-5.5 6-5.5s5.5 2.1 6 5.5"/><path d="M16 4.5a3 3 0 0 1 0 6M18 14.6c1.8.8 2.8 2.6 3 5.4"/>',staff:'<circle cx="12" cy="7" r="3.5"/><path d="M5 21c.7-4 3.4-6.5 7-6.5s6.3 2.5 7 6.5"/>',clinics:'<path d="M12 3v18M3 12h18"/><rect x="4" y="4" width="16" height="16" rx="3"/>',report:'<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>',
+  add:'<path d="M12 5v14M5 12h14"/>',imp:'<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',exp:'<path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/>',ver:'<path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/>',bell:'<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',panel:'<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',pin:'<path d="M15 3l6 6-4 1-4 4 1 5-2 2-4-4-5 5M9 15l-4-4 2-2 5 1 4-4z"/>',x:'<path d="M6 6l12 12M18 6 6 18"/>'};
+const svgI=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDE_IC[k]||''}</svg>`;
+const isWide=()=>matchMedia('(min-width:1100px)').matches;
+function sidePinned(){ return (HOME.side||'pin')==='pin' && isWide(); }
+function applySide(){ document.body.classList.toggle('side-pin',(HOME.side||'pin')==='pin'); if(sidePinned()) closeSide(true); }
+function openSide(){ const el=document.getElementById('side'); el.classList.add('open'); document.getElementById('sideScrim').hidden=false; renderSide(); }
+function closeSide(quiet){ document.getElementById('side')?.classList.remove('open'); const sc=document.getElementById('sideScrim'); if(sc) sc.hidden=true; }
+function navPush(){
+  if(NAV.lock){ NAV.lock=false; return; }
+  const snap={view, filt:JSON.stringify(filt)}; const cur=NAV.stack[NAV.i];
+  if(cur && cur.view===snap.view && cur.filt===snap.filt) return;
+  const now=Date.now();
+  if(cur && cur.view===snap.view && now-NAV.t<900){ NAV.stack[NAV.i]=snap; NAV.t=now; return; } // كتابة متتالية في البحث = خطوة واحدة
+  NAV.stack=NAV.stack.slice(0,NAV.i+1); NAV.stack.push(snap); if(NAV.stack.length>60) NAV.stack.shift(); NAV.i=NAV.stack.length-1; NAV.t=now;
+}
+function navGo(d){
+  const j=NAV.i+d; if(j<0||j>=NAV.stack.length) return; NAV.i=j; const sn=NAV.stack[j];
+  view=sn.view; filt=JSON.parse(sn.filt); NAV.lock=true;
+  document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view));
+  refresh(); document.getElementById(view==='table'&&j===0?'app':'view')?.scrollIntoView({block:'start'});
+}
+function goView(v,{top}={}){
+  view=v; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view));
+  renderView(); if(top) window.scrollTo({top:0,behavior:'smooth'}); else document.getElementById('view').scrollIntoView({block:'start',behavior:'smooth'});
+  if(!sidePinned()) closeSide();
+}
+function renderSide(){
+  const el=document.getElementById('side'); if(!el) return;
+  const vis=HOME.views.filter(v=>v[1]).map(v=>v[0]);
+  const nAl=(()=>{ try{ return evalRules(filtered).length; }catch(e){ return 0; } })();
+  const item=(k,label,attrs,cnt,cur)=>`<button type="button" class="si" ${attrs} ${cur?'aria-current="page"':''}>${svgI(k)}<span>${label}</span>${cnt!=null?`<span class="cn${k==='bell'?' w':''}">${cnt}</span>`:''}</button>`;
+  el.innerHTML=`<div class="sh"><b>قاعدة بلاغات 937</b><button type="button" class="iconbtn pinS" id="sidePin" title="${(HOME.side||'pin')==='pin'?'إلغاء التثبيت (تصبح منبثقة)':'تثبيت القائمة بجانب الصفحة'}" aria-pressed="${(HOME.side||'pin')==='pin'}">${svgI('pin')}</button><button type="button" class="iconbtn closeS" id="sideClose" aria-label="إغلاق">${svgI('x')}</button></div>
+    <div class="snav"><button type="button" class="btn sm" id="navBack" ${NAV.i<=0?'disabled':''} title="الصفحة السابقة">→ السابق</button><button type="button" class="btn sm" id="navFwd" ${NAV.i>=NAV.stack.length-1?'disabled':''} title="الصفحة التالية">التالي ←</button></div>
+    <div class="sg">الصفحات</div>
+    ${item('home','الرئيسية','data-sgo="home"',null,false)}
+    ${vis.map(k=>item(k,VIEW_DEF[k],`data-sgo="${k}"`,k==='table'?fmt(filtered.length):null,view===k)).join('')}
+    <div class="sg">الإجراءات</div>
+    ${item('bell','التنبيهات','data-sact="alerts"',fmt(nAl))}
+    ${item('add','بلاغ جديد','data-sact="new"')}
+    ${item('imp','استيراد Excel','data-sact="imp"')}
+    ${item('exp','طباعة وتصدير','data-sact="exp"')}
+    ${item('ver','التحقق من بلاغ','data-sact="ver"')}
+    ${item('panel','لوحة التحكم','data-sact="panel"')}
+    <div class="sf">${esc(brand().preparer?`إعداد: ${brand().preparer}`:'')}</div>`;
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('#side button, #btnSide, #sideScrim'); if(!b) return;
+  if(b.id==='btnSide'){ if(isWide()){ HOME.side=(HOME.side||'pin')==='pin'?'float':'pin'; saveHome(); applySide(); renderSide(); if(HOME.side==='float') openSide(); } else openSide(); return; }
+  if(b.id==='sideScrim'||b.id==='sideClose'){ closeSide(); return; }
+  if(b.id==='sidePin'){ HOME.side=(HOME.side||'pin')==='pin'?'float':'pin'; saveHome(); applySide(); renderSide(); if(HOME.side!=='pin') closeSide(); toast(HOME.side==='pin'?'ثُبّتت القائمة بجانب الصفحة':'أصبحت القائمة منبثقة، افتحها بزر ☰'); return; }
+  if(b.id==='navBack'){ navGo(-1); return; } if(b.id==='navFwd'){ navGo(1); return; }
+  if(b.dataset.sgo){ const g=b.dataset.sgo; if(g==='home') goView('table',{top:true}); else goView(g); return; }
+  if(b.dataset.sact){ const a=b.dataset.sact; if(!sidePinned()) closeSide();
+    if(a==='alerts') alertsDialog(); if(a==='new') document.getElementById('btnNew').click(); if(a==='imp') document.getElementById('btnImport').click();
+    if(a==='exp') setTimeout(()=>{ const x=document.getElementById('btnExport'); x.scrollIntoView({block:'nearest'}); x.click(); },50);
+    if(a==='ver') document.getElementById('btnVerify').click(); if(a==='panel') document.getElementById('btnPanel').click(); }
+});
+// السحب من حافة الشاشة اليمنى لفتح القائمة، وإلى اليمين لإغلاقها
+(()=>{ let sx=null, sy=0, mode='';
+  document.addEventListener('touchstart',e=>{ const t=e.touches[0]; if(sidePinned()) return; const open=document.getElementById('side').classList.contains('open');
+    if(!open && t.clientX>innerWidth-22){ sx=t.clientX; sy=t.clientY; mode='open'; } else if(open){ sx=t.clientX; sy=t.clientY; mode='close'; } else sx=null; },{passive:true});
+  document.addEventListener('touchend',e=>{ if(sx==null) return; const t=e.changedTouches[0], dx=t.clientX-sx, dy=Math.abs(t.clientY-sy);
+    if(dy<60){ if(mode==='open'&&dx<-50) openSide(); if(mode==='close'&&dx>60) closeSide(); } sx=null; },{passive:true});
+})();
+addEventListener('resize',()=>{ clearTimeout(addEventListener._st); addEventListener._st=setTimeout(()=>{ applySide(); },150); });
 function renderView(){
+  navPush(); setTimeout(renderSide,0);
   const v=document.getElementById('view');
   renderBulk();
   renderHomeTicker();
@@ -1520,7 +1660,7 @@ function renderView(){
   if(view==='staff'){ renderStaff(v); return; }
   if(view==='clinics'){ renderClinics(v); return; }
   if(view==='report'){
-    v.innerHTML=`<div class="preview-scroll"><div id="rpSlot"></div></div><p class="hint" style="margin-top:8px">هذا شكل التقرير للفلاتر الحالية بآخر إعدادات طباعة استخدمتها. غيّر الورق والاتجاه والأقسام من «طباعة وتصدير».</p>`;
+    v.innerHTML=`<div class="preview-scroll"><div id="rpSlot"></div></div><p class="hint" style="margin-top:8px">هذا شكل التقرير للفلاتر الحالية بآخر إعدادات طباعة استخدمتها. غيّر الورق والاتجاه والأقسام من «طباعة وتصدير»، والألوان والشعار والغلاف من <button type="button" class="btn sm" id="expRStyle">🎨 تنسيق التقرير</button></p>`;
     document.getElementById('rpSlot').replaceWith(buildReport(filtered,{...printOpts(),list:filtered.length<=200&&printOpts().list}));
     return;
   }
@@ -1573,18 +1713,27 @@ function reportFoot(tot){
 }
 function buildReport(list,opts){
   opts={list:false,pii:false,top:20,orient:'landscape',sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1},...opts};
-  const b=brand(), c=brandColors();
+  const b=brand(), ST=opts.style||RSTYLE, c=rsColors(ST);
   const el=document.createElement('div'); el.className='rp'+(opts.orient==='portrait'?' portrait':'');
-  el.style.cssText=`--rp-a:${c.a};--rp-soft:${c.soft};--rp-band:${c.band}`;
+  el.style.cssText=`--rp-a:${c.a};--rp-soft:${c.soft};--rp-band:${c.band};--rp-bar:${c.bar};--rp-th:${c.th};--rp-title:${c.title};--rp-logo:${+ST.logoSize||64}px`;
+  if(ST.wm&&ST.wm.on&&ST.wm.data){ el.style.backgroundImage=`url(${ST.wm.data})`; el.style.backgroundRepeat='repeat-y'; el.style.backgroundPosition='center 260px'; el.style.backgroundSize='46% auto'; el.dataset.wm='1'; }
   const tot=total(list); const centers=countBy(list,'center'), mains=active('main')?countBy(list,'main'):[], subs=active('sub')?countBy(list,'sub'):[], sectors=active('sector')?countBy(list,'sector').filter(x=>x[0]):[];
   const ds=list.map(r=>r.date).filter(Boolean).sort(); const days=new Set(ds.map(d=>d.slice(0,10))).size;
   const range= ds.length ? `${fmtDate(ds[0]).slice(0,10)} – ${fmtDate(ds[ds.length-1]).slice(0,10)}` : '—';
   const fd=filterDesc(); const top=opts.top||1e9; const now=new Date();
   const topCat = subs.length?['أعلى تصنيف فرعي',subs]:['أعلى تصنيف رئيسي',mains];
   const W = opts.orient==='portrait'?724:1052;
-  let h=`<div class="blk"><div class="rp-top">${b.logo?`<div class="lg"><img src="${b.logo}" alt=""></div>`:'<div></div>'}
-      <div><div class="org">${esc(b.org||'بلاغات المراكز الصحية · 937')}</div><h2>${esc(opts.title||b.title||'تقرير البلاغات')}</h2><div class="sub">بلاغات مركز 937 للمراكز الصحية</div></div>
-      <div class="meta">فترة البيانات: <b>${esc(range)}</b><br>تاريخ التقرير: <b>${iso(now)}</b>${b.preparer?`<br>إعداد: <b>${esc(b.preparer)}</b>`:''}</div></div>
+  const L1=b.logo?`<div class="lg"><img src="${b.logo}" alt=""></div>`:'', L2=ST.logo2?`<div class="lg"><img src="${ST.logo2}" alt=""></div>`:'';
+  const TTL=`<div class="ttl"><div class="org">${esc(b.org||'بلاغات المراكز الصحية · 937')}</div><h2>${esc(opts.title||b.title||'تقرير البلاغات')}</h2><div class="sub">بلاغات مركز 937 للمراكز الصحية</div></div>`;
+  const META=`<div class="meta">فترة البيانات: <b>${esc(range)}</b><br>تاريخ التقرير: <b>${iso(now)}</b>${b.preparer?`<br>إعداد: <b>${esc(b.preparer)}</b>`:''}</div>`;
+  const pos=ST.logoPos||'right';
+  const TOP = pos==='center' ? `<div class="rp-top c">${L1||L2?`<div class="lgrow">${L1}${L2}</div>`:''}${TTL}${META}</div>`
+    : pos==='left' ? `<div class="rp-top l">${L2||'<div></div>'}${TTL}<div class="lgs">${META}${L1}</div></div>`
+    : `<div class="rp-top">${L1||'<div></div>'}${TTL}<div class="lgs">${META}${L2}</div></div>`;
+  let h='';
+  if(ST.cover&&ST.cover.on){ const pw=opts.orient==='portrait'?724:1052, ph=Math.round(pw*(opts.orient==='portrait'?1.36:0.66));
+    h+=`<div class="blk" data-cover="1"><div class="rp-cover" style="height:${ph}px"><div class="cbar"></div><div class="cimg" style="${ST.cover.image?`background-image:url(${ST.cover.image})`:'height:32%'}"></div><div class="cbody">${b.logo||ST.logo2?`<div class="clogos">${b.logo?`<img src="${b.logo}" alt="">`:''}${ST.logo2?`<img src="${ST.logo2}" alt="">`:''}</div>`:''}<div class="corg">${esc(b.org||'')}</div><h1>${esc(opts.title||b.title||'تقرير البلاغات')}</h1>${ST.cover.subtitle?`<div class="csub">${esc(ST.cover.subtitle)}</div>`:''}<div class="cmeta"><span>فترة البيانات: <b>${esc(range)}</b></span><span>تاريخ التقرير: <b>${iso(now)}</b></span>${b.preparer?`<span>إعداد: <b>${esc(b.preparer)}</b></span>`:''}</div></div><div class="cbar"></div></div></div>`; }
+  h+=`<div class="blk">${TOP}
     <div class="rp-band"></div>
     ${fd.length?`<div class="rp-filters">${fd.map(([a,v])=>`<span>${esc(a)}: <b>${esc(v)}</b></span>`).join('')}</div>`:''}
     ${opts.sec.kpi?`<div class="rp-kpis">
@@ -1593,7 +1742,7 @@ function buildReport(list,opts){
       <div class="rp-kpi"><div class="l">أعلى مركز</div><div class="v t">${esc(centers[0]?.[0]||'—')}</div><div class="s">${centers[0]?`${fmt(centers[0][1])} · ${pct(centers[0][1],tot)}`:''}</div></div>
       <div class="rp-kpi"><div class="l">${topCat[0]}</div><div class="v t">${esc(topCat[1][0]?.[0]||'—')}</div><div class="s">${topCat[1][0]?`${fmt(topCat[1][0][1])} · ${pct(topCat[1][0][1],tot)}`:''}</div></div>
     </div>`:''}</div>`;
-  if(opts.sec.daily) h+=`<div class="blk"><div class="rp-sec"><h4>البلاغات اليومية<small>${esc(range)}</small></h4><div class="rp-body">${dayChartSVG(list,W,150,false).replace('class="daychart"','style="width:100%;height:auto;display:block"')}</div></div></div>`;
+  if(opts.sec.daily) h+=`<div class="blk"><div class="rp-sec"><h4>البلاغات اليومية<small>${esc(range)}</small></h4><div class="rp-body">${dayChartSVG(list,W,150,false).replace('class="daychart"','style="width:100%;height:auto;display:block"').replace(/class="b" fill="[^"]*"/g,`class="b" fill="${c.bar}"`)}</div></div></div>`;
   if(opts.sec.center) h+=`<div class="blk"><div class="rp-sec"><h4>البلاغات حسب المركز الصحي<small>${fmt(centers.length)} مركز</small></h4><div class="rp-body">${rptTable(centers,'المركز الصحي',tot,top)}</div></div></div>`;
   if(opts.sec.cats && (active('main')||active('sub'))){ const parts=[]; if(active('main')) parts.push(`<div class="rp-sec"><h4>حسب ${esc(label('main'))}<small>${fmt(mains.length)} تصنيف</small></h4><div class="rp-body">${rptTable(mains,label('main'),tot,top)}</div></div>`); if(active('sub')) parts.push(`<div class="rp-sec"><h4>حسب ${esc(short('sub'))}<small>${fmt(subs.length)} تصنيف</small></h4><div class="rp-body">${rptTable(subs,short('sub'),tot,top)}</div></div>`); h+=`<div class="blk"><div class="${parts.length>1?'rp-two':''}">${parts.join('')}</div></div>`; }
   if(opts.sec.callers && (active('caller')||active('nid'))){ const gs=repeatGroups(list,Math.max(2,RPT.min)); if(gs.length){ const lim=Math.min(opts.top||1e9,gs.length); const max=gs[0].n;
@@ -1666,7 +1815,7 @@ document.addEventListener('click',e=>{
     return;
   }
   const dk=t.closest('[data-dgo]'); if(dk){ const g=dk.dataset.dgo; document.body.classList.remove('dash-full'); if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
-    if(g==='alerts'){ document.getElementById('alerts').scrollIntoView({block:'start'}); ALERTS_OPEN=true; renderAlerts(); }
+    if(g==='alerts'){ alertsDialog(); return; }
     if(g==='kw'){ filt.kw='*'; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); }
     if(g==='alertsdlg'){ alertsDialog(); return; }
     if(g==='slacol'){ guard(()=>controlPanel('cols')); return; }
@@ -1681,7 +1830,8 @@ document.addEventListener('click',e=>{
   const clr=t.closest('tr[data-cl]'); if(clr){ showClinic(clr.dataset.cl); return; }
   const tr=t.closest('tr[data-id]'); if(tr && !t.closest('td.cb')){ viewRecord(byId.get(tr.dataset.id)); return; }
 });
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeMenus(); const l=document.getElementById('layer'); if(l.querySelector('.scrim')) l.innerHTML=''; } });
+document.addEventListener('click',e=>{ if(e.target.closest('#expRStyle')){ document.getElementById('layer').innerHTML=''; setTimeout(()=>guard(reportStyleDialog),0); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeMenus(); closeSide(); const l=document.getElementById('layer'); if(l.querySelector('.scrim')) l.innerHTML=''; } });
 
 /* menus */
 function closeMenus(){ document.querySelectorAll('.menu').forEach(m=>m.hidden=true); document.querySelectorAll('[aria-haspopup]').forEach(b=>b.setAttribute('aria-expanded','false')); }
@@ -1701,10 +1851,10 @@ document.getElementById('moreMenu').addEventListener('click',e=>{
 /* ---------- dialogs ---------- */
 function dialog({title, body, html, actions, wide, onOpen}){
   const layer=document.getElementById('layer');
-  layer.innerHTML=`<div class="scrim"><div class="dialog${wide?' wide':''}" role="dialog" aria-modal="true" aria-labelledby="dlgT"><h3 id="dlgT">${esc(title)}</h3>${body?`<p>${esc(body)}</p>`:''}${html||''}<div class="acts">${actions.map((a,i)=>`<button type="button" class="btn ${a.cls||''}" data-dlg="${i}">${esc(a.label)}</button>`).join('')}</div></div></div>`;
+  layer.innerHTML=`<div class="scrim"><div class="dialog${wide?' wide':''}" role="dialog" aria-modal="true" aria-labelledby="dlgT"><div class="dlg-h"><h3 id="dlgT">${esc(title)}</h3><button type="button" class="iconbtn dlg-x" aria-label="إغلاق" title="إغلاق"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>${body?`<p>${esc(body)}</p>`:''}${html||''}<div class="acts">${actions.map((a,i)=>`<button type="button" class="btn ${a.cls||''}" data-dlg="${i}">${esc(a.label)}</button>`).join('')}</div></div></div>`;
   const scrim=layer.firstChild;
   scrim.addEventListener('click',async e=>{
-    if(e.target===scrim){ layer.innerHTML=''; return; }
+    if(e.target===scrim||e.target.closest('.dlg-x')){ layer.innerHTML=''; return; }
     const b=e.target.closest('[data-dlg]'); if(!b) return;
     const a=actions[+b.dataset.dlg];
     let keep=false; if(a.run){ b.disabled=true; try{ keep = (await a.run(scrim))===false; } finally{ b.disabled=false; } }
@@ -1845,7 +1995,7 @@ function schemaChanged(){ saveSchema(); RECS.forEach(prep); refresh(true); setTi
 function controlPanel(tab){
   const layer=document.getElementById('layer');
   const tabs=[['home','الشاشة الرئيسية'],['alerts','التنبيهات'],['log','سجل التعديلات'],['cols','الأعمدة'],['lists','القوائم والقطاعات'],['lock','الحماية'],['brand','الهوية'],['data','البيانات']];
-  layer.innerHTML=`<div class="scrim"><div class="dialog wide panelx" role="dialog" aria-modal="true" aria-labelledby="cpT"><h3 id="cpT">لوحة التحكم</h3>
+  layer.innerHTML=`<div class="scrim"><div class="dialog wide panelx" role="dialog" aria-modal="true" aria-labelledby="cpT"><div class="dlg-h"><h3 id="cpT">لوحة التحكم</h3><button type="button" class="iconbtn dlg-x" data-close aria-label="إغلاق" title="إغلاق"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <div class="ptabs" role="tablist">${tabs.map(([k,l])=>`<button type="button" role="tab" data-ptab="${k}" aria-selected="${k===tab}">${l}</button>`).join('')}</div>
     <div class="pbody" id="pbody"></div>
     <div class="acts"><button type="button" class="btn primary" data-close>تم</button><span class="hint" style="align-self:center">تُحفظ التغييرات فوراً على هذا الجهاز.</span></div></div></div>`;
@@ -1907,8 +2057,11 @@ function panelHome(){
           const mains=countBy(RECS,'main').filter(x=>x[0]); return mains.map(([m,n])=>{ const subs=countBy(RECS.filter(r=>r.main===m),'sub').filter(x=>x[0]); return box('m:'+m,m,n,0)+subs.map(([s2,c2])=>box('s:'+s2,s2,c2,1)).join(''); }).join(''); })()}</div></details></div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint">عدد أحدث البلاغات في الشريط</span>${seg('dLatestN',[[3,'3'],[5,'5'],[10,'10'],[20,'20']],dashCfg().latestN)}</div>
       <div style="display:flex;gap:14px;flex-wrap:wrap"><span class="hint">محتوى الشريط:</span>${[['stats','الأرقام والمقارنات'],['up','الزيادة عن الحد'],['down','الانخفاض عن الحد'],['sla','خارج مستوى الخدمة'],['value','التصنيفات والحالات المتابَعة'],['alerts','المتصلون المتكررون'],['kw','الكلمات الحساسة'],['latest','آخر البلاغات'],['rise','قاعدة النسبة القديمة']].map(([k,l])=>`<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" data-ditem="${k}" ${dashCfg().items[k]?'checked':''}><span>${l}</span></label>`).join('')}</div></div>
+    <div class="pcard"><h4>القائمة الجانبية</h4>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint">على الكمبيوتر</span>${seg('hSide',[['pin','ثابتة بجانب الصفحة'],['float','منبثقة بزر ☰']],HOME.side||'pin')}</div>
+      <span class="hint">على الجوال تُفتح بزر ☰ أعلى الصفحة، أو بالسحب من حافة الشاشة اليمنى.</span></div>
     <div class="pcard"><h4>أقسام أخرى</h4>
-      <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="hAlerts" ${HOME.alerts?'checked':''}><span>إظهار شريط التنبيهات</span></label>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="hAlerts" ${HOME.alerts?'checked':''}><span>إظهار قائمة التنبيهات الكبيرة أعلى الصفحة (إضافةً إلى مربع التنبيهات)</span></label>
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="hPresets" ${HOME.presets?'checked':''}><span>إظهار أزرار الفترات الجاهزة (اليوم، هذا الأسبوع…)</span></label></div>
     <div><button type="button" class="btn sm ghost" id="hReset">استعادة الشاشة الافتراضية</button></div>`;
 }
@@ -2024,7 +2177,7 @@ function panelBrand(){
   const b=brand();
   return `<div class="pcard"><h4>الهوية والتقارير</h4><p class="hint">الشعار واسم الجهة واسم المُعدّ ولون الهوية تظهر في رأس النموذج وذيله وفي كل التقارير.</p>
     <dl class="ro"><div><dt>اسم الجهة</dt><dd>${esc(b.org)||'<span class="ro-empty">—</span>'}</dd></div><div><dt>إعداد</dt><dd>${esc(b.preparer)||'<span class="ro-empty">—</span>'}</dd></div><div><dt>عنوان التقرير</dt><dd>${esc(b.title)}</dd></div><div><dt>الشعار</dt><dd>${b.logo?`<img src="${b.logo}" alt="" style="max-height:40px">`:'<span class="ro-empty">بدون شعار</span>'}</dd></div></dl>
-    <div><button type="button" class="btn primary" id="openBrand">تعديل الهوية</button></div></div>`;
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" id="openBrand">تعديل الهوية</button><button type="button" class="btn" id="openRStyle">تنسيق التقرير: الألوان والشعار والغلاف</button></div></div>`;
 }
 function dupGroups(){ const m=new Map(); RECS.forEach(r=>{ const k=keyNo(r.no); if(!k) return; if(!m.has(k)) m.set(k,[]); m.get(k).push(r); }); return [...m.values()].filter(g=>g.length>1); }
 function dupReport(){
@@ -2085,6 +2238,7 @@ async function panelAction(b,body){
     return 'redraw';
   }
   if(b.id==='pinOff'){ try{ localStorage.removeItem(PIN_KEY); }catch(e){} unlocked=false; renderLock(); toast('أُلغي رمز التعديل'); return 'redraw'; }
+  if(b.id==='openRStyle'){ document.getElementById('layer').innerHTML=''; setTimeout(reportStyleDialog,0); return; }
   if(b.id==='openBrand'){ document.getElementById('layer').innerHTML=''; setTimeout(brandDialog,0); return; }
   if(b.id==='maskNow'){ const n=await maskAll(); toast(n?`أُخفيت الأرقام في ${fmt(n)} بلاغ`:'لا توجد أرقام جوال أو هوية في الوصف'); return; }
   if(b.dataset.cldel!==undefined){ CLINICS.splice(+b.dataset.cldel,1); saveClinics(); clinIdx=null; refresh(true); return 'redraw'; }
@@ -2110,6 +2264,7 @@ function panelChange(t){
   if(t.dataset.dcat!==undefined){ const d=dashCfg(); const set=new Set(d.cats||[]); if(t.checked) set.add(t.dataset.dcat); else set.delete(t.dataset.dcat); d.cats=[...set]; HOME.dash=d; saveHome(); renderView(); const h=t.closest('.field').querySelector('.hint b'); if(h) h.textContent=d.cats.length?`(${fmt(d.cats.length)} مختار)`:'(كل التصنيفات)'; return; }
   if(t.dataset.dfield||t.name==='dLatestN'){ const d=dashCfg(); if(t.name==='dLatestN') d.latestN=+t.value; else d.fields[t.dataset.dfield]=t.checked?1:0; HOME.dash=d; saveHome(); renderView(); const pv=document.getElementById('tkPrev'); if(pv){ const r=RECS.slice().sort((a,b)=>String(b.date).localeCompare(a.date))[0]; pv.textContent=r?recTick(r):'—'; } return; }
   if(t.id==='dTicker'||t.id==='dHome'||t.name==='dSpeed'||t.dataset.ditem){ const d=dashCfg(); if(t.id==='dTicker') d.ticker=t.checked?1:0; if(t.id==='dHome') d.home=t.checked?1:0; if(t.name==='dSpeed') d.speed=+t.value; if(t.dataset.ditem) d.items[t.dataset.ditem]=t.checked?1:0; HOME.dash=d; saveHome(); renderView(); return; }
+  if(t.name==='hSide'){ HOME.side=t.value; saveHome(); applySide(); renderSide(); return; }
   if(t.name==='hTheme'){ HOME.theme=t.value; saveHome(); applyHome(); return; }
   if(t.name==='hZoom'){ HOME.zoom=+t.value; saveHome(); applyHome(); return; }
   if(t.name==='hBars'){ HOME.bars=+t.value; saveHome(); renderSummary(); return; }
@@ -2135,7 +2290,7 @@ function panelChange(t){
 const SETTINGS_APP='r937-db-settings';
 function settingsSnapshot(){
   return {app:SETTINGS_APP, version:1, exported:nowLocal(), brand:BRAND, schema:schemaSerial(), secmap:SECMAP, clinics:CLINICS,
-    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START};
+    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE};
 }
 async function exportSettings(){
   const blob=new Blob([JSON.stringify(settingsSnapshot(),null,2)],{type:'application/json'});
@@ -2162,6 +2317,7 @@ async function importSettings(file){
         if(s.backupEvery!==undefined){ BK.every=+s.backupEvery||0; saveBK(); }
         if(s.mask!==undefined){ MASK_ON=!!s.mask; localStorage.setItem(MASK_KEY,MASK_ON?'1':'0'); }
         if(s.home){ HOME=normHome(s.home); saveHome(); pageSize=HOME.pageSize; }
+        if(s.rstyle){ RSTYLE={...DEF_RS,...s.rstyle,cover:{...DEF_RS.cover,...(s.rstyle.cover||{})},wm:{...DEF_RS.wm,...(s.rstyle.wm||{})}}; saveRS(); }
         if(s.weekStart!==undefined){ WEEK_START=+s.weekStart; localStorage.setItem(WS_KEY,String(WEEK_START)); }
         if(s.sla){ SLA={...DEF_SLA,...s.sla}; saveSla(); }
         if(s.status){ STAT={...DEF_STAT,...s.status}; saveStat(); setTimeout(()=>recomputeStatus(),0); }
@@ -2311,6 +2467,97 @@ function readLogo(file){
     fr.readAsDataURL(file);
   });
 }
+/* ---------- تنسيق التقرير: الألوان والشعار والغلاف والعلامة المائية ---------- */
+const RS_KEY='r937-rstyle-v1';
+const RS_THEMES={
+  brand:{l:'لون الهوية'},
+  navy:{l:'كحلي رسمي',a:'#1B2F5E',title:'#1B2F5E',bar:'#2E4C8F',th:'#1B2F5E',band:'#F1F4FA'},
+  green:{l:'أخضر صحي',a:'#0B6B5D',title:'#0B4F45',bar:'#1D8A78',th:'#0B6B5D',band:'#EFF6F4'},
+  teal:{l:'تركوازي',a:'#0E6E86',title:'#0B4F61',bar:'#1A8FAA',th:'#0E6E86',band:'#EEF6F8'},
+  maroon:{l:'عنابي',a:'#7A1F2B',title:'#5E1621',bar:'#A33445',th:'#7A1F2B',band:'#FAF1F2'},
+  gray:{l:'رمادي',a:'#3F4A55',title:'#2A323A',bar:'#6B7884',th:'#3F4A55',band:'#F3F4F6'},
+  bw:{l:'أبيض وأسود للطباعة',a:'#222222',title:'#111111',bar:'#666666',th:'#333333',band:'#F2F2F2'},
+  custom:{l:'مخصص'}};
+const DEF_RS={theme:'brand',colors:null,logoSize:64,logoPos:'right',logo2:'',cover:{on:0,image:'',subtitle:''},wm:{on:0,src:'logo',image:'',op:0.07,data:''}};
+let RSTYLE=(()=>{ try{ const v=JSON.parse(localStorage.getItem(RS_KEY)||'null'); return v?{...DEF_RS,...v,cover:{...DEF_RS.cover,...(v.cover||{})},wm:{...DEF_RS.wm,...(v.wm||{})}}:JSON.parse(JSON.stringify(DEF_RS)); }catch(e){ return JSON.parse(JSON.stringify(DEF_RS)); } })();
+function saveRS(){ try{ localStorage.setItem(RS_KEY,JSON.stringify(RSTYLE)); return true; }catch(e){ return false; } }
+function rsColors(st){
+  st=st||RSTYLE; const c=brandColors();
+  let t = st.theme==='custom' ? (st.colors||{}) : st.theme==='brand' ? {a:c.a,title:'#16211F',bar:c.a,th:c.a,band:c.band} : RS_THEMES[st.theme]||{};
+  const a=t.a||c.a; const band=t.band||mix(a,'#ffffff',0.94);
+  return {a, title:t.title||'#16211F', bar:t.bar||a, th:t.th||a, band, soft:mix(a,'#ffffff',0.84)};
+}
+function readImg(file,max,type){
+  return new Promise((res,rej)=>{ if(!/^image\//.test(file.type)){ rej(new Error('اختر صورة')); return; }
+    const fr=new FileReader(); fr.onerror=()=>rej(new Error('تعذرت قراءة الصورة'));
+    fr.onload=()=>{ const img=new Image(); img.onload=()=>{ let w=img.naturalWidth||max, h=img.naturalHeight||max; const k=Math.min(1,max/Math.max(w,h)); w=Math.round(w*k); h=Math.round(h*k); const cv=document.createElement('canvas'); cv.width=w; cv.height=h; const g=cv.getContext('2d'); if(type==='image/jpeg'){ g.fillStyle='#fff'; g.fillRect(0,0,w,h); } g.drawImage(img,0,0,w,h); res(cv.toDataURL(type||'image/png',0.82)); }; img.onerror=()=>rej(new Error('تعذرت قراءة الصورة')); img.src=fr.result; };
+    fr.readAsDataURL(file); });
+}
+// العلامة المائية: صورة باهتة جاهزة (تُستخدم في المعاينة وPNG وHTML وPDF)
+function makeWm(src,op){
+  return new Promise(res=>{ if(!src){ res(''); return; } const img=new Image(); img.onload=()=>{ const max=700; let w=img.naturalWidth||max, h=img.naturalHeight||max; const k=Math.min(1,max/Math.max(w,h)); w=Math.round(w*k); h=Math.round(h*k);
+    const cv=document.createElement('canvas'); cv.width=w; cv.height=h; const g=cv.getContext('2d'); g.globalAlpha=op||0.07; g.filter='grayscale(0.2)'; g.drawImage(img,0,0,w,h); res(cv.toDataURL('image/png')); }; img.onerror=()=>res(''); img.src=src; });
+}
+async function rsRefreshWm(st){ st=st||RSTYLE; st.wm.data = st.wm.on ? await makeWm(st.wm.src==='image'?st.wm.image:BRAND.logo, st.wm.op) : ''; }
+function reportStyleDialog(){
+  const d=JSON.parse(JSON.stringify(RSTYLE));
+  if(!d.colors){ const c=rsColors(d); d.colors={a:c.a,title:c.title,bar:c.bar,th:c.th,band:c.band}; }
+  const sw=(k,t)=>{ const c=k==='brand'?rsColors({...d,theme:'brand'}):k==='custom'?d.colors:t; return `<label><input type="radio" name="rsTheme" value="${k}" ${d.theme===k?'checked':''}><i><b style="background:${c.a}"></b><b style="background:${c.bar}"></b><b style="background:${c.band}"></b></i><span>${t.l}</span></label>`; };
+  const seg=(name,opts,val)=>`<div class="seg">${opts.map(([v,l])=>`<label><input type="radio" name="${name}" value="${v}" ${String(v)===String(val)?'checked':''}><span>${l}</span></label>`).join('')}</div>`;
+  const thumb=(id,src,ph)=>`<span class="th" id="${id}" style="${src?`background-image:url(${src})`:''}">${src?'':ph}</span>`;
+  const html=`<div style="display:grid;gap:12px">
+    <div class="pcard"><h4>قالب الألوان</h4><div class="rs-swatches">${Object.entries(RS_THEMES).map(([k,t])=>sw(k,t)).join('')}</div>
+      <div class="rs-colors" id="rsCols">${[['a','رأس التقرير والخطوط'],['title','لون العنوان'],['bar','الأعمدة والرسوم'],['th','رأس الجداول'],['band','خلفية العناوين']].map(([k,l])=>`<label><input type="color" data-rsc="${k}" value="${d.colors[k]}"><span>${l}</span></label>`).join('')}</div>
+      <span class="hint">تغيير أي لون يحوّل القالب إلى «مخصص».</span></div>
+    <div class="pcard"><h4>الشعار</h4>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint" style="min-width:60px">الحجم</span>${seg('rsLogoSize',[[44,'صغير'],[64,'متوسط'],[90,'كبير'],[120,'كبير جداً']],d.logoSize)}</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint" style="min-width:60px">المكان</span>${seg('rsLogoPos',[['right','يمين'],['center','وسط'],['left','يسار']],d.logoPos)}</div>
+      <div class="rs-img"><span class="hint" style="min-width:60px">شعار ثانٍ</span>${thumb('rsL2',d.logo2,'بدون')}<button type="button" class="btn sm" id="rsL2Up">اختيار صورة</button>${d.logo2?'<button type="button" class="btn sm ghost danger" id="rsL2Del">حذف</button>':''}<span class="hint">مثل شعار الوزارة، يظهر في الجهة المقابلة للشعار.</span></div>
+      ${BRAND.logo?'':'<span class="hint">لا يوجد شعار رئيسي بعد. أضفه من «الهوية».</span>'}</div>
+    <div class="pcard"><h4>صفحة الغلاف</h4>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="rsCover" ${d.cover.on?'checked':''}><span>إضافة صفحة غلاف في أول التقرير</span></label>
+      <div class="rs-img"><span class="hint" style="min-width:60px">صورة الغلاف</span>${thumb('rsCv',d.cover.image,'بدون')}<button type="button" class="btn sm" id="rsCvUp">اختيار صورة</button>${d.cover.image?'<button type="button" class="btn sm ghost danger" id="rsCvDel">حذف</button>':''}</div>
+      <div class="field"><label for="rsCvSub">سطر تحت العنوان</label><input class="inp" id="rsCvSub" value="${esc(d.cover.subtitle||'')}" placeholder="مثال: التقرير الشهري لإدارة تجربة المستفيد"></div></div>
+    <div class="pcard"><h4>العلامة المائية</h4>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="rsWm" ${d.wm.on?'checked':''}><span>إظهار صورة باهتة في خلفية صفحات التقرير</span></label>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint" style="min-width:60px">الصورة</span>${seg('rsWmSrc',[['logo','الشعار'],['image','صورة أخرى']],d.wm.src)}${thumb('rsWmT',d.wm.image,'—')}<button type="button" class="btn sm" id="rsWmUp">اختيار صورة</button></div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint" style="min-width:60px">الوضوح</span>${seg('rsWmOp',[[0.05,'خفيفة'],[0.08,'متوسطة'],[0.13,'واضحة']],d.wm.op)}</div></div>
+    <div class="pcard"><h4>معاينة</h4><div class="rs-prev" id="rsPrev"></div><span class="hint">تُطبَّق على PDF والصورة وصفحة HTML ومعاينة التقرير. ملف Excel يأخذ لون رأس الجداول فقط.</span></div>
+    <input type="file" id="rsFile" accept="image/*" hidden></div>`;
+  let busyPrev=0;
+  const preview=async sc=>{ const my=++busyPrev; await rsRefreshWm(d); if(my!==busyPrev) return; const box=sc.querySelector('#rsPrev'); if(!box) return;
+    const el=buildReport(filtered.slice(),{...printOpts(),list:false,top:5,sec:{kpi:1,center:1},style:d});
+    const W=box.clientWidth-20; const k=Math.min(1,W/1120); const wrap=document.createElement('div'); wrap.className='in'; wrap.style.transform=`scale(${k})`; wrap.appendChild(el); box.innerHTML=''; box.appendChild(wrap); };
+  dialog({title:'تنسيق التقرير', wide:true, html, actions:[
+    {label:'حفظ',cls:'primary',run:async()=>{ await rsRefreshWm(d); RSTYLE=d; const ok=saveRS(); if(view==='report') renderView(); toast(ok?'حُفظ تنسيق التقرير':'الصور كبيرة ولم تُحفظ في هذا المتصفح، استخدم صوراً أصغر'); }},
+    {label:'الافتراضي',run:sc=>{ Object.assign(d,JSON.parse(JSON.stringify(DEF_RS))); toast('اضغط «حفظ» لاعتماد الإعداد الافتراضي'); setTimeout(()=>{ document.getElementById('layer').innerHTML=''; RSTYLE_DRAFT=d; reportStyleDialogFrom(d); },0); }},
+    {label:'إلغاء'}],
+    onOpen:sc=>{
+      let pick=null; const file=sc.querySelector('#rsFile');
+      const ask=(what)=>{ pick=what; file.value=''; file.click(); };
+      file.onchange=async()=>{ const f=file.files[0]; if(!f) return; try{
+          if(pick==='l2'){ d.logo2=await readImg(f,420,'image/png'); sc.querySelector('#rsL2').style.backgroundImage=`url(${d.logo2})`; sc.querySelector('#rsL2').textContent=''; }
+          if(pick==='cv'){ d.cover.image=await readImg(f,1500,'image/jpeg'); d.cover.on=1; sc.querySelector('#rsCover').checked=true; const t=sc.querySelector('#rsCv'); t.style.backgroundImage=`url(${d.cover.image})`; t.textContent=''; }
+          if(pick==='wm'){ d.wm.image=await readImg(f,700,'image/png'); d.wm.src='image'; d.wm.on=1; sc.querySelector('#rsWm').checked=true; sc.querySelector('input[name=rsWmSrc][value=image]').checked=true; const t=sc.querySelector('#rsWmT'); t.style.backgroundImage=`url(${d.wm.image})`; t.textContent=''; }
+          preview(sc); }catch(e){ toast(e.message); } };
+      sc.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return;
+        if(b.id==='rsL2Up') ask('l2'); if(b.id==='rsCvUp') ask('cv'); if(b.id==='rsWmUp') ask('wm');
+        if(b.id==='rsL2Del'){ d.logo2=''; sc.querySelector('#rsL2').style.backgroundImage=''; sc.querySelector('#rsL2').textContent='بدون'; b.remove(); preview(sc); }
+        if(b.id==='rsCvDel'){ d.cover.image=''; sc.querySelector('#rsCv').style.backgroundImage=''; sc.querySelector('#rsCv').textContent='بدون'; b.remove(); preview(sc); } });
+      sc.addEventListener('input',e=>{ const t=e.target;
+        if(t.dataset.rsc){ d.colors[t.dataset.rsc]=t.value; d.theme='custom'; sc.querySelector('input[name=rsTheme][value=custom]').checked=true; clearTimeout(sc._pt); sc._pt=setTimeout(()=>preview(sc),150); }
+        if(t.id==='rsCvSub'){ d.cover.subtitle=t.value; clearTimeout(sc._pt); sc._pt=setTimeout(()=>preview(sc),300); } });
+      sc.addEventListener('change',e=>{ const t=e.target;
+        if(t.name==='rsTheme'){ d.theme=t.value; if(t.value!=='custom'){ const c=rsColors(d); d.colors={a:c.a,title:c.title,bar:c.bar,th:c.th,band:c.band}; sc.querySelectorAll('[data-rsc]').forEach(x=>x.value=d.colors[x.dataset.rsc]); } }
+        if(t.name==='rsLogoSize') d.logoSize=+t.value; if(t.name==='rsLogoPos') d.logoPos=t.value;
+        if(t.id==='rsCover') d.cover.on=t.checked?1:0; if(t.id==='rsWm') d.wm.on=t.checked?1:0;
+        if(t.name==='rsWmSrc') d.wm.src=t.value; if(t.name==='rsWmOp') d.wm.op=+t.value;
+        if(t.name||t.id) preview(sc); });
+      setTimeout(()=>preview(sc),30);
+    }});
+}
+let RSTYLE_DRAFT=null;
+function reportStyleDialogFrom(d){ const keep=RSTYLE; RSTYLE=d; try{ reportStyleDialog(); } finally{ RSTYLE=keep; } }
 function brandDialog(){
   let draft={...BRAND};
   const html=`<div class="form">
@@ -2347,7 +2594,7 @@ function exportDialog(kind){
   if(!n){ toast('لا توجد بلاغات في النتائج الحالية'); return; }
   const P={...PRINT,sec:{...PRINT.sec},fmt:kind};
   const seg=(name,opts,val)=>`<div class="seg" role="radiogroup">${opts.map(([v,l])=>`<label><input type="radio" name="${name}" value="${v}" ${String(v)===String(val)?'checked':''}><span>${l}</span></label>`).join('')}</div>`;
-  const html=`<div class="stats"><div><b>${fmt(n)}</b><span>بلاغ في النتائج</span></div><div><b>${fmt(countBy(list,'center').length)}</b><span>مركز</span></div><div><b>${filterDesc().length||'—'}</b><span>فلتر مطبّق</span></div></div>
+  const html=`<div style="display:flex;justify-content:flex-end"><button type="button" class="btn sm" id="expRStyle">🎨 تنسيق التقرير</button></div><div class="stats"><div><b>${fmt(n)}</b><span>بلاغ في النتائج</span></div><div><b>${fmt(countBy(list,'center').length)}</b><span>مركز</span></div><div><b>${filterDesc().length||'—'}</b><span>فلتر مطبّق</span></div></div>
     <div class="pgrid">
       <span class="l">الصيغة</span>${seg('pf',[['pdf','PDF'],['png','صورة PNG'],['html','HTML'],['xlsx','Excel']],P.fmt)}
       <span class="l lay">عنوان التقرير</span><input class="inp lay" id="pTitle" value="${esc(BRAND.title||'تقرير البلاغات')}">
@@ -2429,16 +2676,23 @@ async function buildPdf(list,o){
     const footEl=blocks.find(b=>b.dataset.foot); const flow=blocks.filter(b=>!b.dataset.foot);
     const fc=await snap(footEl,1.6); const footImg=await pdf.embedPng(new Uint8Array(await (await canvasBlob(fc)).arrayBuffer()));
     const fs=(W-2*M)/fc.width, fh=fc.height*fs, bottom=M+fh+6;
-    let page=pdf.addPage([W,H]), y=H-M; const pages=[page];
+    let page=pdf.addPage([W,H]), y=H-M; const pages=[page]; let coverPage=null;
     for(let i=0;i<flow.length;i++){
       busy(`جارٍ تجهيز PDF… ${Math.round(i/flow.length*100)}%`);
       const c=await snap(flow[i],1.6);
       const img=await pdf.embedJpg(new Uint8Array(await (await canvasBlob(c,'image/jpeg',0.86)).arrayBuffer()));
+      if(flow[i].dataset.cover){ // الغلاف يملأ الصفحة الأولى وحده
+        let s=Math.min((W-2*M)/c.width,(H-2*M)/c.height); const w=c.width*s, h=c.height*s; page.drawImage(img,{x:(W-w)/2,y:(H-h)/2,width:w,height:h}); coverPage=page;
+        page=pdf.addPage([W,H]); pages.push(page); y=H-M; continue; }
       let s=(W-2*M)/c.width, h=c.height*s, w=W-2*M;
       if(h>H-M-bottom){ s=(H-M-bottom)/c.height; h=H-M-bottom; w=c.width*s; }
       if(y-h<bottom){ page=pdf.addPage([W,H]); pages.push(page); y=H-M; }
       page.drawImage(img,{x:(W-w)/2,y:y-h,width:w,height:h}); y-=h;
     }
+    const wmSrc=RSTYLE.wm&&RSTYLE.wm.on&&RSTYLE.wm.data;
+    if(wmSrc){ try{ const wb=await (await fetch(wmSrc)).arrayBuffer(); const wi=await pdf.embedPng(new Uint8Array(wb)); const ww=W*0.5, wh=wi.height*ww/wi.width;
+      pages.forEach(pg=>{ if(pg!==coverPage) pg.drawImage(wi,{x:(W-ww)/2,y:(H-wh)/2,width:ww,height:wh,opacity:0.9}); }); }catch(e){ console.error(e); } }
+    if(coverPage) pages.splice(pages.indexOf(coverPage),1);
     pages.forEach((pg,i)=>{ pg.drawImage(footImg,{x:M,y:M,width:W-2*M,height:fh}); const txt=`${i+1} / ${pages.length}`; const tw=font.widthOfTextAtSize(txt,8.5); pg.drawText(txt,{x:(W-tw)/2,y:M+fh+8,size:8.5,font,color:PDFLib.rgb(0.37,0.43,0.42)}); });
   });
   pdf.setTitle(o.title||'تقرير البلاغات'); if(BRAND.preparer) pdf.setAuthor(BRAND.preparer);
@@ -2557,7 +2811,7 @@ function pageXml(o,orientDefault){
 function imgSize(url){ return new Promise(res=>{ const i=new Image(); i.onload=()=>res([i.naturalWidth||1,i.naturalHeight||1]); i.onerror=()=>res([1,1]); i.src=url; }); }
 async function buildReportXlsx(list,o){
   o={top:20,orient:'landscape',sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1},...o};
-  const JSZip=await lib('jszip'); const z=new JSZip(); const b=brand(), c=brandColors();
+  const JSZip=await lib('jszip'); const z=new JSZip(); const b=brand(), RC=rsColors(), c={...brandColors(),a:RC.th,soft:RC.soft,band:RC.band};
   const land=o.orient!=='portrait'; const top=o.top||1e9;
   const S=new SheetB(); const SN='التقرير';
   const R0=0, R1=land?10:4; // right block starts at column A; second block at G (landscape)
@@ -2835,11 +3089,11 @@ try{ navigator.storage && navigator.storage.persist && navigator.storage.persist
   setTimeout(()=>recomputeStatus(true),0);
   pageSize=+HOME.pageSize||50;
   if(HOME.defView && HOME.views.some(v=>v[0]===HOME.defView&&v[1])){ view=HOME.defView; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); }
-  applyHome();
+  applyHome(); applySide();
   renderAll();
   renderBackupBanner();
 })();
-window.__db={applyChange, slaKey, prep, get LOG(){return LOG;}, evalRules, undoEntry, get HOME(){return HOME;}, kwIndex, parseNos, get BK(){return BK;}, maskNums, staffGroups, clinicGroups, pairGroups, buildReportXlsx, get recs(){return RECS;}, readXlsx, parseRecords, buildXlsx, buildReport, get filtered(){return filtered;}};
+window.__db={applyChange, slaKey, prep, buildPdf, printOpts, get LOG(){return LOG;}, evalRules, undoEntry, get HOME(){return HOME;}, kwIndex, parseNos, get BK(){return BK;}, maskNums, staffGroups, clinicGroups, pairGroups, buildReportXlsx, get recs(){return RECS;}, readXlsx, parseRecords, buildXlsx, buildReport, get filtered(){return filtered;}};
 </script>
 
 </body>
