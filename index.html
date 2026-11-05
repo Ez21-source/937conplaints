@@ -384,6 +384,18 @@ mark.kw{background:color-mix(in srgb,var(--bad) 22%,transparent)}
 .rulec .rf{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
 .rulec .rf .inp{width:auto}
 .rulec .rf input[type=number]{width:80px}
+.fcompact{display:none;grid-template-columns:minmax(0,.9fr) minmax(0,1.3fr);gap:8px}
+.filters.fm-compact #fExtra{display:none!important} .filters.fm-compact .fcompact{display:grid} .filters.fm-full .fcompact{display:none!important}
+.fcompact[hidden]{display:none!important}
+/* read / unread envelope */
+table.rec td.ms,table.rec th.ms{width:34px;padding-inline:2px;text-align:center}
+.env{position:relative;display:inline-flex;width:26px;height:22px;align-items:center;justify-content:center;color:var(--muted)}
+.env svg{width:20px;height:20px}
+.env.new{color:var(--accent)}
+.env.upd{color:var(--warn)}
+.env b{position:absolute;top:-6px;left:-6px;min-width:15px;height:15px;border-radius:8px;background:var(--bad);color:#fff;font-size:9.5px;line-height:15px;padding:0 3px;font-weight:700}
+tr.unread td.no{font-weight:800}
+.readbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line);font-size:13px}
 .msel{display:flex;align-items:center;gap:6px;text-align:start;cursor:pointer;min-height:38px;width:100%}
 .msel span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .msel svg{width:16px;height:16px;flex:none;color:var(--muted)}
@@ -522,14 +534,8 @@ body.dash-full .actionbar{display:none}
         </div>
       </div>
       <div class="chips" id="presets" aria-label="فترات جاهزة"></div>
-      <div class="fgrid">
-        <div class="field"><label for="fMonth">الشهر</label><select class="inp" id="fMonth" data-f="month"></select></div>
-        <div class="field"><label for="fSector">القطاع</label><select class="inp" id="fSector" data-f="sector"></select></div>
-        <div class="field"><label for="fCenter">المركز الصحي</label><select class="inp" id="fCenter" data-f="center"></select></div>
-        <div class="field"><label for="fMain">التصنيف الرئيسي</label><select class="inp" id="fMain" data-f="main"></select></div>
-        <div class="field"><label for="fSub">التصنيف الفرعي</label><select class="inp" id="fSub" data-f="sub"></select></div>
-      </div>
-      <div class="fgrid" id="fExtra" hidden></div>
+      <div class="fgrid" id="fExtra"></div>
+      <div class="fcompact" id="fCompact"><select class="inp" id="fcField" aria-label="نوع الفلتر"></select><div id="fcVal"></div></div>
       <div class="fstate" id="fstate"></div>
     </section>
 
@@ -804,7 +810,7 @@ function stripIdx(r){ const o={}; ALLK().forEach(k=>{ if(r[k]!==undefined) o[k]=
 /* ---------- state ---------- */
 let RECS=[];               // all records
 const byId=new Map();
-let filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:'',kw:'',sla:''};
+let filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:'',kw:'',sla:'',unread:''};
 let sort={k:'date',dir:-1};
 let page=0, pageSize=50, view='table';
 const selected=new Set();
@@ -862,6 +868,7 @@ async function applyChange(puts,dels,meta){
   meta=typeof meta==='string'?{type:meta}:(meta||{});
   const before=[], added=[], nos=[];
   puts.forEach(r=>{ const old=byId.get(r.id); if(old) before.push(old); else added.push(r.id); nos.push(r.no); });
+  if(['import','update'].includes(meta.type)){ puts.forEach(r=>bumpRev(byId.get(r.id),r)); saveRead(); }
   dels.forEach(id=>{ const old=byId.get(id); if(old){ before.push(old); nos.push(old.no); } });
   let type=meta.type;
   if(!type) type = dels.length&&!puts.length ? 'del' : puts.length===1 ? (added.length?'add':'edit') : 'bulk';
@@ -1092,7 +1099,7 @@ function renderAlerts(){
   el._al=al;
 }
 function applyAlert(a){
-  filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:'',kw:'',sla:'',...a.act};
+  filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:'',kw:'',sla:'',unread:'',...a.act};
   view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view));
   refresh(); document.getElementById('view').scrollIntoView({block:'start'});
 }
@@ -1312,6 +1319,7 @@ function apply(){ _empSet=null; _clSet=null;
     if(filt.cl && !clSet().has(r.id)) return false;
     if(filt.kw && !kwMatch(r,filt.kw)) return false;
     if(filt.sla && slaState(r)!==filt.sla) return false;
+    if(filt.unread && readState(r).st==='read') return false;
     for(const c of extraFilterCols()) if(!fOk(c.k,r[c.k])) return false;
     for(const w of words) if(!r._s.includes(w)) return false;
     return true;
@@ -1358,12 +1366,33 @@ const fVals=k=>{ const v=filt[k]; return Array.isArray(v)?v:(v?[v]:[]); };
 function fOk(k,val){ const vs=fVals(k); if(!vs.length) return true; return vs.some(x=> x==='__none' ? !val : val===x); }
 const fLabel=(k,v)=>v==='__none'?'بدون قطاع':v;
 const fText=k=>{ const vs=fVals(k); return vs.length<=2?vs.map(v=>fLabel(k,v)).join('، '):`${fLabel(k,vs[0])} و${fmt(vs.length-1)} أخرى`; };
-function extraFilterCols(){ return cols().filter(c=>c.custom && c.type==='list'); }
+let FC_KEY='center';
+document.addEventListener('change',e=>{ if(e.target.id==='fcField'){ FC_KEY=e.target.value; renderFilters(); } });
+/* ---------- إعدادات الفلاتر (أي فلاتر تظهر، ترتيبها، وطريقة عرضها) ---------- */
+const FBASE=['month','sector','center','main','sub'];
+const FCFG_KEY='r937-filters-v1';
+let FCFG=(()=>{ try{ return {list:[],desk:'full',mob:'compact',...JSON.parse(localStorage.getItem(FCFG_KEY)||'{}')}; }catch(e){ return {list:[],desk:'full',mob:'compact'}; } })();
+const saveFcfg=()=>{ try{ localStorage.setItem(FCFG_KEY,JSON.stringify(FCFG)); }catch(e){} };
+// كل الأعمدة التي يمكن الفلترة بها (بدون الرقم والتاريخ والوصف والهوية)
+function filterCandidates(){ return cols().filter(c=>!['no','date','desc','nid','caller'].includes(c.k) && c.type!=='long'); }
+function filterList(){
+  const cand=filterCandidates().map(c=>c.k); const out=[]; const seen=new Set();
+  (FCFG.list||[]).forEach(([k,on])=>{ if(cand.includes(k)&&!seen.has(k)){ out.push([k,on?1:0]); seen.add(k); } });
+  const defOn=k=>FBASE.includes(k)||(col(k)&&col(k).custom&&col(k).type==='list');
+  FBASE.concat(cand).forEach(k=>{ if(cand.includes(k)&&!seen.has(k)){ out.push([k,defOn(k)?1:0]); seen.add(k); } });
+  return out;
+}
+const activeFilterKeys=()=>filterList().filter(([k,on])=>on).map(([k])=>k);
+function extraFilterCols(){ return activeFilterKeys().filter(k=>!FBASE.includes(k)).map(k=>col(k)).filter(Boolean); }
+function applyFilterMode(){ const el=document.querySelector('.filters'); if(!el) return; const m=matchMedia('(max-width:700px)').matches?FCFG.mob:FCFG.desk; el.classList.toggle('fm-compact',m==='compact'); el.classList.toggle('fm-full',m!=='compact'); }
+addEventListener('resize',()=>{ clearTimeout(applyFilterMode._t); applyFilterMode._t=setTimeout(applyFilterMode,120); });
 function renderFilters(){
-  ['month','sector','center','main','sub'].forEach(k=>{ const el=document.querySelector(`select[data-f="${k}"]`); if(!el) return; const f=el.closest('.field'); f.hidden=!active(k); f.querySelector('label').textContent=short(k); if(!active(k)) filt[k]=''; });
-  const ex=document.getElementById('fExtra'); const exc=extraFilterCols();
-  const want=exc.map(c=>c.k).join('|'); if(ex.dataset.keys!==want){ ex.innerHTML=exc.map(c=>`<div class="field"><label for="fx-${c.k}">${esc(c.l)}</label><select class="inp" id="fx-${c.k}" data-f="${c.k}"></select></div>`).join(''); ex.dataset.keys=want; }
-  ex.hidden=!exc.length;
+  applyFilterMode();
+  const AK=activeFilterKeys().filter(k=>active(k));
+  filterList().forEach(([k,on])=>{ if((!on||!active(k)) && filt[k]) filt[k]=''; });
+  const ex=document.getElementById('fExtra');
+  const want=AK.map(k=>k+':'+short(k)).join('|'); if(ex.dataset.keys!==want){ ex.innerHTML=AK.map(k=>`<div class="field"><label for="fx-${k}">${esc(short(k))}</label><select class="inp" id="fx-${k}" data-f="${k}"></select></div>`).join(''); ex.dataset.keys=want; }
+  ex.hidden=!AK.length;
   document.querySelectorAll('select[data-f]').forEach(sel=>{
     const k=sel.dataset.f; sel.hidden=true; sel.tabIndex=-1;
     let btn=sel.parentElement.querySelector(`.msel[data-mf="${k}"]`);
@@ -1372,6 +1401,11 @@ function renderFilters(){
     btn.innerHTML=`<span>${vs.length?esc(fText(k)):'الكل'}</span>${vs.length>1?`<b class="mcnt">${fmt(vs.length)}</b>`:''}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>`;
     btn.classList.toggle('on',!!vs.length);
   });
+  // الفلاتر المختصرة (للجوال): مربع لاختيار نوع الفلتر، ومربع لقيمه
+  { const keys=AK; document.getElementById('fCompact').hidden=!keys.length;
+    const fs=document.getElementById('fcField'); if(!keys.includes(FC_KEY)) FC_KEY=keys.includes('center')?'center':keys[0];
+    fs.innerHTML=keys.map(k=>`<option value="${k}" ${k===FC_KEY?'selected':''}>${esc(short(k))}${fVals(k).length?` (${fmt(fVals(k).length)})`:''}</option>`).join('');
+    const vs=fVals(FC_KEY); document.getElementById('fcVal').innerHTML=FC_KEY?`<button type="button" class="inp msel${vs.length?' on':''}" data-mf="${FC_KEY}"><span>${vs.length?esc(fText(FC_KEY)):'الكل'}</span>${vs.length>1?`<b class="mcnt">${fmt(vs.length)}</b>`:''}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>`:''; }
   document.getElementById('q').value=filt.q;
   document.getElementById('dFrom').value=filt.from; document.getElementById('dTo').value=filt.to;
   renderPresets();
@@ -1383,7 +1417,8 @@ function renderFilters(){
   if(filt.cl) tags.push(['cl',`العيادة: ${filt.cl}`]);
   if(filt.kw) tags.push(['kw',`تنبيه: ${kwRuleName(filt.kw)}`]);
   if(filt.sla) tags.push(['sla',filt.sla==='out'?'خارج مستوى الخدمة':'داخل مستوى الخدمة']);
-  ['month','sector','center','main','sub',...extraFilterCols().map(c=>c.k)].forEach(k=>{ if(fVals(k).length) tags.push([k,`${short(k)}: ${fText(k)}`]); });
+  if(filt.unread) tags.push(['unread','غير المقروءة فقط']);
+  activeFilterKeys().forEach(k=>{ if(fVals(k).length) tags.push([k,`${short(k)}: ${fText(k)}`]); });
   document.getElementById('fstate').innerHTML = `<span><b>${fmt(total(filtered))}</b> بلاغ${filtered.length!==RECS.length?` من أصل ${fmt(total(RECS))}`:''}</span>` + tags.map(([k,t])=>`<span class="tag">${esc(t)}<button type="button" data-untag="${k}" aria-label="إزالة">×</button></span>`).join('') + (tags.length?`<button type="button" class="btn sm ghost" data-untag="all">مسح الفلاتر</button>`:'');
 }
 function iso(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
@@ -1663,6 +1698,20 @@ document.addEventListener('click',e=>{
     if(dy<60){ if(mode==='open'&&dx<-50) openSide(); if(mode==='close'&&dx>60) closeSide(); } sx=null; },{passive:true});
 })();
 addEventListener('resize',()=>{ clearTimeout(addEventListener._st); addEventListener._st=setTimeout(()=>{ applySide(); },150); });
+/* ---------- حالة قراءة البلاغ (رسالة مغلقة/مفتوحة) ---------- */
+// المفتاح رقم البلاغ، فيبقى صحيحاً بعد استبدال القاعدة من نسخة احتياطية
+let READ={seen:{},rev:{}}, readT=0;
+async function loadRead(){ try{ const v=await dbMeta('readstate'); if(v&&v.seen) READ={seen:v.seen||{},rev:v.rev||{}}; }catch(e){} }
+function saveRead(){ clearTimeout(readT); readT=setTimeout(()=>dbSetMeta('readstate',READ).catch(()=>{}),400); }
+const rKey=r=>keyNo(r&&r.no);
+function readState(r){ const k=rKey(r); if(!k) return {st:'read',n:0}; const rev=READ.rev[k]||0; if(!(k in READ.seen)) return {st:rev?'upd':'new',n:rev}; const d=rev-READ.seen[k]; return d>0?{st:'upd',n:d}:{st:'read',n:0}; }
+function markSeen(r){ const k=rKey(r); if(!k) return; READ.seen[k]=READ.rev[k]||0; saveRead(); }
+function markAllSeen(list){ (list||RECS).forEach(r=>{ const k=rKey(r); if(k) READ.seen[k]=READ.rev[k]||0; }); saveRead(); }
+const sig=r=>{ const o=stripIdx(r); delete o.id; return JSON.stringify(o); };
+function bumpRev(oldR,newR){ if(!oldR||!newR) return; if(sig(oldR)===sig(newR)) return; const k=rKey(newR); if(!k) return; READ.rev[k]=(READ.rev[k]||0)+1; }
+const ENV_C='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 6.5A2.5 2.5 0 0 1 5.5 4h13A2.5 2.5 0 0 1 21 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" opacity=".22"/><path d="M3.6 6.2 12 12.6l8.4-6.4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><rect x="3" y="4" width="18" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.9"/></svg>';
+const ENV_O='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 10.5 12 4l9 6.5V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="m3.5 11 8.5 5.5 8.5-5.5"/></svg>';
+function envHTML(r){ const s=readState(r); return s.st==='read'?`<span class="env" title="تم فتحه">${ENV_O}</span>`:`<span class="env ${s.st}" title="${s.st==='new'?'لم يُفتح بعد':`تحديثات لم تُفتح: ${s.n}`}">${ENV_C}${s.st==='upd'?`<b>${s.n>99?'99+':s.n}</b>`:''}</span>`; }
 function renderView(){
   navPush(); setTimeout(renderSide,0);
   const v=document.getElementById('view');
@@ -1685,8 +1734,10 @@ function renderView(){
   const COLS=tableCols();
   const th=COLS.map(c=>`<th data-sort="${c.k}" scope="col">${esc(short(c.k))}${sort.k===c.k?`<span class="ar">${sort.dir>0?'▲':'▼'}</span>`:''}</th>`).join('');
   const KWI=kwIndex(); const SK2=slaKey();
-  const body=rows.map(r=>{ const fl=KWI.get(r.id); return `<tr data-id="${r.id}" class="${selected.has(r.id)?'sel':''}${fl?' flag':''}"${fl?` title="كلمات حساسة: ${esc([...new Set(fl.map(x=>x.w))].join('، '))}"`:''}><td class="cb"><input type="checkbox" data-sel="${r.id}" ${selected.has(r.id)?'checked':''} aria-label="تحديد"></td>${COLS.map(c=>{ const raw=c.fmt?c.fmt(r[c.k],r):r[c.k]; const t= c.k==='count'?raw: (c.k===SK2&&raw) ? slaBadge(raw,slaState(r,SK2)) : hl(raw,fl&&c.cls==='desc'); return `<td class="${c.cls||''}">${c.cls==='desc'?`<div title="${esc(r[c.k])}">${t}</div>`:t}</td>`; }).join('')}</tr>`; }).join('');
-  v.innerHTML=`<div class="panel"><div class="tbl-wrap"><table class="rec"><thead><tr><th class="cb nosort"><input type="checkbox" id="selPage" ${allSel?'checked':''} aria-label="تحديد الصفحة"></th>${th}</tr></thead><tbody>${body}</tbody></table></div>
+  const body=rows.map(r=>{ const fl=KWI.get(r.id); return `<tr data-id="${r.id}" class="${selected.has(r.id)?'sel':''}${fl?' flag':''}${readState(r).st!=='read'?' unread':''}"${fl?` title="كلمات حساسة: ${esc([...new Set(fl.map(x=>x.w))].join('، '))}"`:''}><td class="cb"><input type="checkbox" data-sel="${r.id}" ${selected.has(r.id)?'checked':''} aria-label="تحديد"></td><td class="ms">${envHTML(r)}</td>${COLS.map(c=>{ const raw=c.fmt?c.fmt(r[c.k],r):r[c.k]; const t= c.k==='count'?raw: (c.k===SK2&&raw) ? slaBadge(raw,slaState(r,SK2)) : hl(raw,fl&&c.cls==='desc'); return `<td class="${c.cls||''}">${c.cls==='desc'?`<div title="${esc(r[c.k])}">${t}</div>`:t}</td>`; }).join('')}</tr>`; }).join('');
+  const nUn=RECS.reduce((n,r)=>n+(readState(r).st!=='read'?1:0),0), nUpd=RECS.reduce((n,r)=>n+(readState(r).st==='upd'?1:0),0);
+  const RB=`<div class="readbar"><span class="env new">${ENV_C}</span><span><b>${fmt(nUn)}</b> غير مقروء${nUpd?` · منها <b style="color:var(--warn)">${fmt(nUpd)}</b> محدّث`:''}</span><span style="flex:1"></span><button type="button" class="btn sm ${filt.unread?'primary':''}" id="rdOnly">${filt.unread?'عرض الكل':'غير المقروءة فقط'}</button><button type="button" class="btn sm ghost" id="rdAll" ${nUn?'':'disabled'}>تعليم ${filt.unread||filtered.length<RECS.length?'النتائج':'الكل'} كمقروء</button></div>`;
+  v.innerHTML=`<div class="panel">${RB}<div class="tbl-wrap"><table class="rec"><thead><tr><th class="cb nosort"><input type="checkbox" id="selPage" ${allSel?'checked':''} aria-label="تحديد الصفحة"></th><th class="ms nosort" title="حالة القراءة">${ENV_O}</th>${th}</tr></thead><tbody>${body}</tbody></table></div>
     <div class="pager"><span>عرض ${fmt(page*pageSize+1)}–${fmt(page*pageSize+rows.length)} من ${fmt(filtered.length)}</span>
       <label>صفوف <select class="inp" id="pageSize" style="width:auto;display:inline-block">${[25,50,100,200].map(n=>`<option ${n===pageSize?'selected':''}>${n}</option>`).join('')}</select></label>
       <button type="button" class="btn sm ghost" id="selAll">تحديد كل النتائج (${fmt(filtered.length)})</button>
@@ -1822,7 +1873,7 @@ document.addEventListener('click',e=>{
   const b=t.closest('button');
   if(b){
     if(b.dataset.from!=null && b.classList.contains('chip')){ filt.from=b.dataset.from; filt.to=b.dataset.to; refresh(); return; }
-    if(b.dataset.untag){ const k=b.dataset.untag; if(k==='all') filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:'',kw:'',sla:''}; else if(k==='emp'){ filt.emp=''; filt.empc=0; } else if(k==='dates'){filt.from='';filt.to='';} else filt[k]=''; refresh(); return; }
+    if(b.dataset.untag){ const k=b.dataset.untag; if(k==='all') filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:'',kw:'',sla:'',unread:''}; else if(k==='emp'){ filt.emp=''; filt.empc=0; } else if(k==='dates'){filt.from='';filt.to='';} else filt[k]=''; refresh(); return; }
     if(b.dataset.pick){ filt[b.dataset.pick]=b.dataset.val; refresh(); return; }
     if(b.dataset.view){ view=b.dataset.view; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); renderView(); return; }
     if(b.dataset.pg){ const pages=Math.ceil(filtered.length/pageSize); page={first:0,prev:page-1,next:page+1,last:pages-1}[b.dataset.pg]; renderView(); document.getElementById('view').scrollIntoView({block:'start'}); return; }
@@ -1835,6 +1886,8 @@ document.addEventListener('click',e=>{
     if(b.dataset.dal!==undefined){ const al=document.getElementById('dash')?._al; const a=al&&al[+b.dataset.dal]; if(a){ document.body.classList.remove('dash-full'); if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); applyAlert(a); } return; }
     if(b.dataset.slac!==undefined){ filt.center=b.dataset.slac; filt.sla='out'; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); return; }
     if(b.dataset.rid){ const r=byId.get(b.dataset.rid); if(r) viewRecord(r); return; }
+    if(b.id==='rdOnly'){ filt.unread=filt.unread?'':'1'; refresh(); return; }
+    if(b.id==='rdAll'){ if(!b.classList.contains('confirm')){ b.classList.add('confirm'); b.textContent='اضغط مرة أخرى للتأكيد'; return; } markAllSeen(filtered.length<RECS.length?filtered:RECS); toast('عُلّمت كمقروءة'); refresh(true); return; }
     if(b.id==='alMore'){ ALERTS_OPEN=!ALERTS_OPEN; renderAlerts(); return; }
     if(b.id==='alRules'){ guard(()=>controlPanel('alerts')); return; }
     if(b.id==='staffCats'){ staffCatsDialog(); return; }
@@ -1923,6 +1976,7 @@ function fieldValueHTML(r,c){
   return `<span${c.ltr||c.type==='datetime'||c.type==='date'||c.type==='number'?' dir="ltr"':''}>${esc(v)}</span>`;
 }
 function viewRecord(r){
+  if(r && readState(r).st!=='read'){ markSeen(r); const tr=document.querySelector(`tr[data-id="${r.id}"]`); if(tr){ tr.classList.remove('unread'); const c=tr.querySelector('td.ms'); if(c) c.innerHTML=envHTML(r); } setTimeout(()=>{ const rb=document.querySelector('.readbar'); if(rb&&view==='table') renderView(); },400); }
   const cs=cols();
   const html=`<div class="ro-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>للعرض فقط. اضغط «تعديل» لتغيير البيانات.</div>
     <dl class="ro">${(()=>{ let pos=0; const full=cs.map(c=>c.type==='long'); cs.forEach((c,i)=>{ if(full[i]){ pos=0; return; } if(pos===0 && (i===cs.length-1 || full[i+1])) full[i]=true; else pos=1-pos; }); return cs.map((c,i)=>`<div class="${full[i]?'full':''}">`); })().map((open,i)=>open+`<dt>${esc(cs[i].l)}${cs[i].pii?' <span class="badge">شخصي</span>':''}</dt><dd>${fieldValueHTML(r,cs[i])}</dd></div>`).join('')}</dl>`;
@@ -1966,7 +2020,7 @@ function editRecord(r){
     o.no=String(o.no).trim();
     return true;
   };
-  const doSave=async(s)=>{ const o=collect(s); if(!validate(s,o)) return false; const rec=prep(clean({...o,id:r?r.id:undefined})); await saveRecords([rec],isNew?'add':'edit'); toast(isNew?'أضيف البلاغ':'حُفظت التعديلات'); return rec; };
+  const doSave=async(s)=>{ const o=collect(s); if(!validate(s,o)) return false; const rec=prep(clean({...o,id:r?r.id:undefined})); await saveRecords([rec],isNew?'add':'edit'); markSeen(rec); toast(isNew?'أضيف البلاغ':'حُفظت التعديلات'); return rec; };
   const actions=[{label:isNew?'إضافة البلاغ':'حفظ التعديلات',cls:'primary',run:async s=>{ const rec=await doSave(s); if(!rec) return false; if(!isNew) setTimeout(()=>viewRecord(rec),0); }}];
   if(isNew) actions.push({label:'إضافة وبلاغ آخر',run:async s=>{ if(!(await doSave(s))) return false; setTimeout(()=>editRecord(null),0); }});
   if(!isNew) actions.push({label:'حذف البلاغ',cls:'danger',run:()=>{ setTimeout(()=>confirmDelete([r.id]),0); }});
@@ -2002,6 +2056,7 @@ async function replaceAll(list,meta){
   try{
     const old=RECS.slice();
     logChange(meta.type||(list.length?'replace':'clear'),{before:old,added:[],n:Math.max(old.length,list.length),note:meta.note||`${fmt(old.length)} ← ${fmt(list.length)} بلاغ`,full:true});
+    if(meta.type==='replace'){ const byNo=new Map(old.map(r=>[rKey(r),r])); list.forEach(r=>bumpRev(byNo.get(rKey(r)),r)); saveRead(); }
     setAll(list); selected.clear(); try{ await dbClear(); await dbPut(RECS); await dbSetMeta('seeded',true); }catch(e){ console.error(e); } refresh(); }
   finally{ busy(null); }
 }
@@ -2029,13 +2084,13 @@ const IC={up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-
 function schemaChanged(){ saveSchema(); RECS.forEach(prep); refresh(true); setTimeout(()=>recomputeStatus(),0); }
 function controlPanel(tab){
   const layer=document.getElementById('layer');
-  const tabs=[['home','الشاشة الرئيسية'],['alerts','التنبيهات'],['log','سجل التعديلات'],['cols','الأعمدة'],['lists','القوائم والقطاعات'],['lock','الحماية'],['brand','الهوية'],['data','البيانات']];
+  const tabs=[['home','الشاشة الرئيسية'],['filters','الفلاتر'],['alerts','التنبيهات'],['log','سجل التعديلات'],['cols','الأعمدة'],['lists','القوائم والقطاعات'],['lock','الحماية'],['brand','الهوية'],['data','البيانات']];
   layer.innerHTML=`<div class="scrim"><div class="dialog wide panelx" role="dialog" aria-modal="true" aria-labelledby="cpT"><div class="dlg-h"><h3 id="cpT">لوحة التحكم</h3><button type="button" class="iconbtn dlg-x" data-close aria-label="إغلاق" title="إغلاق"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <div class="ptabs" role="tablist">${tabs.map(([k,l])=>`<button type="button" role="tab" data-ptab="${k}" aria-selected="${k===tab}">${l}</button>`).join('')}</div>
     <div class="pbody" id="pbody"></div>
     <div class="acts"><button type="button" class="btn primary" data-close>تم</button><span class="hint" style="align-self:center">تُحفظ التغييرات فوراً على هذا الجهاز.</span></div></div></div>`;
   const scrim=layer.firstChild, body=scrim.querySelector('#pbody');
-  const draw=()=>{ scrim.querySelectorAll('[data-ptab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.ptab===tab)); body.dataset.tab=tab; body.innerHTML=({home:panelHome,alerts:panelAlerts,log:panelLog,cols:panelCols,lists:panelLists,lock:panelLock,brand:panelBrand,data:panelData})[tab](); };
+  const draw=()=>{ scrim.querySelectorAll('[data-ptab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.ptab===tab)); body.dataset.tab=tab; body.innerHTML=({home:panelHome,filters:panelFilters,alerts:panelAlerts,log:panelLog,cols:panelCols,lists:panelLists,lock:panelLock,brand:panelBrand,data:panelData})[tab](); };
   scrim.addEventListener('click',async e=>{
     if(e.target===scrim||e.target.closest('[data-close]')){ layer.innerHTML=''; return; }
     const b=e.target.closest('button'); if(!b) return;
@@ -2068,6 +2123,20 @@ function panelCols(){
 }
 function orderList(kind,list,defs){
   return `<div class="hlist">${list.map(([k,on],i)=>`<div class="hrow"><label><input type="checkbox" data-hon="${kind}" data-k="${k}" ${on?'checked':''} ${kind==='views'&&k==='table'?'disabled':''}><span>${esc(defs[k])}</span></label><div class="mv" style="display:flex;gap:2px"><button type="button" class="iconbtn" data-hmv="${kind}" data-k="${k}" data-d="-1" ${i===0?'disabled':''} aria-label="للأعلى">${IC.up}</button><button type="button" class="iconbtn" data-hmv="${kind}" data-k="${k}" data-d="1" ${i===list.length-1?'disabled':''} aria-label="للأسفل">${IC.down}</button></div></div>`).join('')}</div>`;
+}
+function panelFilters(){
+  const L=filterList();
+  const seg=(name,vals,cur)=>`<div class="seg">${vals.map(([v,l])=>`<label><input type="radio" name="${name}" value="${v}" ${v===cur?'checked':''}><span>${l}</span></label>`).join('')}</div>`;
+  const rows=L.map(([k,on],i)=>{ const c=col(k); const n=new Set(RECS.map(r=>k==='month'?r._m:r[k]).filter(Boolean)).size;
+    return `<div class="hrow"><label><input type="checkbox" data-fon="${k}" ${on?'checked':''} ${active(k)?'':'disabled'}><span>${esc(short(k))} <small class="hint">· ${fmt(n)} قيمة${c&&c.custom?' · عمود مضاف':''}</small></span></label><div class="mv" style="display:flex;gap:2px"><button type="button" class="iconbtn" data-fmv="${k}" data-d="-1" ${i===0?'disabled':''} aria-label="للأعلى">${IC.up}</button><button type="button" class="iconbtn" data-fmv="${k}" data-d="1" ${i===L.length-1?'disabled':''} aria-label="للأسفل">${IC.down}</button></div></div>`; }).join('');
+  return `<div class="pcard"><h4>طريقة العرض</h4>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint" style="min-width:90px">على الكمبيوتر</span>${seg('fmDesk',[['full','كاملة (مربع لكل فلتر)'],['compact','مختصرة (مربعان)']],FCFG.desk)}</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint" style="min-width:90px">على الجوال</span>${seg('fmMob',[['compact','مختصرة (مربعان)'],['full','كاملة (مربع لكل فلتر)']],FCFG.mob)}</div>
+      <span class="hint">المختصرة: المربع الأول لاختيار نوع الفلتر، والثاني لقيمه.</span></div>
+    <div class="pcard"><h4>الفلاتر الظاهرة وترتيبها</h4><p class="hint" style="margin:0">ضع ✓ لإظهار الفلتر، وأزلها لإخفائه، ورتّبها بالأسهم. القائمة تشمل كل الأعمدة التي تصلح للفلترة، ومنها الأعمدة التي أضفتها. إخفاء الفلتر يلغي اختياره الحالي.</p>
+      <div class="hlist">${rows}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn sm" id="fShowAll">إظهار الكل</button><button type="button" class="btn sm ghost" id="fReset">الفلاتر الافتراضية</button></div></div>
+    <div class="pcard"><h4>أزرار الفترات الجاهزة</h4><label style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="hPresets" ${HOME.presets?'checked':''}><span>إظهار أزرار «اليوم، هذا الأسبوع، آخر 7 أيام…»</span></label></div>`;
 }
 function panelHome(){
   const seg=(name,vals,cur)=>`<div class="seg">${vals.map(([v,l])=>`<label><input type="radio" name="${name}" value="${v}" ${String(v)===String(cur)?'checked':''}><span>${l}</span></label>`).join('')}</div>`;
@@ -2236,6 +2305,9 @@ function panelData(){
 async function panelAction(b,body){
   if(b.id==='slaAdd'){ if(!slaKey()){ SCHEMA.push({k:'c_'+uid(),l:SLA.label,type:'list',custom:1,table:1,rep:1,req:0,pii:0,options:[SLA.yes,SLA.no]}); schemaChanged(); toast(`أضيف عمود «${SLA.label}»`); } return 'redraw'; }
   if(b.id==='statAdd'){ [['target','list'],['src1','text'],['src2','text']].forEach(([f,type])=>{ if(!colByLabel(STAT[f])) SCHEMA.push({k:'c_'+uid(),l:STAT[f],type,custom:1,table:1,rep:f==='target'?1:0,req:0,pii:0,options:f==='target'?[STAT.pending,'بانتظار قرار المنطقة','مغلق']:[]}); }); saveSchema(); RECS.forEach(prep); const n=await recomputeStatus(); toast(`أضيفت الأعمدة${n?` وعُبّئت الحالة في ${fmt(n)} بلاغ`:''}`); return 'redraw'; }
+  if(b.dataset.fmv){ const L=filterList(); const i=L.findIndex(x=>x[0]===b.dataset.fmv), j=i+(+b.dataset.d); if(j<0||j>=L.length) return; [L[i],L[j]]=[L[j],L[i]]; FCFG.list=L; saveFcfg(); document.getElementById('fExtra').dataset.keys=''; refresh(true); return 'redraw'; }
+  if(b.id==='fShowAll'){ FCFG.list=filterList().map(([k])=>[k,1]); saveFcfg(); document.getElementById('fExtra').dataset.keys=''; refresh(true); return 'redraw'; }
+  if(b.id==='fReset'){ FCFG={list:[],desk:'full',mob:'compact'}; saveFcfg(); document.getElementById('fExtra').dataset.keys=''; refresh(true); toast('استُعيدت الفلاتر الافتراضية'); return 'redraw'; }
   if(b.id==='dCatsAll'){ const d=dashCfg(); d.cats=[]; HOME.dash=d; saveHome(); renderView(); return 'redraw'; }
   if(b.dataset.hmv){ const L=HOME[b.dataset.hmv]; const i=L.findIndex(x=>x[0]===b.dataset.k); const vis=L.filter(([k])=>!(k==='sectors'&&!active('sector'))); const vi=vis.indexOf(L[i]); const other=vis[vi+(+b.dataset.d)]; if(!other) return; const j=L.indexOf(other); [L[i],L[j]]=[L[j],L[i]]; saveHome(); applyHome(); refresh(true); return 'redraw'; }
   if(b.id==='hReset'){ HOME=normHome(null); saveHome(); applyHome(); pageSize=HOME.pageSize; refresh(true); toast('استُعيدت الشاشة الافتراضية'); return 'redraw'; }
@@ -2296,6 +2368,8 @@ function panelChange(t){
   if(t.dataset.stat && ['target','src1','src2'].includes(t.dataset.stat) && t.value && ['target','src1','src2'].some(f=>f!==t.dataset.stat && nrm(STAT[f])===nrm(t.value))){ toast('هذا العمود مختار لدور آخر، اختر عموداً مختلفاً'); return 'redraw'; }
   if(t.dataset.stat){ const f=t.dataset.stat; if(f==='on') STAT.on=t.checked?1:0; else if(['target','src1','src2'].includes(f)){ const v=t.value.trim(); if(!v) return 'redraw'; STAT[f]=v; } else STAT[f]=t.value; saveStat(); recomputeStatus().then(n=>{ if(n) toast(`حُدّثت الحالة في ${fmt(n)} بلاغ`); }); return 'redraw'; }
   if(t.id==='weekStart'){ WEEK_START=+t.value; try{ localStorage.setItem(WS_KEY,String(WEEK_START)); }catch(e){} refresh(true); toast(`أصبح الأسبوع يبدأ يوم ${WEEKDAYS[WEEK_START]}`); return 'redraw'; }
+  if(t.dataset.fon){ const L=filterList(); const x=L.find(v=>v[0]===t.dataset.fon); if(x) x[1]=t.checked?1:0; FCFG.list=L; saveFcfg(); document.getElementById('fExtra').dataset.keys=''; refresh(true); return; }
+  if(t.name==='fmDesk'||t.name==='fmMob'){ FCFG[t.name==='fmDesk'?'desk':'mob']=t.value; saveFcfg(); applyFilterMode(); return; }
   if(t.dataset.dcat!==undefined){ const d=dashCfg(); const set=new Set(d.cats||[]); if(t.checked) set.add(t.dataset.dcat); else set.delete(t.dataset.dcat); d.cats=[...set]; HOME.dash=d; saveHome(); renderView(); const h=t.closest('.field').querySelector('.hint b'); if(h) h.textContent=d.cats.length?`(${fmt(d.cats.length)} مختار)`:'(كل التصنيفات)'; return; }
   if(t.dataset.dfield||t.name==='dLatestN'){ const d=dashCfg(); if(t.name==='dLatestN') d.latestN=+t.value; else d.fields[t.dataset.dfield]=t.checked?1:0; HOME.dash=d; saveHome(); renderView(); const pv=document.getElementById('tkPrev'); if(pv){ const r=RECS.slice().sort((a,b)=>String(b.date).localeCompare(a.date))[0]; pv.textContent=r?recTick(r):'—'; } return; }
   if(t.id==='dTicker'||t.id==='dHome'||t.name==='dSpeed'||t.dataset.ditem){ const d=dashCfg(); if(t.id==='dTicker') d.ticker=t.checked?1:0; if(t.id==='dHome') d.home=t.checked?1:0; if(t.name==='dSpeed') d.speed=+t.value; if(t.dataset.ditem) d.items[t.dataset.ditem]=t.checked?1:0; HOME.dash=d; saveHome(); renderView(); return; }
@@ -2325,7 +2399,7 @@ function panelChange(t){
 const SETTINGS_APP='r937-db-settings';
 function settingsSnapshot(){
   return {app:SETTINGS_APP, version:1, exported:nowLocal(), brand:BRAND, schema:schemaSerial(), secmap:SECMAP, clinics:CLINICS,
-    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE};
+    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE, filters:FCFG};
 }
 async function exportSettings(){
   const blob=new Blob([JSON.stringify(settingsSnapshot(),null,2)],{type:'application/json'});
@@ -2352,6 +2426,7 @@ async function importSettings(file){
         if(s.backupEvery!==undefined){ BK.every=+s.backupEvery||0; saveBK(); }
         if(s.mask!==undefined){ MASK_ON=!!s.mask; localStorage.setItem(MASK_KEY,MASK_ON?'1':'0'); }
         if(s.home){ HOME=normHome(s.home); saveHome(); pageSize=HOME.pageSize; }
+        if(s.filters){ FCFG={list:[],desk:'full',mob:'compact',...s.filters}; saveFcfg(); const ex=document.getElementById('fExtra'); if(ex) ex.dataset.keys=''; }
         if(s.rstyle){ RSTYLE={...DEF_RS,...s.rstyle,cover:{...DEF_RS.cover,...(s.rstyle.cover||{})},wm:{...DEF_RS.wm,...(s.rstyle.wm||{})}}; saveRS(); }
         if(s.weekStart!==undefined){ WEEK_START=+s.weekStart; localStorage.setItem(WS_KEY,String(WEEK_START)); }
         if(s.sla){ SLA={...DEF_SLA,...s.sla}; saveSla(); }
@@ -3120,7 +3195,7 @@ try{ navigator.storage && navigator.storage.persist && navigator.storage.persist
     if(idb){ try{ if(ch.length) await dbPut(ch); await dbSetMeta('restore2',true); }catch(e){ console.error(e); } }
   }
   setAll(list);
-  await loadLog();
+  await loadLog(); await loadRead();
   setTimeout(()=>recomputeStatus(true),0);
   pageSize=+HOME.pageSize||50;
   if(HOME.defView && HOME.views.some(v=>v[0]===HOME.defView&&v[1])){ view=HOME.defView; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); }
