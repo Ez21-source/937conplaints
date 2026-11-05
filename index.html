@@ -384,6 +384,11 @@ mark.kw{background:color-mix(in srgb,var(--bad) 22%,transparent)}
 .rulec .rf{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
 .rulec .rf .inp{width:auto}
 .rulec .rf input[type=number]{width:80px}
+.msel{display:flex;align-items:center;gap:6px;text-align:start;cursor:pointer;min-height:38px;width:100%}
+.msel span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msel svg{width:16px;height:16px;flex:none;color:var(--muted)}
+.msel.on{border-color:var(--accent);background:var(--accent-soft)}
+.msel .mcnt{background:var(--accent);color:var(--accent-ink);border-radius:999px;font-size:11px;padding:0 7px;line-height:18px}
 /* sidebar */
 .side{position:fixed;top:0;bottom:0;right:0;width:256px;max-width:86vw;background:var(--surface);border-left:1px solid var(--line);z-index:46;transform:translateX(105%);transition:transform .22s ease;display:flex;flex-direction:column;gap:6px;padding:calc(env(safe-area-inset-top,0px) + 12px) 10px calc(env(safe-area-inset-bottom,0px) + 12px);overflow-y:auto;box-shadow:-10px 0 30px rgba(0,0,0,.18)}
 .side.open{transform:none}
@@ -1297,17 +1302,17 @@ function apply(){ _empSet=null; _clSet=null;
   filtered=RECS.filter(r=>{
     if(filt.from && (!r.date || r.date.slice(0,10)<filt.from)) return false;
     if(filt.to && (!r.date || r.date.slice(0,10)>filt.to)) return false;
-    if(filt.month && r._m!==filt.month) return false;
-    if(filt.sector && (filt.sector==='__none'? r.sector : r.sector!==filt.sector)) return false;
-    if(filt.center && r.center!==filt.center) return false;
-    if(filt.main && r.main!==filt.main) return false;
-    if(filt.sub && r.sub!==filt.sub) return false;
+    if(!fOk('month',r._m)) return false;
+    if(!fOk('sector',r.sector)) return false;
+    if(!fOk('center',r.center)) return false;
+    if(!fOk('main',r.main)) return false;
+    if(!fOk('sub',r.sub)) return false;
     if(filt.ck && callerKey(r)!==filt.ck) return false;
     if(filt.emp && !empSet().has(r.id)) return false;
     if(filt.cl && !clSet().has(r.id)) return false;
     if(filt.kw && !kwMatch(r,filt.kw)) return false;
     if(filt.sla && slaState(r)!==filt.sla) return false;
-    for(const c of extraFilterCols()) if(filt[c.k] && r[c.k]!==filt[c.k]) return false;
+    for(const c of extraFilterCols()) if(!fOk(c.k,r[c.k])) return false;
     for(const w of words) if(!r._s.includes(w)) return false;
     return true;
   });
@@ -1330,17 +1335,17 @@ function optionsFor(k){
   const base=RECS.filter(r=>{
     if(filt.from && (!r.date || r.date.slice(0,10)<filt.from)) return false;
     if(filt.to && (!r.date || r.date.slice(0,10)>filt.to)) return false;
-    if(k!=='month' && filt.month && r._m!==filt.month) return false;
-    if(k!=='sector' && filt.sector && (filt.sector==='__none'? r.sector : r.sector!==filt.sector)) return false;
-    if(k!=='center' && filt.center && r.center!==filt.center) return false;
-    if(k!=='main' && filt.main && r.main!==filt.main) return false;
-    if(k!=='sub' && filt.sub && r.sub!==filt.sub) return false;
+    if(k!=='month' && !fOk('month',r._m)) return false;
+    if(k!=='sector' && !fOk('sector',r.sector)) return false;
+    if(k!=='center' && !fOk('center',r.center)) return false;
+    if(k!=='main' && !fOk('main',r.main)) return false;
+    if(k!=='sub' && !fOk('sub',r.sub)) return false;
     if(filt.ck && callerKey(r)!==filt.ck) return false;
     if(filt.emp && !empSet().has(r.id)) return false;
     if(filt.cl && !clSet().has(r.id)) return false;
     if(filt.kw && !kwMatch(r,filt.kw)) return false;
     if(filt.sla && slaState(r)!==filt.sla) return false;
-    for(const c of extraFilterCols()) if(k!==c.k && filt[c.k] && r[c.k]!==filt[c.k]) return false;
+    for(const c of extraFilterCols()) if(k!==c.k && !fOk(c.k,r[c.k])) return false;
     for(const w of words) if(!r._s.includes(w)) return false;
     return true;
   });
@@ -1348,6 +1353,11 @@ function optionsFor(k){
   if(k==='month'){ const m=new Map(); base.forEach(r=>{ if(r._m) m.set(r._m,{n:(m.get(r._m)?.n||0)+1, key:monthKey(r)}); }); return [...m.entries()].sort((a,b)=>b[1].key<a[1].key?-1:1).map(([v,o])=>[v,o.n]); }
   return countBy(base,k).filter(([v])=>v!=='');
 }
+// فلتر متعدد: القيمة '' = الكل، أو نص واحد، أو قائمة قيم
+const fVals=k=>{ const v=filt[k]; return Array.isArray(v)?v:(v?[v]:[]); };
+function fOk(k,val){ const vs=fVals(k); if(!vs.length) return true; return vs.some(x=> x==='__none' ? !val : val===x); }
+const fLabel=(k,v)=>v==='__none'?'بدون قطاع':v;
+const fText=k=>{ const vs=fVals(k); return vs.length<=2?vs.map(v=>fLabel(k,v)).join('، '):`${fLabel(k,vs[0])} و${fmt(vs.length-1)} أخرى`; };
 function extraFilterCols(){ return cols().filter(c=>c.custom && c.type==='list'); }
 function renderFilters(){
   ['month','sector','center','main','sub'].forEach(k=>{ const el=document.querySelector(`select[data-f="${k}"]`); if(!el) return; const f=el.closest('.field'); f.hidden=!active(k); f.querySelector('label').textContent=short(k); if(!active(k)) filt[k]=''; });
@@ -1355,13 +1365,12 @@ function renderFilters(){
   const want=exc.map(c=>c.k).join('|'); if(ex.dataset.keys!==want){ ex.innerHTML=exc.map(c=>`<div class="field"><label for="fx-${c.k}">${esc(c.l)}</label><select class="inp" id="fx-${c.k}" data-f="${c.k}"></select></div>`).join(''); ex.dataset.keys=want; }
   ex.hidden=!exc.length;
   document.querySelectorAll('select[data-f]').forEach(sel=>{
-    const k=sel.dataset.f, cur=filt[k];
-    let opts=optionsFor(k);
-    let html=`<option value="">الكل</option>`;
-    if(k==='sector'){ const none=RECS.filter(r=>!r.sector).length; if(none) html+=`<option value="__none">بدون قطاع (${fmt(none)})</option>`; }
-    if(cur && cur!=='__none' && !opts.find(o=>o[0]===cur)) opts=[[cur,0],...opts];
-    html+=opts.map(([v,n])=>`<option value="${esc(v)}">${esc(v)} (${fmt(n)})</option>`).join('');
-    sel.innerHTML=html; sel.value=cur;
+    const k=sel.dataset.f; sel.hidden=true; sel.tabIndex=-1;
+    let btn=sel.parentElement.querySelector(`.msel[data-mf="${k}"]`);
+    if(!btn){ btn=document.createElement('button'); btn.type='button'; btn.className='inp msel'; btn.dataset.mf=k; sel.after(btn); }
+    const vs=fVals(k);
+    btn.innerHTML=`<span>${vs.length?esc(fText(k)):'الكل'}</span>${vs.length>1?`<b class="mcnt">${fmt(vs.length)}</b>`:''}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>`;
+    btn.classList.toggle('on',!!vs.length);
   });
   document.getElementById('q').value=filt.q;
   document.getElementById('dFrom').value=filt.from; document.getElementById('dTo').value=filt.to;
@@ -1374,7 +1383,7 @@ function renderFilters(){
   if(filt.cl) tags.push(['cl',`العيادة: ${filt.cl}`]);
   if(filt.kw) tags.push(['kw',`تنبيه: ${kwRuleName(filt.kw)}`]);
   if(filt.sla) tags.push(['sla',filt.sla==='out'?'خارج مستوى الخدمة':'داخل مستوى الخدمة']);
-  ['month','sector','center','main','sub',...extraFilterCols().map(c=>c.k)].forEach(k=>{ if(filt[k]) tags.push([k,`${short(k)}: ${filt[k]==='__none'?'بدون قطاع':filt[k]}`]); });
+  ['month','sector','center','main','sub',...extraFilterCols().map(c=>c.k)].forEach(k=>{ if(fVals(k).length) tags.push([k,`${short(k)}: ${fText(k)}`]); });
   document.getElementById('fstate').innerHTML = `<span><b>${fmt(total(filtered))}</b> بلاغ${filtered.length!==RECS.length?` من أصل ${fmt(total(RECS))}`:''}</span>` + tags.map(([k,t])=>`<span class="tag">${esc(t)}<button type="button" data-untag="${k}" aria-label="إزالة">×</button></span>`).join('') + (tags.length?`<button type="button" class="btn sm ghost" data-untag="all">مسح الفلاتر</button>`:'');
 }
 function iso(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
@@ -1694,11 +1703,12 @@ function renderBulk(){
 function filterDesc(){
   const out=[];
   if(filt.from||filt.to) out.push(['الفترة',`${filt.from||'البداية'} إلى ${filt.to||'النهاية'}`]);
-  if(filt.month) out.push(['الشهر',filt.month]);
-  if(filt.sector) out.push(['القطاع',filt.sector==='__none'?'بدون قطاع':filt.sector]);
-  if(filt.center) out.push(['المركز',filt.center]);
-  if(filt.main) out.push(['التصنيف الرئيسي',filt.main]);
-  if(filt.sub) out.push(['التصنيف الفرعي',filt.sub]);
+  const fl=k=>fVals(k).map(v=>fLabel(k,v)).join('، ');
+  if(fVals('month').length) out.push(['الشهر',fl('month')]);
+  if(fVals('sector').length) out.push(['القطاع',fl('sector')]);
+  if(fVals('center').length) out.push(['المركز',fl('center')]);
+  if(fVals('main').length) out.push(['التصنيف الرئيسي',fl('main')]);
+  if(fVals('sub').length) out.push(['التصنيف الفرعي',fl('sub')]);
   if(filt.q) out.push(['بحث',filt.q]);
   if(filt.ck) out.push(['المتصل',callerLabel(filt.ck)]);
   if(filt.emp) out.push(['الموظف',staffLabel(filt.emp)]);
@@ -1776,6 +1786,27 @@ document.getElementById('q').addEventListener('input',e=>{ clearTimeout(qT); qT=
 document.getElementById('dFrom').addEventListener('change',e=>{ filt.from=e.target.value; refresh(); });
 document.getElementById('dTo').addEventListener('change',e=>{ filt.to=e.target.value; refresh(); });
 document.addEventListener('change',e=>{ const s=e.target.closest&&e.target.closest('select[data-f]'); if(s){ filt[s.dataset.f]=s.value; refresh(); } });
+// نافذة اختيار متعدد للفلتر
+function filterPicker(k){
+  let opts=optionsFor(k); const cur=new Set(fVals(k));
+  if(k==='sector'){ const none=RECS.filter(r=>!r.sector).length; if(none) opts=[['__none',none],...opts]; }
+  cur.forEach(v=>{ if(!opts.find(o=>o[0]===v)) opts.unshift([v,0]); });
+  const html=`<input class="inp" id="mpQ" placeholder="ابحث…" autocomplete="off">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button type="button" class="btn sm" id="mpAll">تحديد الكل</button><button type="button" class="btn sm" id="mpNone">إلغاء التحديد</button><span class="hint" id="mpN"></span></div>
+    <div class="catlist" id="mpList" style="max-height:52vh">${opts.map(([v,n])=>`<label data-cq="${esc(nrm(fLabel(k,v)))}"><input type="checkbox" value="${esc(v)}" ${cur.has(v)?'checked':''}><span>${esc(fLabel(k,v))} <small>(${fmt(n)})</small></span></label>`).join('')||'<span class="hint">لا توجد قيم</span>'}</div>
+    <p class="hint" style="margin:0">عدم تحديد أي قيمة = الكل.</p>`;
+  const upd=sc=>{ const n=sc.querySelectorAll('#mpList input:checked').length; sc.querySelector('#mpN').textContent=n?`${fmt(n)} مختار`:'الكل'; };
+  dialog({title:`${short(k)}`, html, actions:[
+    {label:'تطبيق',cls:'primary',run:sc=>{ const vals=[...sc.querySelectorAll('#mpList input:checked')].map(x=>x.value); filt[k]= !vals.length||vals.length===opts.length ? '' : vals.length===1 ? vals[0] : vals; refresh(); }},
+    {label:'الكل',run:()=>{ filt[k]=''; refresh(); }},{label:'إلغاء'}],
+    onOpen:sc=>{ upd(sc); const q=sc.querySelector('#mpQ');
+      q.addEventListener('input',()=>{ const t=nrm(q.value); sc.querySelectorAll('#mpList label').forEach(l=>l.hidden=!!t&&!l.dataset.cq.includes(t)); });
+      sc.querySelector('#mpList').addEventListener('change',()=>upd(sc));
+      sc.querySelector('#mpAll').onclick=()=>{ sc.querySelectorAll('#mpList label:not([hidden]) input').forEach(x=>x.checked=true); upd(sc); };
+      sc.querySelector('#mpNone').onclick=()=>{ sc.querySelectorAll('#mpList input').forEach(x=>x.checked=false); upd(sc); };
+      setTimeout(()=>q.focus(),0); }});
+}
+document.addEventListener('click',e=>{ const b=e.target.closest('.msel[data-mf]'); if(b){ e.stopPropagation(); filterPicker(b.dataset.mf); } },true);
 document.addEventListener('change',e=>{
   const t=e.target;
   if(t.name==='catcard'){ CAT_CARD=t.value; try{ localStorage.setItem('r937-catcard-v1',CAT_CARD); }catch(e){} renderSummary(); return; }
