@@ -278,6 +278,7 @@ table.ctbl .mv{display:flex;gap:2px}
 }
 /* نسخة العرض فقط */
 .viewer #btnNew,.viewer #btnImport,.viewer #btnPanel,.viewer #btnLock,.viewer #btnMore,.viewer #bkBanner,.viewer #btnInstall,.viewer [data-exp="backup"],.viewer [data-exp="viewer"],.viewer #exportMenu hr,.viewer [data-sact="new"],.viewer [data-sact="imp"],.viewer [data-sact="panel"],.viewer #dashSet,.viewer #alRules,.viewer #editClosers,.viewer #editClinics,.viewer #bulkDel,.viewer #bulkEdit,.viewer [data-staffhide],.viewer select[data-sovr],.viewer #expRStyle,.viewer .toast-undo{display:none!important}
+.viewer .vw-hide,.viewer #vsImp,.viewer #vsAdd,.viewer #vsSet{display:none!important}
 .vw-notick #homeTicker,.vw-notick .ticker{display:none!important}
 .vw-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 14px;background:var(--accent-soft);color:var(--ink);font-size:12.5px;border-bottom:1px solid var(--line)}
 .vw-bar b{color:var(--accent)}
@@ -567,6 +568,7 @@ body.dash-full .actionbar{display:none}
         <button type="button" data-view="callers" aria-pressed="false">المتصلون المتكررون</button>
         <button type="button" data-view="staff" aria-pressed="false">الموظفون المذكورون</button>
         <button type="button" data-view="clinics" aria-pressed="false">العيادات المذكورة</button>
+        <button type="button" data-view="visits" aria-pressed="false">المستفيدون والمعدل</button>
         <button type="button" data-view="report" aria-pressed="false">معاينة التقرير</button>
       </div>
       <div id="bulkbar"></div>
@@ -666,7 +668,7 @@ function vwLockScreen(){
       await new Promise((res,rej)=>{ const rq=indexedDB.open('r937-viewer',1);
         rq.onupgradeneeded=()=>{ const d=rq.result; if(!d.objectStoreNames.contains('records')) d.createObjectStore('records',{keyPath:'id'}); if(!d.objectStoreNames.contains('meta')) d.createObjectStore('meta'); };
         rq.onerror=()=>rej(new Error('تعذر حفظ البيانات في هذا المتصفح (قد يكون التصفح الخاص مفعّلاً)'));
-        rq.onsuccess=()=>{ const d=rq.result, tr=d.transaction('records','readwrite'), st=tr.objectStore('records'); st.clear(); (data.recs||[]).forEach(r=>st.put(r)); tr.oncomplete=()=>{ d.close(); res(); }; tr.onerror=()=>rej(tr.error); }; });
+        rq.onsuccess=()=>{ const d=rq.result, tr=d.transaction(['records','meta'],'readwrite'), st=tr.objectStore('records'); st.clear(); (data.recs||[]).forEach(r=>st.put(r)); tr.objectStore('meta').put(data.visits||[],'visits'); tr.oncomplete=()=>{ d.close(); res(); }; tr.onerror=()=>rej(tr.error); }; });
       try{ sessionStorage.setItem(VW_SS,VIEWER.id); }catch(x){}
       location.reload();
     }catch(x){ E.textContent=x&&x.message||'تعذر فتح الملف'; btn.disabled=false; btn.textContent='فتح'; }
@@ -1027,11 +1029,11 @@ const DEF_DASH={tiles:{},ticker:1,speed:70,home:1,cats:[],items:{alerts:1,stats:
 const TK_FIELDS=[['day','اليوم'],['date','التاريخ'],['time','الساعة'],['center','المركز'],['cat','التصنيف'],['no','رقم البلاغ']];
 const KPI_DEF={alerts:'التنبيهات',sla:'خارج مستوى الخدمة',slaIn:'داخل مستوى الخدمة',total:'عدد البلاغات',centers:'المراكز الصحية',topCenter:'أعلى مركز',topCat:'أعلى تصنيف',lastDay:'آخر يوم مسجل',callers:'متصلون متكررون',flagged:'بلاغات بكلمات حساسة',sectors:'أعلى قطاع'};
 const CARD_DEF={daily:'البلاغات اليومية',centers:'أعلى المراكز',cats:'أعلى التصنيفات',sectors:'البلاغات حسب القطاع',weekday:'البلاغات حسب أيام الأسبوع',hours:'البلاغات حسب ساعة الاتصال'};
-const VIEW_DEF={table:'السجلات',dash:'لوحة المؤشرات',callers:'المتصلون المتكررون',staff:'الموظفون المذكورون',clinics:'العيادات المذكورة',report:'معاينة التقرير'};
+const VIEW_DEF={table:'السجلات',dash:'لوحة المؤشرات',callers:'المتصلون المتكررون',staff:'الموظفون المذكورون',clinics:'العيادات المذكورة',visits:'المستفيدون والمعدل',report:'معاينة التقرير'};
 const DEF_HOME={side:'pin',theme:'system',zoom:100,bars:6,pageSize:50,alerts:0,presets:1,defView:'table',
   kpis:[['alerts',1],['total',1],['centers',1],['topCenter',1],['topCat',1],['lastDay',0],['callers',0],['flagged',0],['sectors',0],['slaIn',0],['sla',0]],
   cards:[['daily',1],['centers',1],['cats',1],['sectors',0],['weekday',0],['hours',0]],
-  views:[['table',1],['dash',1],['callers',1],['staff',1],['clinics',1],['report',1]]};
+  views:[['table',1],['dash',1],['callers',1],['staff',1],['clinics',1],['visits',1],['report',1]]};
 function mergeOrder(saved,def){ const out=[]; const seen=new Set(); (Array.isArray(saved)?saved:[]).forEach(x=>{ if(Array.isArray(x) && def.some(d=>d[0]===x[0]) && !seen.has(x[0])){ out.push([x[0],x[1]?1:0]); seen.add(x[0]); } }); def.forEach(d=>{ if(!seen.has(d[0])) out.push([...d]); }); return out; }
 function normHome(h){ h={...DEF_HOME,...(h||{})}; h.dash={...DEF_DASH,...(h.dash||{}),items:{...DEF_DASH.items,...((h.dash||{}).items||{})},fields:{...DEF_DASH.fields,...((h.dash||{}).fields||{})}}; h.kpis=mergeOrder(h.kpis,DEF_HOME.kpis); h.cards=mergeOrder(h.cards,DEF_HOME.cards); h.views=mergeOrder(h.views,DEF_HOME.views); h.views.find(v=>v[0]==='table')[1]=1; return h; }
 let HOME=(()=>{ try{ return normHome(JSON.parse(localStorage.getItem(HOME_KEY)||'null')); }catch(e){ return normHome(null); } })();
@@ -1781,7 +1783,7 @@ function showStaff(k){ filt.emp=k; filt.empc=1; view='table'; document.querySele
 function showCaller(k){ filt.ck=k; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); document.getElementById('view').scrollIntoView({block:'start'}); }
 /* ---------- القائمة الجانبية والتنقل ---------- */
 const NAV={stack:[],i:-1,lock:false,t:0};
-const SIDE_IC={home:'<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/>',table:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/>',dash:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',callers:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.5-3.4 3-5.5 6-5.5s5.5 2.1 6 5.5"/><path d="M16 4.5a3 3 0 0 1 0 6M18 14.6c1.8.8 2.8 2.6 3 5.4"/>',staff:'<circle cx="12" cy="7" r="3.5"/><path d="M5 21c.7-4 3.4-6.5 7-6.5s6.3 2.5 7 6.5"/>',clinics:'<path d="M12 3v18M3 12h18"/><rect x="4" y="4" width="16" height="16" rx="3"/>',report:'<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>',
+const SIDE_IC={home:'<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/>',table:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/>',dash:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',callers:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.5-3.4 3-5.5 6-5.5s5.5 2.1 6 5.5"/><path d="M16 4.5a3 3 0 0 1 0 6M18 14.6c1.8.8 2.8 2.6 3 5.4"/>',staff:'<circle cx="12" cy="7" r="3.5"/><path d="M5 21c.7-4 3.4-6.5 7-6.5s6.3 2.5 7 6.5"/>',clinics:'<path d="M12 3v18M3 12h18"/><rect x="4" y="4" width="16" height="16" rx="3"/>',visits:'<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 11l2 2 4-4"/>',report:'<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>',
   add:'<path d="M12 5v14M5 12h14"/>',imp:'<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',exp:'<path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/>',ver:'<path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/>',bell:'<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',panel:'<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',pin:'<path d="M15 3l6 6-4 1-4 4 1 5-2 2-4-4-5 5M9 15l-4-4 2-2 5 1 4-4z"/>',x:'<path d="M6 6l12 12M18 6 6 18"/>'};
 const svgI=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SIDE_IC[k]||''}</svg>`;
 const isWide=()=>matchMedia('(min-width:1100px)').matches;
@@ -1870,6 +1872,7 @@ function renderView(){
   if(view==='callers'){ renderCallers(v); return; }
   if(view==='staff'){ renderStaff(v); return; }
   if(view==='clinics'){ renderClinics(v); return; }
+  if(view==='visits'){ renderVisits(v); return; }
   if(view==='report'){
     v.innerHTML=`<div class="preview-scroll"><div id="rpSlot"></div></div><p class="hint" style="margin-top:8px">هذا شكل التقرير للفلاتر الحالية بآخر إعدادات طباعة استخدمتها. غيّر الورق والاتجاه والأقسام من «طباعة وتصدير»، والألوان والشعار والغلاف من <button type="button" class="btn sm" id="expRStyle">🎨 تنسيق التقرير</button></p>`;
     document.getElementById('rpSlot').replaceWith(buildReport(filtered,{...printOpts(),list:filtered.length<=200&&printOpts().list}));
@@ -2130,9 +2133,9 @@ async function buildViewer(list,pii,pw,vo={}){
   const head={v:1,id:uid(),made:nowLocal(),org:brand().org||'',by:brand().preparer||'',n:recs.length,pii:piiL,noTick:vo.noTick?1:0};
   let payload;
   if(pw){ const salt=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12)), it=200000;
-    const key=await vwKey(pw,salt,it,'encrypt'); const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify({ls,recs}))));
+    const key=await vwKey(pw,salt,it,'encrypt'); const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify({ls,recs,visits:VISITS}))));
     payload={...head,enc:{salt:vwB64(salt),iv:vwB64(iv),it,ct:vwB64(ct)}}; }
-  else payload={...head,ls,recs};
+  else payload={...head,ls,recs,visits:VISITS};
   const lit=JSON.stringify(payload).replace(/</g,'\\u003c').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029');
   const cut=(js,h,val)=>{ const i=js.indexOf(h); if(i<0) throw new Error('تعذر تجهيز الملف'); const j=js.indexOf(';\n',i); return js.slice(0,i)+h+val+js.slice(j); };
   let js=cut(SELF.js,'const SEED = ','null'); js=cut(js,'const VIEWER = ',lit);
@@ -2572,7 +2575,7 @@ function panelLists(){
   const lists=cols().filter(c=>c.type==='list');
   const centers=countBy(RECS,'center').filter(x=>x[0]);
   const noSec=c=>RECS.filter(r=>r.center===c && !r.sector).length;
-  return panelClosers()+panelClinics()+`${lists.length?lists.map(c=>`<div class="pcard"><h4>خيارات «${esc(c.l)}»</h4><textarea class="inp" rows="4" data-opts="${c.k}">${esc((c.options||[]).join('\n'))}</textarea><span class="hint">كل خيار في سطر. تظهر في نموذج الإدخال وكفلتر في البحث.</span></div>`).join(''):`<div class="pcard"><h4>قوائم الاختيار</h4><p class="hint">لا توجد أعمدة من نوع «قائمة اختيار». أضف عموداً بهذا النوع من تبويب «الأعمدة» لتدير خياراته هنا.</p></div>`}
+  return panelClosers()+panelClinics()+panelCtype()+`${lists.length?lists.map(c=>`<div class="pcard"><h4>خيارات «${esc(c.l)}»</h4><textarea class="inp" rows="4" data-opts="${c.k}">${esc((c.options||[]).join('\n'))}</textarea><span class="hint">كل خيار في سطر. تظهر في نموذج الإدخال وكفلتر في البحث.</span></div>`).join(''):`<div class="pcard"><h4>قوائم الاختيار</h4><p class="hint">لا توجد أعمدة من نوع «قائمة اختيار». أضف عموداً بهذا النوع من تبويب «الأعمدة» لتدير خياراته هنا.</p></div>`}
     ${active('sector')?`<div class="pcard"><h4>ربط المراكز بالقطاعات</h4><p class="hint">اكتب قطاع كل مركز مرة واحدة، فيُعبّأ تلقائياً عند إدخال بلاغ جديد، ويمكنك تطبيقه على البلاغات الحالية.</p>
       <div class="ctbl-wrap secmap"><table class="ctbl"><thead><tr><th>المركز الصحي</th><th>البلاغات</th><th>بدون قطاع</th><th>القطاع</th></tr></thead><tbody>${centers.map(([c,n])=>`<tr><td>${esc(c)}</td><td>${fmt(n)}</td><td>${fmt(noSec(c))}</td><td><input class="inp" list="dl-sector" data-secmap="${esc(c)}" value="${esc(SECMAP[c]||'')}" aria-label="القطاع"></td></tr>`).join('')}</tbody></table></div>
       ${datalists()}
@@ -2652,6 +2655,7 @@ async function panelAction(b,body){
     const options= type==='list' ? body.querySelector('#ncOpts').value.split('\n').map(s=>s.trim()).filter(Boolean) : [];
     SCHEMA.push({k:'c_'+uid(),l:name,type,custom:1,table:1,rep:0,req:0,pii:0,options}); schemaChanged(); toast(`أضيف عمود «${name}»`); return 'redraw';
   }
+  if(b.dataset.ctall){ countBy(RECS,'center').forEach(([c])=>{ if(c) CTYPE[c]=b.dataset.ctall; }); saveCtype(); toast('عُيّن نوع الدوام لكل المراكز، غيّر المختلف منها من القائمة'); return 'redraw'; }
   if(b.dataset.applysec){
     const all=b.dataset.applysec==='all'; const ch=[];
     if(b.dataset.applysec==='def'){ const DS=defSec(); if(!DS){ toast('اكتب القطاع الافتراضي أولاً'); return; }
@@ -2716,6 +2720,10 @@ function panelChange(t){
   if(t.dataset.opts){ col(t.dataset.opts).options=t.value.split('\n').map(s=>s.trim()).filter(Boolean); schemaChanged(); toast('حُفظت الخيارات'); return; }
   if(t.dataset.cln!==undefined){ const v=t.value.trim(); if(v){ CLINICS[+t.dataset.cln][0]=v; saveClinics(); clinIdx=null; } return; }
   if(t.dataset.clk!==undefined){ CLINICS[+t.dataset.clk][1]=t.value; saveClinics(); clinIdx=null; refresh(true); return 'redraw'; }
+  if(t.dataset.ctype!==undefined){ const c=t.dataset.ctype; if(t.value) CTYPE[c]=t.value; else delete CTYPE[c]; saveCtype(); return; }
+  if(t.id==='vsShift'){ VSET.shift=t.checked; saveVset(); return; }
+  if(t.dataset.vsh){ const k=t.dataset.vsh; VSET[k.slice(0,2)]=[...VSET[k.slice(0,2)]]; VSET[k.slice(0,2)][+k[2]]=t.value; saveVset(); return; }
+  if(t.id==='vsDec'){ VSET.dec=+t.value||2; saveVset(); return; }
   if(t.id==='defSec'){ try{ localStorage.setItem(DEFSEC_KEY,t.value.trim()); }catch(e){} toast(t.value.trim()?`القطاع الافتراضي: ${t.value.trim()}`:'أُوقفت التعبئة بالقطاع الافتراضي'); return; }
   if(t.dataset.secmap!==undefined){ const c=t.dataset.secmap; const v=t.value.trim(); if(v) SECMAP[c]=v; else delete SECMAP[c]; saveSecmap(); return; }
 }
@@ -2724,7 +2732,7 @@ function panelChange(t){
 const SETTINGS_APP='r937-db-settings';
 function settingsSnapshot(){
   return {app:SETTINGS_APP, version:1, exported:nowLocal(), brand:BRAND, schema:schemaSerial(), secmap:SECMAP, clinics:CLINICS,
-    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE, filters:FCFG, staffOvr:SOVR, staffSrc:STAFF_SRC, staffPos:STAFF_POS, closerNames:CLOSER_NAMES};
+    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE, filters:FCFG, staffOvr:SOVR, staffSrc:STAFF_SRC, staffPos:STAFF_POS, closerNames:CLOSER_NAMES, ctype:CTYPE, visitsSet:VSET};
 }
 async function exportSettings(){
   const blob=new Blob([JSON.stringify(settingsSnapshot(),null,2)],{type:'application/json'});
@@ -2746,6 +2754,8 @@ async function importSettings(file){
         if(Array.isArray(s.staffHide)){ STAFF_HIDE=new Set(s.staffHide); saveStaffHide(); }
         if(s.staffMin){ STAFF_MIN=+s.staffMin||1; localStorage.setItem('r937-staffmin-v1',String(STAFF_MIN)); }
         if(s.repeat){ RPT={min:2,short:false,...s.repeat}; saveRpt(); }
+        if(s.ctype && typeof s.ctype==='object'){ CTYPE={...s.ctype}; saveCtype(); }
+        if(s.visitsSet && typeof s.visitsSet==='object'){ VSET={...DEF_VSET,...s.visitsSet}; saveVset(); }
         if(s.print){ PRINT={...DEF_PRINT,...s.print,sec:{...DEF_PRINT.sec,...(s.print.sec||{})}}; localStorage.setItem(PRINT_KEY,JSON.stringify(PRINT)); }
         if(Array.isArray(s.staffCatEx)){ STAFF_CAT_EX=new Set(s.staffCatEx); saveStaffCatEx(); }
         if(s.backupEvery!==undefined){ BK.every=+s.backupEvery||0; saveBK(); }
@@ -3076,7 +3086,7 @@ async function runExport(kind,list,o){
   const nm=`بلاغات-937-${stamp()}`;
   try{
     if(kind==='xlsx'){ busy('جارٍ تجهيز ملف Excel…'); const b=await buildReportXlsx(list,o); busy(null); await saveFile(nm+'.xlsx',b); }
-    if(kind==='backup'){ busy('جارٍ تجهيز النسخة الاحتياطية…'); const b=await buildXlsx(list,{pii:true,summary:false}); busy(null); const ok=await saveFile(`نسخة-احتياطية-بلاغات-937-${stamp()}.xlsx`,b); if(ok!==false) markBackup(list.length); }
+    if(kind==='backup'){ busy('جارٍ تجهيز النسخة الاحتياطية…'); const b=await buildXlsx(list,{pii:true,summary:false,visits:true}); busy(null); const ok=await saveFile(`نسخة-احتياطية-بلاغات-937-${stamp()}.xlsx`,b); if(ok!==false) markBackup(list.length); }
     if(kind==='html'){ const b=buildHtml(list,o); await saveFile(nm+'.html',b); }
     if(kind==='png'){ busy('جارٍ رسم الصورة…'); const b=await withReport(list,o,async el=>canvasBlob(await snap(el))); busy(null); await saveFile(nm+'.png',b); }
     if(kind==='pdf'){ const b=await buildPdf(list,o); busy(null); await saveFile(nm+'.pdf',b); }
@@ -3159,6 +3169,12 @@ const STY=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 </cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
 function cellXml(r,c,v,s){ const ref=colName(c)+r; const st=s?` s="${s}"`:''; if(v===null||v===undefined||v==='') return `<c r="${ref}"${st}/>`; if(typeof v==='number') return `<c r="${ref}"${st}><v>${v}</v></c>`; return `<c r="${ref}"${st} t="inlineStr"><is><t xml:space="preserve">${xe(v)}</t></is></c>`; }
 function sheetDoc(rowsXml,cols,extra='',freeze=true){ return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView rightToLeft="1" workbookViewId="0">${freeze?'<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>':''}</sheetView></sheetViews><sheetFormatPr defaultRowHeight="18"/><cols>${cols.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')}</cols><sheetData>${rowsXml}</sheetData>${extra}</worksheet>`; }
+function visitsSheet(){
+  const H=['التاريخ','المركز','عدد المستفيدين','بموعد','بدون موعد','صباحية','مسائية'];
+  let x=`<row r="1" ht="24" customHeight="1">${H.map((h,i)=>cellXml(1,i,h,1)).join('')}</row>`;
+  VISITS.forEach((r,ri)=>{ const rr=ri+2; x+=`<row r="${rr}">${r.map((v,i)=>cellXml(rr,i,i<2?v:(+v||0),i<2?2:4)).join('')}</row>`; });
+  return sheetDoc(x,[14,34,16,12,12,12,12],`<autoFilter ref="A1:G${VISITS.length+1}"/>`);
+}
 function recordsSheet(list,pii){ // header fill follows the brand color
   const keys=cols().filter(c=>pii||!c.pii).map(c=>c.k);
   const W={no:13,month:14,date:18,desc:60,sector:18,center:32,sub:40,main:34,caller:28,nid:14,count:8};
@@ -3181,7 +3197,8 @@ function summarySheet(list){
 }
 async function buildXlsx(list,o){
   const JSZip=await lib('jszip'); const z=new JSZip();
-  const sheets=[['البلاغات',recordsSheet(list,o.pii)]]; if(o.summary) sheets.push(['الملخص',summarySheet(list)]);
+  const sheets=o.visitsOnly?[]:[['البلاغات',recordsSheet(list,o.pii)]]; if(o.summary) sheets.push(['الملخص',summarySheet(list)]);
+  if((o.visits||o.visitsOnly) && VISITS.length) sheets.push(['المستفيدون',visitsSheet()]);
   z.file('[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`);
   z.file('_rels/.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`);
   z.file('xl/workbook.xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((s,i)=>`<sheet name="${xe(s[0])}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}</sheets><definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">'البلاغات'!$A$1:$${colName(cols().filter(c=>o.pii||!c.pii).length-1)}$${list.length+1}</definedName></definedNames></workbook>`);
@@ -3408,7 +3425,7 @@ function toISO(v){
 }
 function parseRecords(sheets){
   const recs=[]; let used=[]; const fields=new Set(); const unknown=new Map();
-  sheets.forEach(sh=>{
+  sheets.forEach(sh=>{ if(sh.name==='المستفيدون') return;
     const rowNums=[...sh.rows.keys()].sort((a,b)=>a-b);
     let hdr=null, map=null;
     const names={}; SCHEMA.forEach(c=>{ names[c.k]=new Set([...(HEAD[c.k]||[]), hn(c.l)]); });
@@ -3435,6 +3452,7 @@ async function importFile(file){
   try{ sheets=await readXlsx(await file.arrayBuffer()); res=parseRecords(sheets); }
   catch(e){ console.error(e); busy(null); toast(e.message||'تعذرت قراءة الملف'); return; }
   busy(null);
+  { const vsh=sheets.filter(x=>x.name==='المستفيدون'); if(vsh.length){ const vr=parseVisits(vsh); if(vr.rows.length){ await mergeVisits(vr.rows); toast(`استُعيد ${fmt(vr.rows.length)} سجل مستفيدين من الملف`); if(view==='visits') renderView(); if(!res.recs.length) return; } } }
   if(res.unknown.length && res.recs.length){
     const guessType=u=>{ const v=u.vals.slice(0,50); if(!v.length) return 'text'; if(v.every(x=>typeof x==='object'&&x&&x.serial!=null)) return 'datetime'; if(v.every(x=>typeof x==='number' || /^[\d\u0660-\u0669.,\s-]+$/.test(String(x)))) return 'number'; const d=new Set(v.map(String)); if(d.size<=12 && v.length>=d.size*2) return 'list'; if(v.some(x=>String(x).length>80)) return 'long'; return 'text'; };
     const cand=res.unknown.map(u=>({...u,type:guessType(u)}));
@@ -3494,6 +3512,178 @@ document.addEventListener('dragleave',()=>{ dragN=Math.max(0,dragN-1); if(!dragN
 document.addEventListener('dragover',e=>{ if([...(e.dataTransfer?.types||[])].includes('Files')) e.preventDefault(); });
 document.addEventListener('drop',e=>{ dragN=0; document.querySelector('.dropzone')?.remove(); const f=e.dataTransfer?.files?.[0]; if(f){ e.preventDefault(); guard(()=>importFile(f)); } });
 
+/* ---------- المستفيدون (المراجعون) ومعدل البلاغات ---------- */
+// صف لكل (تاريخ، مركز): [التاريخ, المركز, الإجمالي, بموعد, بدون موعد, صباحية, مسائية]
+let VISITS=[];
+const CTYPE_KEY='r937-ctype-v1', VSET_KEY='r937-visits-v1';
+const CTYPE_L={am:'مراكز صباحية',pm:'مراكز مسائية',h24:'مراكز على مدار 24 ساعة','':'نوع الدوام غير محدد'};
+const CTYPE_S={am:'صباحي',pm:'مسائي',h24:'24 ساعة'};
+let CTYPE=(()=>{ try{ return JSON.parse(localStorage.getItem(CTYPE_KEY)||'{}')||{}; }catch(e){ return {}; } })();
+const saveCtype=()=>{ try{ localStorage.setItem(CTYPE_KEY,JSON.stringify(CTYPE)); }catch(e){} };
+const DEF_VSET={shift:false, am:['07:30','15:30'], pm:['15:30','23:30'], dec:2};
+let VSET=(()=>{ try{ return {...DEF_VSET,...JSON.parse(localStorage.getItem(VSET_KEY)||'{}')}; }catch(e){ return {...DEF_VSET}; } })();
+const saveVset=()=>{ try{ localStorage.setItem(VSET_KEY,JSON.stringify(VSET)); }catch(e){} };
+const ckey=s=>nrm(String(s||'')).replace(/^(مركز|مستوصف)\s*(صحي)?\s*/,'').replace(/\s+/g,' ').trim();
+const ctypeOf=c=>CTYPE[c]||CTYPE[ckey(c)]||'';
+async function loadVisits(){
+  if(VIEWER && !VIEWER.enc){ VISITS=Array.isArray(VIEWER.visits)?VIEWER.visits:[]; return; }
+  try{ const v=await dbMeta('visits'); VISITS=Array.isArray(v)?v:[]; }catch(e){ VISITS=[]; }
+}
+async function saveVisits(){ try{ await dbSetMeta('visits',VISITS); return true; }catch(e){ console.error(e); toast('تعذر حفظ بيانات المستفيدين'); return false; } }
+// دمج صفوف جديدة: صف بنفس التاريخ والمركز يُستبدل
+async function mergeVisits(rows){
+  const m=new Map(VISITS.map(r=>[r[0]+'|'+ckey(r[1]),r])); let rep=0;
+  rows.forEach(r=>{ const k=r[0]+'|'+ckey(r[1]); if(m.has(k)) rep++; m.set(k,r); });
+  VISITS=[...m.values()].sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0);
+  await saveVisits(); return rep;
+}
+const pctTxt=(n,d)=>d>0?(n/d*100).toFixed(VSET.dec??2)+'%':'—';
+const hm=s=>{ const m=/^(\d{1,2}):(\d{2})/.exec(s||''); return m?+m[1]*60+ +m[2]:null; };
+function inWin(t,[a,b]){ const x=hm(a), y=hm(b); if(t==null||x==null||y==null) return false; return x<=y ? (t>=x&&t<y) : (t>=x||t<y); }
+function shiftOf(r){ const t=hm((r.date||'').slice(11,16)); if(t==null) return ''; if(inWin(t,VSET.am)) return 'am'; if(inWin(t,VSET.pm)) return 'pm'; return 'x'; }
+// الحساب: الزوار في الفترة المختارة، والبلاغات في الأيام التي توجد لها بيانات زوار للمركز نفسه
+function visitStats(){
+  const f=filt.from||'', t=filt.to||'';
+  const want=new Set(filtered.map(r=>ckey(r.center)).filter(Boolean));
+  const fCen=fVals('center').length||fVals('sector').length; // عند فلترة المركز/القطاع نعرض المراكز المطابقة فقط
+  const by=new Map();
+  VISITS.forEach(v=>{ if((f&&v[0]<f)||(t&&v[0]>t)) return; const k=ckey(v[1]); if(fCen && !want.has(k)) return;
+    let g=by.get(k); if(!g){ g={k,name:v[1],t:0,a:0,w:0,m:0,e:0,days:new Set(),n:0,na:0,ne:0,nx:0}; by.set(k,g); }
+    g.t+=+v[2]||0; g.a+=+v[3]||0; g.w+=+v[4]||0; g.m+=+v[5]||0; g.e+=+v[6]||0; g.days.add(v[0]); });
+  let outside=0;
+  filtered.forEach(r=>{ const g=by.get(ckey(r.center)); const d=(r.date||'').slice(0,10); if(!g||!g.days.has(d)){ outside++; return; }
+    g.n++; if(VSET.shift){ const s=shiftOf(r); if(s==='am') g.na++; else if(s==='pm') g.ne++; else g.nx++; } });
+  const gs=[...by.values()]; gs.forEach(g=>{ g.name=RECS.find(r=>ckey(r.center)===g.k)?.center||g.name; g.type=ctypeOf(g.name); g.rate=g.t>0?g.n/g.t:0; });
+  gs.sort((a,b)=>b.rate-a.rate||b.n-a.n);
+  const ds=VISITS.map(v=>v[0]); return {gs,outside,first:ds[0]||'',last:ds[ds.length-1]||''};
+}
+const VBASIS={t:['إجمالي المستفيدين','المستفيدون'],a:['المستفيدون بموعد','بموعد'],w:['المستفيدون بدون موعد','بدون موعد'],m:['مستفيدو الفترة الصباحية','الصباحية'],e:['مستفيدو الفترة المسائية','المسائية']};
+function vBase(g){ const k=VSET.basis||'t'; const den=g[k]||0; const num=(VSET.shift&&k==='m')?g.na:(VSET.shift&&k==='e')?g.ne:g.n; return {den,num}; }
+function renderVisits(v){
+  const S=visitStats(); const K=VSET.basis||'t', LV=VSET.level||'c', GR=LV==='s'?'all':(VSET.grp||'grp'), DET=!!VSET.detail;
+  let gs=S.gs;
+  if(LV==='s'){ const secOf=c=>{ const m=new Map(); RECS.forEach(r=>{ if(r.center===c && r.sector) m.set(r.sector,(m.get(r.sector)||0)+1); }); return [...m.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||SECMAP[c]||defSec()||'بدون قطاع'; };
+    const by=new Map(); gs.forEach(g=>{ const sn=secOf(g.name); let o=by.get(sn); if(!o){ o={name:sn,sec:1,type:'',t:0,a:0,w:0,m:0,e:0,n:0,na:0,ne:0,days:new Set(),nc:0}; by.set(sn,o); } ['t','a','w','m','e','n','na','ne'].forEach(k=>o[k]+=g[k]); g.days.forEach(d=>o.days.add(d)); o.nc++; });
+    gs=[...by.values()]; } gs.forEach(g=>{ const x=vBase(g); g.bd=x.den; g.bn=x.num; g.br=x.den>0?x.num/x.den:0; });
+  if(['am','pm','h24'].includes(GR)) gs=gs.filter(g=>g.type===GR);
+  gs.sort((a,b)=>b.br-a.br||b.bn-a.bn);
+  const sum=k=>gs.reduce((s,g)=>s+g[k],0); const T={t:sum('t'),n:sum('n'),a:sum('a'),w:sum('w'),m:sum('m'),e:sum('e'),bd:sum('bd'),bn:sum('bn')};
+  const BL=VBASIS[K]||VBASIS.t, shiftK=(K==='m'||K==='e');
+  const sel=(id,cur,opts)=>`<select class="inp" id="${id}" style="width:auto">${opts.map(([v,l])=>`<option value="${v}" ${cur===v?'selected':''}>${l}</option>`).join('')}</select>`;
+  const bar=`<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <label style="display:flex;gap:6px;align-items:center"><b>قارن حسب</b>${sel('vsBasis',K,Object.entries(VBASIS).map(([k,x])=>[k,x[0]]))}</label>
+    <label style="display:flex;gap:6px;align-items:center"><b>المستوى</b>${sel('vsLevel',LV,[['c','المراكز الصحية'],['s','القطاعات']])}</label>
+    ${LV==='s'?'':`<label style="display:flex;gap:6px;align-items:center"><b>المراكز</b>${sel('vsGrp',GR,[['grp','كلها مقسمة حسب نوع الدوام'],['all','كلها في ترتيب واحد'],['am','الصباحية فقط'],['pm','المسائية فقط'],['h24','24 ساعة فقط']])}</label>`}
+    <label class="opt" style="padding:4px 10px"><input type="checkbox" id="vsDet" ${DET?'checked':''}><span>إظهار التفاصيل (نوع الزيارة والفترة)</span></label></div>`;
+  const head=`<tr><th class="nosort">#</th><th class="nosort">${LV==='s'?'القطاع':'المركز'}</th>${LV==='s'?'<th class="nosort">المراكز</th>':GR==='all'?'<th class="nosort">الدوام</th>':''}<th class="nosort">${esc(BL[1])}</th><th class="nosort">البلاغات</th><th class="nosort">نسبة البلاغات</th>${DET?'<th class="nosort">بموعد</th><th class="nosort">بدون موعد</th><th class="nosort">صباحية</th><th class="nosort">مسائية</th>':''}<th class="nosort">أيام البيانات</th></tr>`;
+  const maxR=Math.max(...gs.map(g=>g.br),0)||1;
+  const row=(g,i)=>`<tr ${LV==='s'?`data-vs="${esc(g.name)}"`:`data-vc="${esc(g.name)}"`}><td class="num">${i+1}</td><td class="c"><b>${esc(LV==='s'?g.name:shortName(g.name))}</b><div style="height:5px;background:var(--surface-2);border-radius:3px;margin-top:5px;overflow:hidden"><span style="display:block;height:100%;width:${(g.br/maxR*100).toFixed(1)}%;background:var(--accent)"></span></div></td>${LV==='s'?`<td class="num">${fmt(g.nc)}</td>`:GR==='all'?`<td>${esc(CTYPE_S[g.type]||'—')}</td>`:''}<td class="num">${fmt(g.bd)}</td><td class="num">${fmt(g.bn)}</td><td class="num"><b>${pctTxt(g.bn,g.bd)}</b></td>${DET?`<td class="num">${fmt(g.a)}</td><td class="num">${fmt(g.w)}</td><td class="num">${fmt(g.m)}</td><td class="num">${fmt(g.e)}</td>`:''}<td class="num">${fmt(g.days.size)}</td></tr>`;
+  const tbl=(title,list)=>{ const s=x=>list.reduce((a,g)=>a+g[x],0); return `<div class="panel" style="margin-top:12px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 14px 0"><h3 style="margin:0;font-size:16px">${title} <span class="badge">${fmt(list.length)} ${LV==='s'?'قطاع':'مركز'}</span></h3><span class="hint" style="margin:0">${esc(BL[1])} ${fmt(s('bd'))} · البلاغات ${fmt(s('bn'))} · النسبة <b>${pctTxt(s('bn'),s('bd'))}</b></span></div><div class="tbl-wrap"><table class="rec"><thead>${head}</thead><tbody>${list.map(row).join('')}</tbody></table></div></div>`; };
+  const tables = GR==='grp' ? ['am','pm','h24',''].map(k=>[k,gs.filter(g=>g.type===k)]).filter(x=>x[1].length).map(([k,l])=>tbl(CTYPE_L[k],l)).join('')
+    : gs.length ? tbl(LV==='s'?'القطاعات':GR==='all'?'كل المراكز':CTYPE_L[GR],gs) : `<div class="panel empty" style="margin-top:12px"><b>لا توجد مراكز</b>${GR!=='all'?'لم يُحدَّد نوع الدوام لأي مركز من هذا النوع — حدّده من لوحة التحكم ← القوائم والقطاعات.':''}</div>`;
+  const tools=`<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn sm primary" id="vsImp">استيراد ملف المستفيدين (Excel)</button><button type="button" class="btn sm" id="vsAdd">إدخال يدوي</button><button type="button" class="btn sm" id="vsList">البيانات المُدخلة (${fmt(VISITS.length)})</button><button type="button" class="btn sm ghost" id="vsSet">نوع دوام المراكز والإعدادات</button></div>`;
+  if(!VISITS.length){ v.innerHTML=`<div class="panel empty" style="display:grid;gap:10px;justify-items:center"><b>لا توجد بيانات مستفيدين بعد</b><span>استورد ملف Excel فيه: التاريخ، المركز، عدد المستفيدين، نوع الزيارة (بموعد / بدون موعد)، فترة العمل (صباحية / مسائية) — أو أدخلها يدوياً.</span>${tools}</div>`; return; }
+  const note = K==='t' ? '' : shiftK && VSET.shift ? ` البلاغات هنا هي المسجلة في ${BL[1]} فقط حسب ساعة التسجيل.` : ` البلاغات هنا هي كل بلاغات المركز (البلاغ لا يحدد ${shiftK?'الفترة إلا بتفعيل «حساب نسبة كل فترة» من لوحة التحكم':'نوع الزيارة'}).`;
+  v.innerHTML=`<div class="panel" style="padding:12px 14px;display:grid;gap:10px">
+    ${bar}
+    <div class="stats"><div><b>${fmt(T.bd)}</b><span>${esc(BL[0])}</span></div><div><b>${fmt(T.bn)}</b><span>بلاغ في الأيام نفسها</span></div><div><b>${pctTxt(T.bn,T.bd)}</b><span>نسبة البلاغات إلى ${esc(BL[0])}</span></div></div>
+    ${DET?`<div class="stats"><div><b>${fmt(T.t)}</b><span>إجمالي المستفيدين</span></div><div><b>${fmt(T.a)} · ${fmt(T.w)}</b><span>بموعد · بدون موعد</span></div><div><b>${fmt(T.m)} · ${fmt(T.e)}</b><span>صباحية · مسائية</span></div></div>`:''}
+    <p class="hint" style="margin:0">النسبة = البلاغات ÷ ${esc(BL[0])} × 100، في الأيام التي توجد لها بيانات مستفيدين فقط${filt.from||filt.to?' ضمن الفترة المختارة':''}.${note} بيانات المستفيدين من ${esc(S.first)} إلى ${esc(S.last)}.${S.outside?` · ${fmt(S.outside)} بلاغ خارج أيام بيانات المستفيدين لم يُحسب.`:''}</p>
+    ${tools}</div>${tables}`;
+}
+document.addEventListener('change',e=>{ const t=e.target; if(!t.closest('#view')) return;
+  if(t.id==='vsBasis'){ VSET.basis=t.value; saveVset(); renderView(); }
+  if(t.id==='vsGrp'){ VSET.grp=t.value; saveVset(); renderView(); }
+  if(t.id==='vsLevel'){ VSET.level=t.value; saveVset(); renderView(); }
+  if(t.id==='vsDet'){ VSET.detail=t.checked; saveVset(); renderView(); } });
+document.addEventListener('click',e=>{
+  const b=e.target.closest('#vsImp,#vsAdd,#vsList,#vsSet,[data-vc],[data-vs],[data-vdel]'); if(!b) return;
+  if(b.dataset.vs){ filt.sector=[b.dataset.vs]; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); return; }
+  if(b.id==='vsImp'){ guard(()=>{ const i=document.createElement('input'); i.type='file'; i.accept='.xlsx,.xlsm'; i.onchange=()=>{ const f=i.files[0]; if(f) importVisits(f); }; i.click(); }); return; }
+  if(b.id==='vsAdd'){ guard(visitEntryDialog); return; }
+  if(b.id==='vsList'){ visitListDialog(); return; }
+  if(b.id==='vsSet'){ guard(()=>controlPanel('lists')); setTimeout(()=>document.getElementById('ctCard')?.scrollIntoView({block:'start'}),250); return; }
+  if(b.dataset.vc){ filt.center=[b.dataset.vc]; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); return; }
+});
+const VH={date:['التاريخ','تاريخ','تاريخ الزيارة','اليوم','تاريخ الموعد','date'],center:['المركز','المركز الصحي','اسم المركز','المنشأة','المنشاة','المنشأة/الخدمة','المنشاه','الجهة','center'],
+  count:['عدد المستفيدين','المستفيدين','المستفيدون','عدد المراجعين','المراجعين','عدد الزيارات','الزيارات','العدد','عدد','الإجمالي','الاجمالي','المجموع','count','total'],
+  vtype:['نوع الزيارة','نوع الزياره','نوع الموعد','visit type'],shift:['فترة العمل','فتره العمل','الفترة','الفتره','الوردية','الورديه','الدوام','shift'],
+  a:['بموعد','موعد','مواعيد'],w:['بدون موعد','بدون مواعيد','حضوري','walk in'],m:['صباحية','صباحي','الفترة الصباحية','صباحا'],e:['مسائية','مسائي','الفترة المسائية','مساء']};
+const VHN={}; Object.entries(VH).forEach(([k,a])=>VHN[k]=new Set(a.map(x=>hn(x))));
+const vnum=v=>{ if(v==null||v==='') return 0; if(typeof v==='number') return v; const s=String(v).replace(/[٠-٩]/g,x=>String(x.charCodeAt(0)-0x660)).replace(/[,\s]/g,''); const n=parseFloat(s); return isFinite(n)?n:0; };
+function parseVisits(sheets){
+  const acc=new Map(); let used=[], bad=0, nrows=0;
+  sheets.forEach(sh=>{
+    const rowNums=[...sh.rows.keys()].sort((a,b)=>a-b); let hdr=null, map=null;
+    for(const rn of rowNums.slice(0,40)){ const m={}; sh.rows.get(rn).forEach((v,c)=>{ const n=hn(v); for(const k in VHN) if(!(k in m) && VHN[k].has(n)){ m[k]=c; break; } });
+      if('date' in m && 'center' in m && ('count' in m || 'a' in m || 'w' in m || 'm' in m || 'e' in m)){ hdr=rn; map=m; break; } }
+    if(!map) return; used.push(sh.name);
+    DATE_MDY=detectMDY(rowNums.filter(rn=>rn>hdr).slice(0,3000).map(rn=>sh.rows.get(rn)?.get(map.date)));
+    rowNums.filter(rn=>rn>hdr).forEach(rn=>{ const cells=sh.rows.get(rn); const g=k=>k in map?cells.get(map[k]):null;
+      const d=toISO(g('date')).slice(0,10), c=String(g('center')??'').trim(); if(!c && !g('date')) return;
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||!c||/^(المجموع|الإجمالي|الاجمالي|total)$/i.test(c)){ bad++; return; }
+      const k=d+'|'+ckey(c); let o=acc.get(k); if(!o){ o=[d,c,0,0,0,0,0]; acc.set(k,o); } nrows++;
+      const wide=('a' in map||'w' in map||'m' in map||'e' in map);
+      if(wide){ const a=vnum(g('a')), w=vnum(g('w')), m=vnum(g('m')), e=vnum(g('e')); o[3]+=a; o[4]+=w; o[5]+=m; o[6]+=e; o[2]+= 'count' in map ? vnum(g('count')) : Math.max(a+w,m+e); }
+      else { const n=vnum(g('count')); o[2]+=n; const vt=nrm(String(g('vtype')??'')), st=nrm(String(g('shift')??''));
+        if(vt){ if(vt.includes('بدون')||vt.includes('حضور')) o[4]+=n; else if(vt.includes('موعد')) o[3]+=n; }
+        if(st){ if(st.includes('صباح')) o[5]+=n; else if(st.includes('مسا')) o[6]+=n; } }
+    });
+  });
+  return {rows:[...acc.values()],used,bad,nrows};
+}
+async function importVisits(file){
+  let res; busy('جارٍ قراءة ملف المستفيدين…');
+  try{ res=parseVisits(await readXlsx(await file.arrayBuffer())); }catch(e){ busy(null); toast(e&&e.message||'تعذر قراءة الملف'); return; } busy(null);
+  if(!res.rows.length){ dialog({title:'لم يُتعرّف على الملف', html:'<p>لم أجد صف عناوين فيه: <b>التاريخ</b> و<b>المركز</b> و<b>عدد المستفيدين</b> (أو أعمدة: بموعد / بدون موعد / صباحية / مسائية).</p><p class="hint">أرسل الملف لمعدّ التطبيق لإضافة أسماء أعمدتك.</p>', actions:[{label:'حسناً',cls:'primary'}]}); return; }
+  const known=new Set(RECS.map(r=>ckey(r.center))); const cs=new Map(); res.rows.forEach(r=>cs.set(ckey(r[1]),r[1]));
+  const miss=[...cs.entries()].filter(([k])=>!known.has(k)).map(x=>x[1]); const ds=res.rows.map(r=>r[0]).sort();
+  const exist=new Set(VISITS.map(r=>r[0]+'|'+ckey(r[1]))); const rep=res.rows.filter(r=>exist.has(r[0]+'|'+ckey(r[1]))).length;
+  const tot=res.rows.reduce((s,r)=>s+r[2],0);
+  dialog({title:'استيراد بيانات المستفيدين', html:`<ul style="margin:0;padding-inline-start:20px;display:grid;gap:4px"><li>${fmt(res.rows.length)} سجل (يوم × مركز) من ${fmt(res.nrows)} صف</li><li>${fmt(cs.size)} مركز · من ${esc(ds[0])} إلى ${esc(ds[ds.length-1])}</li><li>إجمالي المستفيدين: <b>${fmt(tot)}</b></li>${rep?`<li>${fmt(rep)} سجل موجود سابقاً سيُستبدل بالجديد</li>`:''}${res.bad?`<li>${fmt(res.bad)} صف تُجوهل (تاريخ أو مركز غير صالح، أو صف مجموع)</li>`:''}</ul>
+    ${miss.length?`<p style="margin:10px 0 4px;color:var(--bad)"><b>${fmt(miss.length)} مركز لا يطابق أسماء المراكز في البلاغات</b> — لن تُحسب له نسبة حتى يتطابق الاسم:</p><div class="hint" style="max-height:120px;overflow:auto">${miss.map(esc).join('، ')}</div>`:''}`,
+    actions:[{label:'استيراد',cls:'primary',run:async()=>{ busy('جارٍ الحفظ…'); await mergeVisits(res.rows); busy(null); toast(`استُورد ${fmt(res.rows.length)} سجل مستفيدين`); if(view!=='visits') goView('visits'); else renderView(); }},{label:'إلغاء'}]});
+}
+function visitEntryDialog(pre){
+  const cents=countBy(RECS,'center').map(x=>x[0]).filter(Boolean);
+  const p=pre||[iso(new Date()),'',0,0,0,0,0];
+  dialog({title:pre?'تعديل بيانات المستفيدين':'إدخال عدد المستفيدين', html:`<div class="form">
+    <div class="field"><label for="vdD">التاريخ</label><input class="inp" type="date" id="vdD" value="${esc(p[0])}"></div>
+    <div class="field"><label for="vdC">المركز</label><input class="inp" id="vdC" list="vdCL" value="${esc(p[1])}"><datalist id="vdCL">${cents.map(c=>`<option value="${esc(c)}">`).join('')}</datalist></div>
+    <div class="field"><label for="vdA">بموعد</label><input class="inp" type="number" min="0" id="vdA" value="${p[3]||''}"></div>
+    <div class="field"><label for="vdW">بدون موعد</label><input class="inp" type="number" min="0" id="vdW" value="${p[4]||''}"></div>
+    <div class="field"><label for="vdM">الفترة الصباحية</label><input class="inp" type="number" min="0" id="vdM" value="${p[5]||''}"></div>
+    <div class="field"><label for="vdE">الفترة المسائية</label><input class="inp" type="number" min="0" id="vdE" value="${p[6]||''}"></div>
+    <div class="field"><label for="vdT">إجمالي المستفيدين</label><input class="inp" type="number" min="0" id="vdT" value="${p[2]||''}" placeholder="يُحسب تلقائياً"></div></div>
+    <p class="hint">الإجمالي = بموعد + بدون موعد (أو صباحية + مسائية) إن تُرك فارغاً. إدخال نفس التاريخ والمركز مرة أخرى يستبدل السابق.</p><p class="err" id="vdErr"></p>`,
+    actions:[{label:'حفظ',cls:'primary',run:async s=>{ const g=id=>s.querySelector('#'+id).value, n=id=>Math.max(0,+g(id)||0);
+      const d=g('vdD'), c=g('vdC').trim(); if(!d||!c){ s.querySelector('#vdErr').textContent='اختر التاريخ والمركز'; return false; }
+      const a=n('vdA'), w=n('vdW'), m=n('vdM'), e=n('vdE'); const t=n('vdT')||Math.max(a+w,m+e); if(!t){ s.querySelector('#vdErr').textContent='أدخل عدد المستفيدين'; return false; }
+      if(pre && (pre[0]!==d||ckey(pre[1])!==ckey(c))) VISITS=VISITS.filter(r=>r!==pre);
+      await mergeVisits([[d,c,t,a,w,m,e]]); toast('حُفظت بيانات المستفيدين'); if(view==='visits') renderView(); }},{label:'إلغاء'}]});
+}
+function visitListDialog(){
+  const list=[...VISITS].sort((a,b)=>a[0]<b[0]?1:-1); const lim=300;
+  dialog({title:`بيانات المستفيدين المُدخلة (${fmt(list.length)})`, wide:true, html:`<div class="ctbl-wrap" style="max-height:60vh"><table class="ctbl"><thead><tr><th>التاريخ</th><th>المركز</th><th>الإجمالي</th><th>بموعد</th><th>بدون موعد</th><th>صباحية</th><th>مسائية</th><th></th></tr></thead><tbody>${list.slice(0,lim).map(r=>`<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td>${fmt(r[2])}</td><td>${fmt(r[3])}</td><td>${fmt(r[4])}</td><td>${fmt(r[5])}</td><td>${fmt(r[6])}</td><td style="white-space:nowrap" class="vw-hide"><button type="button" class="btn sm ghost" data-vedit="${esc(r[0]+'|'+r[1])}">تعديل</button> <button type="button" class="btn sm ghost" data-vdel="${esc(r[0]+'|'+r[1])}">حذف</button></td></tr>`).join('')}</tbody></table></div>${list.length>lim?`<p class="hint">يظهر آخر ${fmt(lim)} سجل.</p>`:''}`,
+    actions:[{label:'تصدير Excel',run:async()=>{ busy('جارٍ التجهيز…'); try{ const bl=await buildXlsx([],{visitsOnly:true}); busy(null); await saveFile(`المستفيدون-937-${stamp()}.xlsx`,bl); }catch(e){ busy(null); toast('تعذر التصدير'); } return false; }},...(VIEWER?[]:[{label:'حذف كل بيانات المستفيدين',cls:'danger',run:()=>{ setTimeout(()=>guard(()=>dialog({title:'حذف كل بيانات المستفيدين؟', body:`سيُحذف ${fmt(VISITS.length)} سجل. البلاغات لا تتأثر.`, actions:[{label:'حذف',cls:'danger',run:async()=>{ VISITS=[]; await saveVisits(); toast('حُذفت بيانات المستفيدين'); if(view==='visits') renderView(); }},{label:'إلغاء'}]})),0); }}]),{label:'إغلاق'}],
+    onOpen:s=>s.addEventListener('click',e=>{ const b=e.target.closest('[data-vdel],[data-vedit]'); if(!b) return; const [d,...cc]=(b.dataset.vdel||b.dataset.vedit).split('|'); const c=cc.join('|'); const r=VISITS.find(x=>x[0]===d&&x[1]===c); if(!r) return;
+      if(b.dataset.vedit){ document.getElementById('layer').innerHTML=''; guard(()=>visitEntryDialog(r)); return; }
+      guard(async()=>{ VISITS=VISITS.filter(x=>x!==r); await saveVisits(); b.closest('tr').remove(); toast('حُذف السجل'); if(view==='visits') renderView(); }); })});
+}
+function panelCtype(){
+  const cents=countBy(RECS,'center').filter(x=>x[0]);
+  const n={am:0,pm:0,h24:0,'':0}; cents.forEach(([c])=>n[ctypeOf(c)]++);
+  return `<div class="pcard" id="ctCard"><h4>نوع دوام المراكز ومعدل المستفيدين</h4><p class="hint">يُستخدم في صفحة «المستفيدون والمعدل» لمقارنة كل نوع ببعضه: صباحي ${fmt(n.am)} · مسائي ${fmt(n.pm)} · 24 ساعة ${fmt(n.h24)} · غير محدد ${fmt(n[''])}.</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"><span class="hint" style="align-self:center">تعيين الكل:</span><button type="button" class="btn sm" data-ctall="am">صباحي</button><button type="button" class="btn sm" data-ctall="pm">مسائي</button><button type="button" class="btn sm" data-ctall="h24">24 ساعة</button></div>
+    <div class="ctbl-wrap secmap"><table class="ctbl"><thead><tr><th>المركز الصحي</th><th>البلاغات</th><th>نوع الدوام</th></tr></thead><tbody>${cents.map(([c,k])=>`<tr><td>${esc(c)}</td><td>${fmt(k)}</td><td><select class="inp" data-ctype="${esc(c)}" style="width:auto"><option value="">غير محدد</option>${Object.entries(CTYPE_S).map(([v,l])=>`<option value="${v}" ${ctypeOf(c)===v?'selected':''}>${l}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table></div>
+    <div style="display:grid;gap:8px;margin-top:12px;padding:10px;border:1px solid var(--line);border-radius:10px">
+      <label class="opt"><input type="checkbox" id="vsShift" ${VSET.shift?'checked':''}><span>حساب نسبة كل فترة (صباحية / مسائية) حسب ساعة تسجيل البلاغ<small>غير مفعّل: النسبة للمركز كاملاً فقط، وتظهر الفترة ونوع الزيارة كأعداد مستفيدين. مفعّل: يُنسب كل بلاغ لفترة حسب ساعة تسجيله، وقد لا تطابق ساعة التسجيل وقت الزيارة.</small></span></label>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span>الصباحية من</span><input class="inp" type="time" data-vsh="am0" value="${esc(VSET.am[0])}" style="width:auto"><span>إلى</span><input class="inp" type="time" data-vsh="am1" value="${esc(VSET.am[1])}" style="width:auto"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span>المسائية من</span><input class="inp" type="time" data-vsh="pm0" value="${esc(VSET.pm[0])}" style="width:auto"><span>إلى</span><input class="inp" type="time" data-vsh="pm1" value="${esc(VSET.pm[1])}" style="width:auto"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span>عدد المنازل العشرية للنسبة</span><select class="inp" id="vsDec" style="width:auto">${[1,2,3].map(x=>`<option ${VSET.dec===x?'selected':''}>${x}</option>`).join('')}</select></div>
+    </div></div>`;
+}
+
 /* ---------- install + offline ---------- */
 let installEvt=null; const standalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
 window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); installEvt=e; document.getElementById('btnInstall').hidden=false; });
@@ -3531,7 +3721,7 @@ try{ navigator.storage && navigator.storage.persist && navigator.storage.persist
   }
   }
   setAll(list);
-  await loadLog(); await loadRead();
+  await loadLog(); await loadRead(); await loadVisits();
   setTimeout(()=>recomputeStatus(true),0);
   pageSize=+HOME.pageSize||50;
   if(HOME.defView && HOME.views.some(v=>v[0]===HOME.defView&&v[1])){ view=HOME.defView; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); }
