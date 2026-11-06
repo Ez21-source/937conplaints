@@ -653,7 +653,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '72';
+const APP_VER = '73';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'',
@@ -2269,12 +2269,19 @@ function updatesDialog(tab){
   const all=filtered.filter(r=>revTotal(r)).map(r=>({r,st:readState(r),last:LI.get(r.id)})).sort((a,b)=>String(b.last?.t||'').localeCompare(String(a.last?.t||''))||String(b.r.date).localeCompare(a.r.date));
   const nw=all.filter(x=>x.st.st==='upd'), old=all.filter(x=>x.st.st!=='upd');
   tab=tab||(nw.length?'new':'old'); const list=tab==='new'?nw:tab==='old'?old:all; const lim=300;
-  const rows=list.slice(0,lim).map(x=>{ let f=''; try{ const h=recChanges(x.r)[0]; if(h) f=h.ch.map(c=>label(c[0])).join('، '); }catch(e){}
-    return `<tr data-openrec="${esc(x.r.id)}" style="cursor:pointer"><td>${x.st.st==='upd'?'<span style="color:#B7791F;font-weight:700">● جديد</span>':'<span style="color:var(--muted)">تم فتحه</span>'}</td><td><b dir="ltr">${esc(x.r.no||'')}</b></td><td>${esc(shortName(x.r.center||''))}</td><td style="text-align:center">${fmt(revTotal(x.r))}${x.st.st==='upd'?` <small style="color:#B7791F">(${fmt(x.st.n)} جديد)</small>`:''}</td><td dir="ltr" style="text-align:right">${esc(fmtLocal(x.last?.t))}</td><td>${f?esc(f):'<span class="ro-empty">—</span>'}</td></tr>`; }).join('');
+  const UV=HOME.updView||'table';
+  const envOf=x=>envHTML(x.r), cnt=x=>revTotal(x.r);
+  const chg=x=>{ try{ const h=recChanges(x.r)[0]; return h?h.ch.map(c=>label(c[0])).join('، '):''; }catch(e){ return ''; } };
+  const tm=x=>esc(fmtLocal(x.last?.t)), sl=list.slice(0,lim);
+  const body = UV==='cards'
+    ? `<div style="display:grid;gap:8px;max-height:58vh;overflow:auto">${sl.map(x=>{ const f=chg(x); return `<div data-openrec="${esc(x.r.id)}" style="cursor:pointer;display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:10px 12px"><div style="text-align:center;padding-top:2px">${envOf(x)}<span class="revc">↻ ${fmt(cnt(x))}</span></div><div style="flex:1;min-width:0;display:grid;gap:3px"><div style="display:flex;justify-content:space-between;gap:8px"><b dir="ltr">${esc(x.r.no||'')}</b><span style="font-size:12px;color:var(--muted)" dir="ltr">${tm(x)}</span></div><div style="font-size:13.5px">${esc(shortName(x.r.center||''))}</div>${f?`<div style="font-size:12.5px;color:var(--muted)">تغيّر: <span style="color:var(--ink)">${esc(f)}</span></div>`:''}</div></div>`; }).join('')}</div>`
+    : UV==='list'
+    ? `<div style="border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:58vh">${sl.map((x,i)=>{ const f=chg(x); return `<div data-openrec="${esc(x.r.id)}" style="cursor:pointer;display:flex;gap:10px;align-items:center;padding:9px 12px;${i?'border-top:1px solid var(--line)':''}">${envOf(x)}<div style="flex:1;min-width:0"><div style="display:flex;gap:6px;align-items:baseline;min-width:0"><b dir="ltr">${esc(x.r.no||'')}</b><span style="font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">· ${esc(shortName(x.r.center||''))}</span></div><div style="font-size:12px;color:var(--muted)">${tm(x)}${f?' · '+esc(f):''}</div></div><span class="badge" title="عدد التحديثات">↻ ${fmt(cnt(x))}</span></div>`; }).join('')}</div>`
+    : `<div class="ctbl-wrap" style="max-height:58vh"><table class="ctbl"><thead><tr><th style="width:44px"></th><th>رقم البلاغ</th><th>المركز</th><th>آخر تحديث</th></tr></thead><tbody>${sl.map(x=>`<tr data-openrec="${esc(x.r.id)}" style="cursor:pointer"><td style="text-align:center">${envOf(x)}<span class="revc">↻ ${fmt(cnt(x))}</span></td><td><b dir="ltr">${esc(x.r.no||'')}</b></td><td>${esc(shortName(x.r.center||''))}</td><td dir="ltr" style="text-align:right;font-size:12px">${tm(x)}</td></tr>`).join('')}</tbody></table></div>`;
   const tb=(k,l,n)=>`<button type="button" class="btn sm ${tab===k?'primary':''}" data-utab="${k}">${l} (${fmt(n)})</button>`;
   dialog({title:'تحديثات البلاغات', wide:true, html:`<p class="hint" style="margin-top:0">البلاغات التي تغيّرت بياناتها عند الاستيراد${filtered.length!==RECS.length?' (حسب الفلاتر الحالية)':''}، الأحدث تحديثاً أولاً. اضغط أي بلاغ لعرض ما تغيّر فيه.</p>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${tb('new','جديدة لم تُفتح',nw.length)}${tb('old','سابقة تم فتحها',old.length)}${tb('all','الكل',all.length)}</div>
-    ${list.length?`<div class="ctbl-wrap" style="max-height:58vh"><table class="ctbl"><thead><tr><th>الحالة</th><th>رقم البلاغ</th><th>المركز</th><th>عدد التحديثات</th><th>آخر تحديث</th><th>ما تغيّر (آخر تحديث)</th></tr></thead><tbody>${rows}</tbody></table></div>${list.length>lim?`<p class="hint">يظهر أحدث ${fmt(lim)}.</p>`:''}`:`<p class="ro-empty" style="padding:20px;text-align:center">${tab==='new'?'لا توجد تحديثات جديدة — كل البلاغات المحدّثة تم فتحها.':'لا توجد بلاغات هنا.'}</p>`}`,
+    ${list.length?`${body}${list.length>lim?`<p class="hint">يظهر أحدث ${fmt(lim)}.</p>`:''}`:`<p class="ro-empty" style="padding:20px;text-align:center">${tab==='new'?'لا توجد تحديثات جديدة — كل البلاغات المحدّثة تم فتحها.':'لا توجد بلاغات هنا.'}</p>`}`,
     actions:[...(nw.length?[{label:'تحديد الجديدة كمقروءة',run:()=>{ markAllSeen(nw.map(x=>x.r)); toast('حُددت كمقروءة'); refresh(true); }}]:[]),{label:'إغلاق',cls:'primary'}],
     onOpen:s=>s.addEventListener('click',e=>{ const t=e.target.closest('[data-utab]'); if(t){ document.getElementById('layer').innerHTML=''; updatesDialog(t.dataset.utab); return; }
       const o=e.target.closest('[data-openrec]'); if(o){ const r=byId.get(o.dataset.openrec); if(r){ document.getElementById('layer').innerHTML=''; viewRecord(r); } } })});
@@ -2494,6 +2501,9 @@ function panelHome(){
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint" style="min-width:90px">الوضع</span>${seg('hTheme',[['system','حسب الجهاز'],['light','فاتح'],['dark','داكن']],HOME.theme)}</div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint" style="min-width:90px">حجم العرض</span>${seg('hZoom',[[90,'صغير'],[100,'عادي'],[110,'كبير'],[125,'أكبر']],HOME.zoom)}</div></div>
     <div class="pcard"><h4>المؤشرات أعلى الصفحة</h4><p class="hint">اختر المؤشرات التي تظهر ورتّبها بالأسهم.</p>${orderList('kpis',HOME.kpis.filter(([k])=>k!=='sectors'||active('sector')),KPI_DEF)}</div>
+    <div class="pcard"><h4>نافذة «تحديثات البلاغات»</h4><p class="hint">شكل عرض البلاغات المحدّثة عند الضغط على بطاقة التحديثات.</p>
+      ${seg('hUpdView',[['table','(أ) جدول بالظرف'],['cards','(ب) بطاقات'],['list','(ج) قائمة مختصرة']],HOME.updView||'table')}
+      <p class="hint" style="margin:8px 0 0">(أ) نفس شكل السجلات · (ب) بطاقة لكل بلاغ فيها «تغيّر: …» · (ج) سطران لكل بلاغ. اضغط «حفظ» ثم افتح بطاقة التحديثات لترى الشكل.</p></div>
     <div class="pcard"><h4>البطاقات والرسوم</h4>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px"><span class="hint">طريقة العرض</span>${seg('hFold',[['fixed','ثابتة ومعروضة دائماً'],['fold','قابلة للطي (اضغط العنوان للإخفاء والإظهار)']],HOME.fold||'fixed')}</div>
       <p class="hint" style="margin:0 0 8px">في وضع الطي يبقى عنوان البطاقة ظاهراً، وتتذكر الصفحة ما أخفيته.${(HOME.folded||[]).length?` <button type="button" class="btn sm ghost" id="hUnfold">إظهار كل البطاقات المطوية</button>`:''}</p>
@@ -2771,6 +2781,7 @@ function panelChange(t){
   if(t.dataset.dfield||t.name==='dLatestN'){ const d=dashCfg(); if(t.name==='dLatestN') d.latestN=+t.value; else d.fields[t.dataset.dfield]=t.checked?1:0; HOME.dash=d; saveHome(); renderView(); const pv=document.getElementById('tkPrev'); if(pv){ const r=RECS.slice().sort((a,b)=>String(b.date).localeCompare(a.date))[0]; pv.textContent=r?recTick(r):'—'; } return; }
   if(t.id==='dTicker'||t.id==='dHome'||t.name==='dSpeed'||t.dataset.ditem){ const d=dashCfg(); if(t.id==='dTicker') d.ticker=t.checked?1:0; if(t.id==='dHome') d.home=t.checked?1:0; if(t.name==='dSpeed') d.speed=+t.value; if(t.dataset.ditem) d.items[t.dataset.ditem]=t.checked?1:0; HOME.dash=d; saveHome(); renderView(); return; }
   if(t.name==='hSide'){ HOME.side=t.value; saveHome(); applySide(); renderSide(); return; }
+  if(t.name==='hUpdView'){ HOME.updView=t.value; saveHome(); return; }
   if(t.name==='hFold'){ HOME.fold=t.value; saveHome(); renderSummary(); return; }
   if(t.name==='hTheme'){ HOME.theme=t.value; saveHome(); applyHome(); return; }
   if(t.name==='hZoom'){ HOME.zoom=+t.value; saveHome(); applyHome(); return; }
