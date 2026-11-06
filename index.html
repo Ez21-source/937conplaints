@@ -180,6 +180,9 @@ mark{background:color-mix(in srgb,var(--warn) 30%,transparent);color:inherit;bor
 .dialog.wide{max-width:760px}
 .dialog h3{margin:0;font-family:var(--f-display);font-size:18px;font-weight:600}
 .dialog p{margin:0;color:var(--muted)}
+.cpq{position:fixed;inset:0;background:rgba(8,20,18,.35);display:grid;place-items:center;z-index:10;border-radius:inherit;padding:16px}
+.cpq-b{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;max-width:380px;box-shadow:0 10px 30px rgba(0,0,0,.2)}
+.cpq-b b{font-size:16px}.cpq-b p{margin:6px 0 12px;color:var(--muted)}.cpq-a{display:flex;gap:8px;flex-wrap:wrap}
 .dialog .acts{display:flex;gap:8px;flex-wrap:wrap;margin:4px -20px -20px;padding:12px 20px;position:sticky;bottom:-20px;background:var(--surface);border-top:1px solid var(--line);z-index:3}
 .dialog .dlg-h{position:sticky;top:-20px;margin:-20px -20px 0;padding:14px 20px 12px;background:var(--surface);display:flex;align-items:center;justify-content:space-between;gap:10px;z-index:3;border-bottom:1px solid var(--line);border-radius:14px 14px 0 0}
 .dialog .dlg-x{width:34px;height:34px;flex:none}
@@ -669,6 +672,12 @@ function vwLockScreen(){
     }catch(x){ E.textContent=x&&x.message||'تعذر فتح الملف'; btn.disabled=false; btn.textContent='فتح'; }
   });
 }
+// إذا أُغلقت الصفحة ولوحة التحكم مفتوحة دون «حفظ» تُستعاد الإعدادات كما كانت قبل فتحها
+const CP_PENDING='cp-pending-937';
+(()=>{ try{ const raw=localStorage.getItem(CP_PENDING); if(!raw||VIEWER) return; const old=JSON.parse(raw);
+  const ks=[]; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&k.startsWith('r937')) ks.push(k); }
+  ks.forEach(k=>{ if(!(k in old)) localStorage.removeItem(k); }); Object.entries(old).forEach(([k,v])=>localStorage.setItem(k,v));
+  localStorage.removeItem(CP_PENDING); sessionStorage.setItem('r937-cp-msg','restored'); }catch(e){} })();
 if(VIEWER){
   document.documentElement.classList.add('viewer'); if(VIEWER.noTick) document.documentElement.classList.add('vw-notick');
   if(VIEWER.enc){ let ok=false; try{ ok=sessionStorage.getItem(VW_SS)===VIEWER.id; }catch(e){}
@@ -2070,7 +2079,7 @@ document.addEventListener('click',e=>{
   const tr=t.closest('tr[data-id]'); if(tr && !t.closest('td.cb')){ viewRecord(byId.get(tr.dataset.id)); return; }
 });
 document.addEventListener('click',e=>{ if(e.target.closest('#expRStyle')){ document.getElementById('layer').innerHTML=''; setTimeout(()=>guard(reportStyleDialog),0); } });
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeMenus(); closeSide(); const l=document.getElementById('layer'); if(l.querySelector('.scrim')) l.innerHTML=''; } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeMenus(); closeSide(); const l=document.getElementById('layer'); if(l.querySelector('.panelx')){ const q=l.querySelector('.cpq'); if(q) q.remove(); else cpTryClose(); return; } if(l.querySelector('.scrim')) l.innerHTML=''; } });
 
 /* menus */
 function closeMenus(){ document.querySelectorAll('.menu').forEach(m=>m.hidden=true); document.querySelectorAll('[aria-haspopup]').forEach(b=>b.setAttribute('aria-expanded','false')); }
@@ -2323,18 +2332,49 @@ const saveSecmap=()=>{ try{ localStorage.setItem(SECMAP_KEY,JSON.stringify(SECMA
 /* ---------- control panel ---------- */
 const IC={up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>',down:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',del:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>'};
 function schemaChanged(){ saveSchema(); RECS.forEach(prep); refresh(true); setTimeout(()=>recomputeStatus(),0); }
+/* ---------- حفظ/إلغاء لوحة التحكم ---------- */
+let CP_SNAP=null;
+function lsSnap(){ const o={}; try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&k.startsWith('r937')) o[k]=localStorage.getItem(k); } }catch(e){} return o; }
+function cpBegin(){ if(CP_SNAP) return; CP_SNAP={ls:lsSnap(), log:new Set(LOG.map(e=>e.id))}; try{ localStorage.setItem(CP_PENDING,JSON.stringify(CP_SNAP.ls)); }catch(e){} }
+function cpDirty(){ if(!CP_SNAP) return false; const now=lsSnap(), ks=new Set([...Object.keys(now),...Object.keys(CP_SNAP.ls)]);
+  for(const k of ks) if(now[k]!==CP_SNAP.ls[k]) return true; return LOG.some(e=>!CP_SNAP.log.has(e.id)&&e.type!=='undo'); }
+function cpEnd(){ CP_SNAP=null; try{ localStorage.removeItem(CP_PENDING); }catch(e){} document.getElementById('layer').innerHTML=''; }
+function cpSave(){ const d=cpDirty(); cpEnd(); toast(d?'حُفظت الإعدادات':'لا توجد تغييرات'); }
+async function cpCancel(){
+  const S=CP_SNAP; if(!S){ cpEnd(); return; }
+  if(!cpDirty()){ cpEnd(); return; }
+  // تراجع عن تعديلات البلاغات التي تمت من اللوحة (مثل إلحاق القطاع) ثم استعادة الإعدادات
+  const fresh=LOG.filter(e=>!S.log.has(e.id) && !e.undone && e.type!=='undo');
+  for(const e of fresh){ try{ await undoEntry(e.id); }catch(x){ console.error(x); } }
+  try{ const now=lsSnap(); Object.keys(now).forEach(k=>{ if(!(k in S.ls)) localStorage.removeItem(k); }); Object.entries(S.ls).forEach(([k,v])=>localStorage.setItem(k,v)); localStorage.removeItem(CP_PENDING); sessionStorage.setItem('r937-cp-msg','cancel'); }catch(x){}
+  CP_SNAP=null; busy('جارٍ إلغاء التغييرات…'); location.reload();
+}
+function cpTryClose(){
+  const sc=document.querySelector('#layer .scrim'); if(!sc) return;
+  if(!cpDirty()){ cpEnd(); return; }
+  if(sc.querySelector('.cpq')) return;
+  const q=document.createElement('div'); q.className='cpq';
+  q.innerHTML=`<div class="cpq-b" role="alertdialog" aria-label="تغييرات غير محفوظة"><b>لديك تغييرات غير محفوظة</b><p>هل تريد حفظها قبل الإغلاق؟</p><div class="cpq-a"><button type="button" class="btn primary" data-cpq="save">حفظ وإغلاق</button><button type="button" class="btn danger" data-cpq="discard">إغلاق بدون حفظ</button><button type="button" class="btn" data-cpq="stay">متابعة التعديل</button></div></div>`;
+  sc.querySelector('.dialog').appendChild(q); q.querySelector('[data-cpq=save]').focus();
+}
+// الانتقال من اللوحة إلى نافذة أخرى لها زر حفظ خاص (الهوية، تنسيق التقرير، معاينة البلاغات…) يعتمد ما سبق
+new MutationObserver(()=>{ if(CP_SNAP && !document.querySelector('#layer .panelx')){ CP_SNAP=null; try{ localStorage.removeItem(CP_PENDING); }catch(e){} } }).observe(document.getElementById('layer'),{childList:true});
 function controlPanel(tab){
   const layer=document.getElementById('layer');
   const tabs=[['home','الشاشة الرئيسية'],['filters','الفلاتر'],['alerts','التنبيهات'],['log','سجل التعديلات'],['cols','الأعمدة'],['lists','القوائم والقطاعات'],['lock','الحماية'],['brand','الهوية'],['data','البيانات']];
   layer.innerHTML=`<div class="scrim"><div class="dialog wide panelx" role="dialog" aria-modal="true" aria-labelledby="cpT"><div class="dlg-h"><h3 id="cpT">لوحة التحكم</h3><button type="button" class="iconbtn dlg-x" data-close aria-label="إغلاق" title="إغلاق"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <div class="ptabs" role="tablist">${tabs.map(([k,l])=>`<button type="button" role="tab" data-ptab="${k}" aria-selected="${k===tab}">${l}</button>`).join('')}</div>
     <div class="pbody" id="pbody"></div>
-    <div class="acts"><button type="button" class="btn primary" data-close>تم</button><span class="hint" style="align-self:center">تُحفظ التغييرات فوراً على هذا الجهاز.</span></div></div></div>`;
+    <div class="acts"><button type="button" class="btn primary" data-cpsave>حفظ</button><button type="button" class="btn" data-cpcancel>إلغاء</button><span class="hint" id="cpHint" style="align-self:center">تظهر التغييرات مباشرة للمعاينة، ولا تُحفظ إلا بعد الضغط على «حفظ».</span></div></div></div>`;
+  cpBegin();
   const scrim=layer.firstChild, body=scrim.querySelector('#pbody');
   const draw=()=>{ scrim.querySelectorAll('[data-ptab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.ptab===tab)); body.dataset.tab=tab; body.innerHTML=({home:panelHome,filters:panelFilters,alerts:panelAlerts,log:panelLog,cols:panelCols,lists:panelLists,lock:panelLock,brand:panelBrand,data:panelData})[tab](); };
   scrim.addEventListener('click',async e=>{
-    if(e.target===scrim||e.target.closest('[data-close]')){ layer.innerHTML=''; return; }
+    if(e.target===scrim||e.target.closest('[data-close]')){ cpTryClose(); return; }
+    if(e.target.closest('[data-cpsave]')){ cpSave(); return; }
+    if(e.target.closest('[data-cpcancel]')){ cpCancel(); return; }
     const b=e.target.closest('button'); if(!b) return;
+    if(b.dataset.cpq){ const a=b.dataset.cpq; scrim.querySelector('.cpq')?.remove(); if(a==='save') cpSave(); if(a==='discard') cpCancel(); return; }
     if(b.dataset.ptab){ tab=b.dataset.ptab; draw(); return; }
     const r=await panelAction(b,body); if(r==='redraw') draw();
   });
@@ -3498,6 +3538,7 @@ try{ navigator.storage && navigator.storage.persist && navigator.storage.persist
   applyHome(); applySide();
   renderAll();
   renderBackupBanner(); renderViewerBar();
+  try{ const m=sessionStorage.getItem('r937-cp-msg'); if(m){ sessionStorage.removeItem('r937-cp-msg'); setTimeout(()=>toast(m==='cancel'?'أُلغيت تغييرات لوحة التحكم':'لم تُحفظ تغييرات لوحة التحكم السابقة، فأُعيدت الإعدادات كما كانت'),400); } }catch(e){}
 })();
 window.__db={applyChange, slaKey, prep, buildPdf, printOpts, get LOG(){return LOG;}, evalRules, undoEntry, get HOME(){return HOME;}, kwIndex, parseNos, get BK(){return BK;}, maskNums, staffGroups, clinicGroups, pairGroups, buildReportXlsx, get recs(){return RECS;}, readXlsx, parseRecords, buildXlsx, buildReport, get filtered(){return filtered;}};
 </script>
