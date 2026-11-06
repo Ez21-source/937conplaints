@@ -130,6 +130,16 @@ select.inp{padding-inline-end:6px}
 .bars{display:grid;gap:5px}
 .barrow{display:grid;grid-template-columns:minmax(0,1fr) 44px;gap:8px;align-items:center;border:0;background:none;padding:2px 4px;border-radius:6px;cursor:pointer;text-align:start;width:100%}
 .barrow:hover{background:var(--surface-2)}
+.foldable>h3{cursor:pointer;user-select:none}
+.foldable>h3::before{content:'▾';flex:none;font-size:15px;color:var(--muted);margin-inline-end:6px;line-height:1}
+.foldable.folded>h3::before{content:'◂'}
+.foldable.folded>h3 .seg{display:none}
+.foldable.folded{align-self:start}
+.foldable.folded>:not(h3){display:none!important}
+.foldable.folded>h3{margin-bottom:0}
+.barrow.on{background:var(--accent-soft);outline:1.5px solid var(--accent)}
+.bar-clear{margin-top:8px;border:1px dashed var(--accent);background:none;color:var(--accent);border-radius:8px;padding:6px 10px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;width:100%}
+.bar-clear:hover{background:var(--accent-soft)}
 .barrow .nm{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .barrow .track{grid-column:1/2;height:6px;background:var(--surface-2);border-radius:4px;overflow:hidden}
 .barrow .track span{display:block;height:100%;background:var(--accent);border-radius:4px}
@@ -643,6 +653,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
+const APP_VER = '72';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'',
@@ -1585,7 +1596,7 @@ function renderPresets(){
 }
 function barsHTML(list,k,limit,tot){
   const max=list.length?list[0][1]:1;
-  return `<div class="bars">${list.slice(0,limit).map(([v,n])=>`<button type="button" class="barrow" data-pick="${k}" data-val="${esc(v)}" title="فلترة: ${esc(v)}"><span class="nm">${esc(v||'—')}</span><span class="n">${fmt(n)}</span><span class="track"><span style="width:${(n/max*100).toFixed(1)}%"></span></span></button>`).join('')||'<span class="hint">لا توجد بيانات</span>'}</div>`;
+  return `<div class="bars">${list.slice(0,limit).map(([v,n])=>`<button type="button" class="barrow${(()=>{ const c=fVals(k); return c.length===1&&c[0]===v?' on':''; })()}" data-pick="${k}" data-val="${esc(v)}" title="${(()=>{ const c=fVals(k); return c.length===1&&c[0]===v?'اضغط مرة أخرى لإلغاء الفلترة والرجوع للقائمة':'فلترة: '+esc(v); })()}"><span class="nm">${esc(v||'—')}</span><span class="n">${fmt(n)}</span><span class="track"><span style="width:${(n/max*100).toFixed(1)}%"></span></span></button>`).join('')||'<span class="hint">لا توجد بيانات</span>'}${(()=>{ const c=fVals(k); return c.length===1?`<button type="button" class="bar-clear" data-pick="${k}" data-val="${esc(c[0])}">✕ إلغاء الفلترة والرجوع للقائمة كاملة</button>`:''; })()}</div>`;
 }
 function dayChartSVG(list, w=640, h=140, interactive=true){
   const m=new Map(); list.forEach(r=>{ if(r.date){ const d=r.date.slice(0,10); m.set(d,(m.get(d)||0)+1); } });
@@ -1711,7 +1722,8 @@ function renderSummary(){
   const htmls=cs.map(k=>[k,C[k]()]).filter(x=>x[1]);
   const iel=document.getElementById('insights');
   iel.style.setProperty('--ic', htmls.length<=3 ? htmls.map(([k])=>k==='daily'?'1.4fr':'1fr').join(' ')||'1fr' : 'repeat(3,minmax(0,1fr))');
-  iel.innerHTML=htmls.map(x=>x[1]).join('');
+  const FOLD=HOME.fold==='fold', FD=new Set(HOME.folded||[]);
+  iel.innerHTML=htmls.map(([k,h])=>h.replace(/^<div class="panel ins"( data-card="[^"]*")?/,`<div class="panel ins${FOLD?' foldable':''}${FOLD&&FD.has(k)?' folded':''}" data-card="${k}"`)).join('');
 }
 function hl(text,kw){
   const words=filt.q.trim().split(/\s+/).filter(w=>w.length>1);
@@ -1830,7 +1842,7 @@ function renderSide(){
     ${item('exp','طباعة وتصدير','data-sact="exp"')}
     ${item('ver','التحقق من بلاغ','data-sact="ver"')}
     ${item('panel','لوحة التحكم','data-sact="panel"')}
-    <div class="sf">${esc(brand().preparer?`إعداد: ${brand().preparer}`:'')}</div>`;
+    <div class="sf">${esc(brand().preparer?`إعداد: ${brand().preparer}`:'')}<span style="opacity:.7"> · الإصدار ${APP_VER}</span></div>`;
 }
 document.addEventListener('click',e=>{
   const b=e.target.closest('#side button, #btnSide, #sideScrim'); if(!b) return;
@@ -2041,7 +2053,10 @@ document.addEventListener('click',e=>{
   if(b){
     if(b.dataset.from!=null && b.classList.contains('chip')){ filt.from=b.dataset.from; filt.to=b.dataset.to; refresh(); return; }
     if(b.dataset.untag){ const k=b.dataset.untag; if(k==='all') filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:'',kw:'',sla:'',unread:''}; else if(k==='emp'){ filt.emp=''; filt.empc=0; } else if(k==='dates'){filt.from='';filt.to='';} else filt[k]=''; refresh(); return; }
-    if(b.dataset.pick){ filt[b.dataset.pick]=b.dataset.val; refresh(); return; }
+    if(b.dataset.pick){ const k=b.dataset.pick, v=b.dataset.val, cur=fVals(k);
+      // الضغط مرة أخرى على نفس العنصر يلغي الفلترة ويرجع للقائمة كاملة
+      if(cur.length===1 && cur[0]===v){ filt[k]=Array.isArray(filt[k])?[]:''; toast('أُلغيت الفلترة'); } else filt[k]=v;
+      refresh(); return; }
     if(b.dataset.view){ view=b.dataset.view; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); renderView(); return; }
     if(b.dataset.pg){ const pages=Math.ceil(filtered.length/pageSize); page={first:0,prev:page-1,next:page+1,last:pages-1}[b.dataset.pg]; renderView(); document.getElementById('view').scrollIntoView({block:'start'}); return; }
     if(b.dataset.staffhide){ STAFF_HIDE.add(b.dataset.staffhide); saveStaffHide(); renderView(); toast('استُبعد من قائمة الموظفين'); return; }
@@ -2096,6 +2111,9 @@ function toggleMenu(btn,menu){ const open=menu.hidden; closeMenus(); menu.hidden
 document.getElementById('btnExport').addEventListener('click',e=>{ e.stopPropagation(); toggleMenu(e.currentTarget,document.getElementById('exportMenu')); });
 document.getElementById('btnMore').addEventListener('click',e=>{ e.stopPropagation(); toggleMenu(e.currentTarget,document.getElementById('moreMenu')); });
 document.addEventListener('click',e=>{ if(!e.target.closest('.menu-wrap')) closeMenus(); },true);
+document.addEventListener('click',e=>{ const h=e.target.closest('.foldable>h3'); if(!h || e.target.closest('label,input,button,.seg')) return;
+  const c=h.parentElement, k=c.dataset.card; const on=!c.classList.contains('folded'); c.classList.toggle('folded',on);
+  const s=new Set(HOME.folded||[]); on?s.add(k):s.delete(k); HOME.folded=[...s]; saveHome(); });
 document.getElementById('exportMenu').addEventListener('click',e=>{ const b=e.target.closest('[data-exp]'); if(!b) return; closeMenus(); if(b.dataset.exp==='viewer'){ guard(viewerDialog); return; } exportDialog(b.dataset.exp); });
 /* ---------- نسخة للعرض فقط (للمدير) ---------- */
 function viewerDialog(){
@@ -2476,7 +2494,10 @@ function panelHome(){
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint" style="min-width:90px">الوضع</span>${seg('hTheme',[['system','حسب الجهاز'],['light','فاتح'],['dark','داكن']],HOME.theme)}</div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint" style="min-width:90px">حجم العرض</span>${seg('hZoom',[[90,'صغير'],[100,'عادي'],[110,'كبير'],[125,'أكبر']],HOME.zoom)}</div></div>
     <div class="pcard"><h4>المؤشرات أعلى الصفحة</h4><p class="hint">اختر المؤشرات التي تظهر ورتّبها بالأسهم.</p>${orderList('kpis',HOME.kpis.filter(([k])=>k!=='sectors'||active('sector')),KPI_DEF)}</div>
-    <div class="pcard"><h4>البطاقات والرسوم</h4>${orderList('cards',HOME.cards.filter(([k])=>k!=='sectors'||active('sector')),CARD_DEF)}
+    <div class="pcard"><h4>البطاقات والرسوم</h4>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px"><span class="hint">طريقة العرض</span>${seg('hFold',[['fixed','ثابتة ومعروضة دائماً'],['fold','قابلة للطي (اضغط العنوان للإخفاء والإظهار)']],HOME.fold||'fixed')}</div>
+      <p class="hint" style="margin:0 0 8px">في وضع الطي يبقى عنوان البطاقة ظاهراً، وتتذكر الصفحة ما أخفيته.${(HOME.folded||[]).length?` <button type="button" class="btn sm ghost" id="hUnfold">إظهار كل البطاقات المطوية</button>`:''}</p>
+      ${orderList('cards',HOME.cards.filter(([k])=>k!=='sectors'||active('sector')),CARD_DEF)}
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint">عدد العناصر في كل بطاقة</span>${seg('hBars',[[5,'5'],[6,'6'],[8,'8'],[10,'10'],[15,'15']],HOME.bars)}</div></div>
     <div class="pcard"><h4>تبويبات العرض</h4><p class="hint">«السجلات» يظهر دائماً.</p>${orderList('views',HOME.views,VIEW_DEF)}
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint">التبويب عند فتح التطبيق</span><select class="inp" id="hDefView" style="width:auto">${HOME.views.filter(v=>v[1]).map(([k])=>`<option value="${k}" ${k===HOME.defView?'selected':''}>${esc(VIEW_DEF[k])}</option>`).join('')}</select></div>
@@ -2718,6 +2739,7 @@ async function panelAction(b,body){
     try{ localStorage.setItem(PIN_KEY,await hashPin(a)); unlocked=true; renderLock(); toast('فُعّل رمز التعديل'); }catch(e){ m.textContent='تعذر حفظ الرمز في هذا المتصفح'; return; }
     return 'redraw';
   }
+  if(b.id==='hUnfold'){ HOME.folded=[]; saveHome(); renderSummary(); toast('ظهرت كل البطاقات'); return 'redraw'; }
   if(b.id==='pinOff'){ try{ localStorage.removeItem(PIN_KEY); localStorage.removeItem(PINOPEN_KEY); }catch(e){} unlocked=false; renderLock(); toast('أُلغي رمز التعديل'); return 'redraw'; }
   if(b.id==='openRStyle'){ document.getElementById('layer').innerHTML=''; setTimeout(reportStyleDialog,0); return; }
   if(b.id==='openBrand'){ document.getElementById('layer').innerHTML=''; setTimeout(brandDialog,0); return; }
@@ -2749,6 +2771,7 @@ function panelChange(t){
   if(t.dataset.dfield||t.name==='dLatestN'){ const d=dashCfg(); if(t.name==='dLatestN') d.latestN=+t.value; else d.fields[t.dataset.dfield]=t.checked?1:0; HOME.dash=d; saveHome(); renderView(); const pv=document.getElementById('tkPrev'); if(pv){ const r=RECS.slice().sort((a,b)=>String(b.date).localeCompare(a.date))[0]; pv.textContent=r?recTick(r):'—'; } return; }
   if(t.id==='dTicker'||t.id==='dHome'||t.name==='dSpeed'||t.dataset.ditem){ const d=dashCfg(); if(t.id==='dTicker') d.ticker=t.checked?1:0; if(t.id==='dHome') d.home=t.checked?1:0; if(t.name==='dSpeed') d.speed=+t.value; if(t.dataset.ditem) d.items[t.dataset.ditem]=t.checked?1:0; HOME.dash=d; saveHome(); renderView(); return; }
   if(t.name==='hSide'){ HOME.side=t.value; saveHome(); applySide(); renderSide(); return; }
+  if(t.name==='hFold'){ HOME.fold=t.value; saveHome(); renderSummary(); return; }
   if(t.name==='hTheme'){ HOME.theme=t.value; saveHome(); applyHome(); return; }
   if(t.name==='hZoom'){ HOME.zoom=+t.value; saveHome(); applyHome(); return; }
   if(t.name==='hBars'){ HOME.bars=+t.value; saveHome(); renderSummary(); return; }
