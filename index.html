@@ -412,6 +412,21 @@ mark.kw{background:color-mix(in srgb,var(--bad) 22%,transparent)}
 .fcompact{display:none;grid-template-columns:minmax(0,.9fr) minmax(0,1.3fr);gap:8px}
 .filters.fm-compact #fExtra{display:none!important} .filters.fm-compact .fcompact{display:grid} .filters.fm-full .fcompact{display:none!important}
 .fcompact[hidden]{display:none!important}
+.fcompact.fc-fixed3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.fcompact.fc-plus,.fcompact.fc-rows3{grid-template-columns:1fr}
+.fc-row{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.3fr);gap:8px}
+.fc-plus .fc-row{grid-template-columns:minmax(0,.9fr) minmax(0,1.3fr) 40px}
+.fc-cell{display:grid;gap:3px;min-width:0}.fc-cell>span{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fc-btn{padding:0;min-height:38px;font-size:18px;line-height:1}
+.fold-bar{display:flex;width:100%;align-items:center;gap:8px;border:0;background:none;font:inherit;font-weight:700;color:var(--ink);padding:2px 2px 8px;cursor:pointer;text-align:start}
+.fold-bar::before{content:'▾';color:var(--muted);font-size:15px}
+.fold-bar small{font-weight:500;color:var(--muted)}
+.filters.ffolded>:not(.fold-bar){display:none!important}
+.filters.ffolded>.fold-bar{padding-bottom:2px}
+.filters.ffolded>.fold-bar::before,.tabs-fold.tfolded::before{content:'◂'}
+.tabs-fold{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:0 0 10px}
+.tabs-fold:not(.tfolded){margin-bottom:6px}
+.viewbar.tfolded{display:none!important}
 /* read / unread envelope */
 table.rec td.ms,table.rec th.ms{width:34px;padding-inline:2px;text-align:center}
 .env{position:relative;display:inline-flex;width:26px;height:22px;align-items:center;justify-content:center;color:var(--muted)}
@@ -554,6 +569,7 @@ body.dash-full .actionbar{display:none}
     <section id="homeTicker" hidden></section>
     <div class="bk-banner" id="bkBanner" role="status" hidden></div>
     <section class="panel filters" aria-label="البحث والفلترة">
+      <button type="button" class="fold-bar" id="fFoldBar" hidden></button>
       <div class="frow">
         <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="ابحث برقم البلاغ، الوصف، اسم المتصل، المركز، التصنيف…" aria-label="بحث"></div>
         <button type="button" class="btn" id="btnVerify" title="التحقق من تسجيل بلاغ برقمه"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>التحقق من بلاغ</button>
@@ -572,6 +588,7 @@ body.dash-full .actionbar{display:none}
     <section class="kpis" id="kpis" aria-label="ملخص"></section>
     <section class="insights" id="insights"></section>
 
+    <button type="button" class="fold-bar tabs-fold" id="tFoldBar" hidden></button>
     <div class="viewbar">
       <div class="viewswitch" role="group" aria-label="طريقة العرض">
         <button type="button" data-view="table" aria-pressed="true">السجلات</button>
@@ -653,7 +670,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '73';
+const APP_VER = '74';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'',
@@ -1490,7 +1507,7 @@ function countBy(list,k,fn){ const m=new Map(); list.forEach(r=>{ const v=fn?fn(
 const total = list => list.length;
 
 /* ---------- render ---------- */
-function renderAll(){ apply(); renderFilters(); renderAlerts(); renderSummary(); renderView(); renderInfo(); }
+function renderAll(){ apply(); renderFilters(); renderAlerts(); renderSummary(); renderView(); setTimeout(applyFolds,0); renderInfo(); }
 function refresh(keepPage){ if(!keepPage) page=0; setTimeout(renderBackupBanner,0); callerIdx=null; staffIdx=null; clinIdx=null; kwIdx=null; apply(); renderFilters(); renderAlerts(); renderSummary(); renderView(); renderInfo(); }
 function flagNote(list){ const idx=kwIndex(); const n=list.filter(r=>idx.has(r.id)).length; return n?` · ${fmt(n)} منها فيها كلمات حساسة`:''; }
 function renderInfo(){
@@ -1525,8 +1542,16 @@ const fVals=k=>{ const v=filt[k]; return Array.isArray(v)?v:(v?[v]:[]); };
 function fOk(k,val){ const vs=fVals(k); if(!vs.length) return true; return vs.some(x=> x==='__none' ? !val : val===x); }
 const fLabel=(k,v)=>v==='__none'?'بدون قطاع':v;
 const fText=k=>{ const vs=fVals(k); return vs.length<=2?vs.map(v=>fLabel(k,v)).join('، '):`${fLabel(k,vs[0])} و${fmt(vs.length-1)} أخرى`; };
-let FC_KEY='center';
-document.addEventListener('change',e=>{ if(e.target.id==='fcField'){ FC_KEY=e.target.value; renderFilters(); } });
+let FC_KEY='center', FC_ROWS=[];
+document.addEventListener('change',e=>{ const t=e.target;
+  if(t.id==='fcField'){ FC_KEY=t.value; renderFilters(); }
+  if(t.dataset.fcrow!==undefined){ FC_ROWS[+t.dataset.fcrow]=t.value; renderFilters(); }
+  if(t.dataset.fcrow3!==undefined){ const r=[...document.querySelectorAll('[data-fcrow3]')].map(x=>x.value); FCFG.rows3=r; saveFcfg(); renderFilters(); } });
+document.addEventListener('click',e=>{ const a=e.target.closest('[data-fcadd],[data-fcdel]'); if(!a) return;
+  const keys=activeFilterKeys().filter(k=>active(k));
+  if(a.dataset.fcadd!==undefined){ const nx=keys.find(k=>!FC_ROWS.includes(k)); if(nx) FC_ROWS.push(nx); }
+  else { const i=+a.dataset.fcdel, k=FC_ROWS[i]; FC_ROWS.splice(i,1); if(k&&fVals(k).length){ filt[k]=Array.isArray(filt[k])?[]:''; refresh(); return; } }
+  renderFilters(); });
 /* ---------- إعدادات الفلاتر (أي فلاتر تظهر، ترتيبها، وطريقة عرضها) ---------- */
 const FBASE=['month','sector','center','main','sub'];
 const FCFG_KEY='r937-filters-v1';
@@ -1543,7 +1568,24 @@ function filterList(){
 }
 const activeFilterKeys=()=>filterList().filter(([k,on])=>on).map(([k])=>k);
 function extraFilterCols(){ return activeFilterKeys().filter(k=>!FBASE.includes(k)).map(k=>col(k)).filter(Boolean); }
-function applyFilterMode(){ const el=document.querySelector('.filters'); if(!el) return; const m=matchMedia('(max-width:700px)').matches?FCFG.mob:FCFG.desk; el.classList.toggle('fm-compact',m==='compact'); el.classList.toggle('fm-full',m!=='compact'); }
+const fMode=()=>matchMedia('(max-width:700px)').matches?FCFG.mob:FCFG.desk;
+let FM_LAST='';
+const FM_OPTS=[['full','كاملة (مربع لكل فلتر)'],['compact','مختصرة (مربعان)'],['fixed3','(أ) ثلاثة فلاتر ثابتة'],['plus','(ب) مربعان + زر ＋'],['rows3','(ج) ثلاثة أسطر']];
+function applyFilterMode(){ const el=document.querySelector('.filters'); if(!el) return; const m=fMode(); el.classList.toggle('fm-compact',m!=='full'); el.classList.toggle('fm-full',m==='full');
+  if(FM_LAST && FM_LAST!==m){ FM_LAST=m; renderFilters(); } FM_LAST=m; applyFolds(); }
+function applyFolds(){
+  const F=document.querySelector('.filters'), fb=document.getElementById('fFoldBar');
+  if(F&&fb){ const on=FCFG.fold==='fold'; fb.hidden=!on; const fo=on&&!!FCFG.folded; F.classList.toggle('ffolded',fo);
+    const nAct=Object.keys(filt).filter(k=>k!=='q'&&fVals(k).length).length+(filt.q?1:0);
+    fb.innerHTML=`الفلاتر والبحث <small>· ${fmt(filtered.length)} بلاغ${nAct?` · ${fmt(nAct)} ${nAct===1?'فلتر مفعّل':'فلاتر مفعّلة'}`:''}${fo?' · اضغط للإظهار':''}</small>`; }
+  const tb=document.getElementById('tFoldBar'), vb=document.querySelector('.viewbar');
+  if(tb&&vb){ const on=HOME.tabsFold==='fold'; tb.hidden=!on; const fo=on&&!!HOME.tabsFolded; vb.classList.toggle('tfolded',fo); tb.classList.toggle('tfolded',fo);
+    tb.innerHTML=`تبويبات العرض <small>· ${esc(VIEW_DEF[view]||'')}${fo?' · اضغط للإظهار':''}</small>`; }
+}
+document.addEventListener('click',e=>{
+  if(e.target.closest('#fFoldBar')){ FCFG.folded=!FCFG.folded; saveFcfg(); applyFolds(); return; }
+  if(e.target.closest('#tFoldBar')){ HOME.tabsFolded=!HOME.tabsFolded; saveHome(); applyFolds(); return; }
+});
 addEventListener('resize',()=>{ clearTimeout(applyFilterMode._t); applyFilterMode._t=setTimeout(applyFilterMode,120); });
 function renderFilters(){
   applyFilterMode();
@@ -1560,11 +1602,20 @@ function renderFilters(){
     btn.innerHTML=`<span>${vs.length?esc(fText(k)):'الكل'}</span>${vs.length>1?`<b class="mcnt">${fmt(vs.length)}</b>`:''}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>`;
     btn.classList.toggle('on',!!vs.length);
   });
-  // الفلاتر المختصرة (للجوال): مربع لاختيار نوع الفلتر، ومربع لقيمه
-  { const keys=AK; document.getElementById('fCompact').hidden=!keys.length;
-    const fs=document.getElementById('fcField'); if(!keys.includes(FC_KEY)) FC_KEY=keys.includes('center')?'center':keys[0];
-    fs.innerHTML=keys.map(k=>`<option value="${k}" ${k===FC_KEY?'selected':''}>${esc(short(k))}${fVals(k).length?` (${fmt(fVals(k).length)})`:''}</option>`).join('');
-    const vs=fVals(FC_KEY); document.getElementById('fcVal').innerHTML=FC_KEY?`<button type="button" class="inp msel${vs.length?' on':''}" data-mf="${FC_KEY}"><span>${vs.length?esc(fText(FC_KEY)):'الكل'}</span>${vs.length>1?`<b class="mcnt">${fmt(vs.length)}</b>`:''}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>`:''; }
+  // الفلاتر المختصرة: مربعان، أو ثلاثة فلاتر ثابتة، أو مربعان مع زر ＋، أو ثلاثة أسطر
+  { const keys=AK, C=document.getElementById('fCompact'); C.hidden=!keys.length; const M=fMode();
+    const mbtn=k=>{ const vs=fVals(k); return `<button type="button" class="inp msel${vs.length?' on':''}" data-mf="${k}"><span>${vs.length?esc(fText(k)):'الكل'}</span>${vs.length>1?`<b class="mcnt">${fmt(vs.length)}</b>`:''}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>`; };
+    const opt=(cur)=>keys.map(k=>`<option value="${k}" ${k===cur?'selected':''}>${esc(short(k))}${fVals(k).length?` (${fmt(fVals(k).length)})`:''}</option>`).join('');
+    const three=src=>{ const out=[]; (src||[]).forEach(k=>{ if(keys.includes(k)&&!out.includes(k)) out.push(k); }); ['sector','center','sub','main'].concat(keys).forEach(k=>{ if(out.length<3&&keys.includes(k)&&!out.includes(k)) out.push(k); }); return out.slice(0,3); };
+    C.className='fcompact fc-'+(M==='full'?'compact':M);
+    if(!keys.length){ C.innerHTML=''; }
+    else if(M==='fixed3'){ C.innerHTML=three(FCFG.fix3).map(k=>`<div class="fc-cell"><span>${esc(short(k))}</span>${mbtn(k)}</div>`).join(''); }
+    else if(M==='rows3'){ const r=three(FCFG.rows3); C.innerHTML=r.map((k,i)=>`<div class="fc-row"><select class="inp" data-fcrow3="${i}" aria-label="نوع الفلتر">${opt(k)}</select>${mbtn(k)}</div>`).join(''); }
+    else if(M==='plus'){ if(!FC_ROWS.length) FC_ROWS=[FC_KEY]; FC_ROWS=FC_ROWS.map(k=>keys.includes(k)?k:(keys.includes('center')?'center':keys[0]));
+      C.innerHTML=FC_ROWS.map((k,i)=>`<div class="fc-row"><select class="inp" data-fcrow="${i}" aria-label="نوع الفلتر">${opt(k)}</select>${mbtn(k)}${i===FC_ROWS.length-1&&FC_ROWS.length<keys.length?`<button type="button" class="btn fc-btn" data-fcadd title="إضافة فلتر آخر">＋</button>`:`<button type="button" class="btn fc-btn" data-fcdel="${i}" title="إزالة هذا الفلتر">✕</button>`}</div>`).join(''); }
+    else { if(!keys.includes(FC_KEY)) FC_KEY=keys.includes('center')?'center':keys[0];
+      C.innerHTML=`<select class="inp" id="fcField" aria-label="نوع الفلتر">${opt(FC_KEY)}</select><div id="fcVal">${mbtn(FC_KEY)}</div>`; }
+  }
   document.getElementById('q').value=filt.q;
   document.getElementById('dFrom').value=filt.from; document.getElementById('dTo').value=filt.to;
   renderPresets();
@@ -1881,7 +1932,7 @@ const ENV_O='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-w
 function envHTML(r){ const s=readState(r); let cf=''; if(s.st==='upd'){ try{ const h=recChanges(r)[0]; if(h) cf=' — تغيّر: '+h.ch.map(c=>label(c[0])).join('، '); }catch(e){} }
   return s.st==='read'?`<span class="env" title="تم فتحه">${ENV_O}</span>`:`<span class="env ${s.st}" title="${s.st==='new'?'لم يُفتح بعد':`تحديثات لم تُفتح: ${s.n}${esc(cf)}`}">${ENV_C}${s.st==='upd'?`<b>${s.n>99?'99+':s.n}</b>`:''}</span>`; }
 function renderView(){
-  navPush(); setTimeout(renderSide,0);
+  navPush(); setTimeout(renderSide,0); setTimeout(applyFolds,0);
   const v=document.getElementById('view');
   renderBulk();
   renderHomeTicker();
@@ -2487,9 +2538,11 @@ function panelFilters(){
   const rows=L.map(([k,on],i)=>{ const c=col(k); const n=new Set(RECS.map(r=>k==='month'?r._m:r[k]).filter(Boolean)).size;
     return `<div class="hrow"><label><input type="checkbox" data-fon="${k}" ${on?'checked':''} ${active(k)?'':'disabled'}><span>${esc(short(k))} <small class="hint">· ${fmt(n)} قيمة${c&&c.custom?' · عمود مضاف':''}</small></span></label><div class="mv" style="display:flex;gap:2px"><button type="button" class="iconbtn" data-fmv="${k}" data-d="-1" ${i===0?'disabled':''} aria-label="للأعلى">${IC.up}</button><button type="button" class="iconbtn" data-fmv="${k}" data-d="1" ${i===L.length-1?'disabled':''} aria-label="للأسفل">${IC.down}</button></div></div>`; }).join('');
   return `<div class="pcard"><h4>طريقة العرض</h4>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint" style="min-width:90px">على الكمبيوتر</span>${seg('fmDesk',[['full','كاملة (مربع لكل فلتر)'],['compact','مختصرة (مربعان)']],FCFG.desk)}</div>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint" style="min-width:90px">على الجوال</span>${seg('fmMob',[['compact','مختصرة (مربعان)'],['full','كاملة (مربع لكل فلتر)']],FCFG.mob)}</div>
-      <span class="hint">المختصرة: المربع الأول لاختيار نوع الفلتر، والثاني لقيمه.</span></div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint" style="min-width:90px">على الكمبيوتر</span>${seg('fmDesk',FM_OPTS,FCFG.desk)}</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint" style="min-width:90px">على الجوال</span>${seg('fmMob',FM_OPTS,FCFG.mob)}</div>
+      <span class="hint">مربعان: نوع الفلتر ثم قيمه · (أ) ثلاثة فلاتر ثابتة في صف واحد · (ب) مربعان وزر ＋ لإضافة فلتر آخر · (ج) ثلاثة أسطر، كل سطر نوع الفلتر وقيمته.</span>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><span class="hint" style="min-width:90px">فلاتر (أ) الثابتة</span>${[0,1,2].map(i=>{ const ks=activeFilterKeys().filter(k=>active(k)); const cur=(FCFG.fix3||[])[i]||['sector','center','sub'][i]; return `<select class="inp" data-fix3="${i}" style="width:auto">${ks.map(k=>`<option value="${k}" ${k===cur?'selected':''}>${esc(short(k))}</option>`).join('')}</select>`; }).join('')}</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px"><span class="hint" style="min-width:90px">مربع الفلاتر</span>${seg('fFold',[['fixed','ثابت ومعروض دائماً'],['fold','قابل للطي (اضغط العنوان)']],FCFG.fold||'fixed')}</div></div>
     <div class="pcard"><h4>الفلاتر الظاهرة وترتيبها</h4><p class="hint" style="margin:0">ضع ✓ لإظهار الفلتر، وأزلها لإخفائه، ورتّبها بالأسهم. القائمة تشمل كل الأعمدة التي تصلح للفلترة، ومنها الأعمدة التي أضفتها. إخفاء الفلتر يلغي اختياره الحالي.</p>
       <div class="hlist">${rows}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn sm" id="fShowAll">إظهار الكل</button><button type="button" class="btn sm ghost" id="fReset">الفلاتر الافتراضية</button></div></div>
@@ -2509,7 +2562,8 @@ function panelHome(){
       <p class="hint" style="margin:0 0 8px">في وضع الطي يبقى عنوان البطاقة ظاهراً، وتتذكر الصفحة ما أخفيته.${(HOME.folded||[]).length?` <button type="button" class="btn sm ghost" id="hUnfold">إظهار كل البطاقات المطوية</button>`:''}</p>
       ${orderList('cards',HOME.cards.filter(([k])=>k!=='sectors'||active('sector')),CARD_DEF)}
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint">عدد العناصر في كل بطاقة</span>${seg('hBars',[[5,'5'],[6,'6'],[8,'8'],[10,'10'],[15,'15']],HOME.bars)}</div></div>
-    <div class="pcard"><h4>تبويبات العرض</h4><p class="hint">«السجلات» يظهر دائماً.</p>${orderList('views',HOME.views,VIEW_DEF)}
+    <div class="pcard"><h4>تبويبات العرض</h4><p class="hint">«السجلات» يظهر دائماً.</p>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><span class="hint">طريقة العرض</span>${seg('tFold',[['fixed','ثابتة ومعروضة دائماً'],['fold','قابلة للطي (اضغط العنوان)']],HOME.tabsFold||'fixed')}</div>${orderList('views',HOME.views,VIEW_DEF)}
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint">التبويب عند فتح التطبيق</span><select class="inp" id="hDefView" style="width:auto">${HOME.views.filter(v=>v[1]).map(([k])=>`<option value="${k}" ${k===HOME.defView?'selected':''}>${esc(VIEW_DEF[k])}</option>`).join('')}</select></div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint">صفوف الجدول في الصفحة</span>${seg('hPage',[[25,'25'],[50,'50'],[100,'100'],[200,'200']],HOME.pageSize)}</div></div>
     <div class="pcard"><h4>مربعات لوحة المؤشرات</h4><p class="hint" style="margin:0">اختر المربعات التي تظهر في تبويب «لوحة المؤشرات». (محتوى الشريط الإخباري له اختيارات منفصلة في البطاقة التالية.)</p>
@@ -2775,7 +2829,10 @@ function panelChange(t){
   if(t.dataset.stat){ const f=t.dataset.stat; if(f==='on') STAT.on=t.checked?1:0; else if(['target','src1','src2'].includes(f)){ const v=t.value.trim(); if(!v) return 'redraw'; STAT[f]=v; } else STAT[f]=t.value; saveStat(); recomputeStatus().then(n=>{ if(n) toast(`حُدّثت الحالة في ${fmt(n)} بلاغ`); }); return 'redraw'; }
   if(t.id==='weekStart'){ WEEK_START=+t.value; try{ localStorage.setItem(WS_KEY,String(WEEK_START)); }catch(e){} refresh(true); toast(`أصبح الأسبوع يبدأ يوم ${WEEKDAYS[WEEK_START]}`); return 'redraw'; }
   if(t.dataset.fon){ const L=filterList(); const x=L.find(v=>v[0]===t.dataset.fon); if(x) x[1]=t.checked?1:0; FCFG.list=L; saveFcfg(); document.getElementById('fExtra').dataset.keys=''; refresh(true); return; }
-  if(t.name==='fmDesk'||t.name==='fmMob'){ FCFG[t.name==='fmDesk'?'desk':'mob']=t.value; saveFcfg(); applyFilterMode(); return; }
+  if(t.name==='fmDesk'||t.name==='fmMob'){ FCFG[t.name==='fmDesk'?'desk':'mob']=t.value; saveFcfg(); applyFilterMode(); renderFilters(); return; }
+  if(t.dataset.fix3!==undefined){ const r=[...document.querySelectorAll('[data-fix3]')].map(x=>x.value); FCFG.fix3=r; saveFcfg(); renderFilters(); return; }
+  if(t.name==='fFold'){ FCFG.fold=t.value; if(t.value!=='fold') FCFG.folded=false; saveFcfg(); applyFolds(); return; }
+  if(t.name==='tFold'){ HOME.tabsFold=t.value; if(t.value!=='fold') HOME.tabsFolded=false; saveHome(); applyFolds(); return; }
   if(t.dataset.dtile){ const d=dashCfg(); d.tiles[t.dataset.dtile]=t.checked?1:0; HOME.dash=d; saveHome(); if(view==='dash') renderView(); return; }
   if(t.dataset.dcat!==undefined){ const d=dashCfg(); const set=new Set(d.cats||[]); if(t.checked) set.add(t.dataset.dcat); else set.delete(t.dataset.dcat); d.cats=[...set]; HOME.dash=d; saveHome(); renderView(); const h=t.closest('.field').querySelector('.hint b'); if(h) h.textContent=d.cats.length?`(${fmt(d.cats.length)} مختار)`:'(كل التصنيفات)'; return; }
   if(t.dataset.dfield||t.name==='dLatestN'){ const d=dashCfg(); if(t.name==='dLatestN') d.latestN=+t.value; else d.fields[t.dataset.dfield]=t.checked?1:0; HOME.dash=d; saveHome(); renderView(); const pv=document.getElementById('tkPrev'); if(pv){ const r=RECS.slice().sort((a,b)=>String(b.date).localeCompare(a.date))[0]; pv.textContent=r?recTick(r):'—'; } return; }
