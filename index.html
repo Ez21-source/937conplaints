@@ -1862,7 +1862,8 @@ const sig=r=>{ const o=stripIdx(r); delete o.id; return JSON.stringify(o); };
 function bumpRev(oldR,newR){ if(!oldR||!newR) return; if(sig(oldR)===sig(newR)) return; const k=rKey(newR); if(!k) return; READ.rev[k]=(READ.rev[k]||0)+1; }
 const ENV_C='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 6.5A2.5 2.5 0 0 1 5.5 4h13A2.5 2.5 0 0 1 21 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" opacity=".22"/><path d="M3.6 6.2 12 12.6l8.4-6.4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><rect x="3" y="4" width="18" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.9"/></svg>';
 const ENV_O='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 10.5 12 4l9 6.5V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="m3.5 11 8.5 5.5 8.5-5.5"/></svg>';
-function envHTML(r){ const s=readState(r); return s.st==='read'?`<span class="env" title="تم فتحه">${ENV_O}</span>`:`<span class="env ${s.st}" title="${s.st==='new'?'لم يُفتح بعد':`تحديثات لم تُفتح: ${s.n}`}">${ENV_C}${s.st==='upd'?`<b>${s.n>99?'99+':s.n}</b>`:''}</span>`; }
+function envHTML(r){ const s=readState(r); let cf=''; if(s.st==='upd'){ try{ const h=recChanges(r)[0]; if(h) cf=' — تغيّر: '+h.ch.map(c=>label(c[0])).join('، '); }catch(e){} }
+  return s.st==='read'?`<span class="env" title="تم فتحه">${ENV_O}</span>`:`<span class="env ${s.st}" title="${s.st==='new'?'لم يُفتح بعد':`تحديثات لم تُفتح: ${s.n}${esc(cf)}`}">${ENV_C}${s.st==='upd'?`<b>${s.n>99?'99+':s.n}</b>`:''}</span>`; }
 function renderView(){
   navPush(); setTimeout(renderSide,0);
   const v=document.getElementById('view');
@@ -2214,7 +2215,28 @@ function fieldValueHTML(r,c){
   if(c.k===slaKey()) return slaBadge(v,slaState(r,c.k));
   return `<span${c.ltr||c.type==='datetime'||c.type==='date'||c.type==='number'?' dir="ltr"':''}>${esc(v)}</span>`;
 }
+// ما الذي تغيّر في البلاغ: من سجل التغييرات (لقطة «قبل» لكل عملية) مقارنةً بالحالة التي تلتها
+const vNorm=v=>String(v??'').replace(/\s+/g,' ').trim();
+function recChanges(r){
+  const ents=LOG.filter(e=>!['undo','replace','clear'].includes(e.type) && (e.before||[]).some(x=>x.id===r.id)).reverse(); // الأقدم أولاً
+  const out=[]; const keys=ALLK().filter(k=>k!=='id');
+  ents.forEach((e,i)=>{ const b=e.before.find(x=>x.id===r.id); const nx=ents[i+1]; const a=nx?nx.before.find(x=>x.id===r.id):r;
+    const ch=keys.filter(k=>col(k) && vNorm(b[k])!==vNorm(a[k])).map(k=>[k,cellText(b,k),cellText(a,k)]);
+    if(ch.length) out.push({t:e.t,type:e.type,note:e.note,ch}); });
+  return out.reverse(); // الأحدث أولاً
+}
+function changesHTML(r,unseen){
+  const H=recChanges(r); if(!H.length) return unseen?`<div class="rpt-note" style="border-color:#D69E2E;background:color-mix(in srgb,#D69E2E 12%,transparent)"><span>🔔 تحدّث هذا البلاغ ${fmt(unseen)} ${unseen===1?'مرة':'مرات'} بعد الاستيراد، لكن تفاصيل التغيير غير محفوظة (حدث قبل تفعيل هذه الميزة أو حُذف من سجل التغييرات).</span></div>`:'';
+  const cut=v=>{ v=String(v??''); return v===''?'<span class="ro-empty">فارغ</span>':esc(v.length>220?v.slice(0,220)+'…':v); };
+  const one=(h,isNew)=>`<div style="display:grid;gap:4px;margin-top:6px"><div style="font-size:12.5px;color:var(--muted)">${isNew?'<b style="color:#B7791F">جديد</b> · ':''}${esc(LOG_TYPES[h.type]||h.type)} · ${esc(fmtDate((d=>`${iso(d)}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`)(new Date(h.t))))}${h.note?' · '+esc(h.note):''}</div>
+    <div class="ctbl-wrap" style="max-height:none"><table class="ctbl"><thead><tr><th style="width:24%">الحقل</th><th>قبل</th><th>بعد</th></tr></thead><tbody>${h.ch.map(([k,a,b])=>`<tr><td><b>${esc(label(k))}</b></td><td style="color:var(--muted);text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--bad) 60%,transparent)">${cut(a)}</td><td style="background:color-mix(in srgb,#D69E2E 14%,transparent)"><b>${cut(b)}</b></td></tr>`).join('')}</tbody></table></div></div>`;
+  const nNew=Math.min(unseen||0,H.length), first=H.slice(0,Math.max(nNew,unseen?1:0)), rest=H.slice(first.length);
+  const flds=[...new Set(H.slice(0,Math.max(nNew,1)).flatMap(h=>h.ch.map(c=>label(c[0]))))];
+  if(!unseen) return `<details class="rpt-note" style="display:block;background:var(--surface-2);border-color:var(--line)"><summary style="cursor:pointer">سجل تحديثات هذا البلاغ (${fmt(H.length)}) · آخر تغيير: ${esc(flds.join('، '))}</summary>${H.map(h=>one(h,false)).join('')}</details>`;
+  return `<div class="rpt-note" style="display:block;border-color:#D69E2E;background:color-mix(in srgb,#D69E2E 10%,transparent)"><div>🔔 <b>تحدّث هذا البلاغ بعد آخر فتح</b> · تغيّر: <b>${esc(flds.join('، '))}</b></div>${first.map(h=>one(h,true)).join('')}${rest.length?`<details style="margin-top:6px"><summary style="cursor:pointer">تحديثات سابقة (${fmt(rest.length)})</summary>${rest.map(h=>one(h,false)).join('')}</details>`:''}</div>`;
+}
 function viewRecord(r){
+  const unseen0=r?readState(r):{st:'read',n:0}; const chNote=r?changesHTML(r,unseen0.st==='upd'?unseen0.n:0):'';
   if(r && readState(r).st!=='read'){ markSeen(r); const tr=document.querySelector(`tr[data-id="${r.id}"]`); if(tr){ tr.classList.remove('unread'); const c=tr.querySelector('td.ms'); if(c) c.innerHTML=envHTML(r); } setTimeout(()=>{ const rb=document.querySelector('.readbar'); if(rb&&view==='table') renderView(); },400); }
   const cs=cols();
   const html=`<div class="ro-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>للعرض فقط. اضغط «تعديل» لتغيير البيانات.</div>
@@ -2227,7 +2249,7 @@ function viewRecord(r){
   const note= others.length ? `<div class="rpt-note"><span>لهذا المتصل <b>${fmt(others.length)}</b> ${others.length===1?'بلاغ آخر':'بلاغات أخرى'} · آخرها ${esc(fmtDate(others.map(x=>x.date).sort().pop()))}</span><button type="button" class="btn sm" id="seeCaller">عرض بلاغاته</button></div>` : '';
   const fl=kwIndex().get(r.id);
   const kwNote= fl ? `<div class="rpt-note" style="border-color:var(--bad);background:color-mix(in srgb,var(--bad) 9%,transparent)"><span><span class="kwflag"></span>يحتوي كلمات حساسة: <b>${esc([...new Set(fl.map(x=>x.w))].join('، '))}</b></span></div>` : '';
-  dialog({title:`البلاغ ${r.no||''}`, html:kwNote+note+staffNote+clNote+html, wide:true, onOpen:s=>{ const b=s.querySelector('#seeCaller'); if(b) b.onclick=()=>{ document.getElementById('layer').innerHTML=''; showCaller(ck); }; s.querySelectorAll('[data-seestaff]').forEach(x=>x.onclick=()=>{ document.getElementById('layer').innerHTML=''; showStaff(x.dataset.seestaff); }); s.querySelectorAll('[data-seecl]').forEach(x=>x.onclick=()=>{ document.getElementById('layer').innerHTML=''; showClinic(x.dataset.seecl); }); }, actions:[
+  dialog({title:`البلاغ ${r.no||''}`, html:chNote+kwNote+note+staffNote+clNote+html, wide:true, onOpen:s=>{ const b=s.querySelector('#seeCaller'); if(b) b.onclick=()=>{ document.getElementById('layer').innerHTML=''; showCaller(ck); }; s.querySelectorAll('[data-seestaff]').forEach(x=>x.onclick=()=>{ document.getElementById('layer').innerHTML=''; showStaff(x.dataset.seestaff); }); s.querySelectorAll('[data-seecl]').forEach(x=>x.onclick=()=>{ document.getElementById('layer').innerHTML=''; showClinic(x.dataset.seecl); }); }, actions:[
     ...(VIEWER?[]:[{label:'تعديل',cls:'primary',run:()=>{ setTimeout(()=>guard(()=>editRecord(r)),0); }}]),
     {label:'إغلاق'}]});
 }
