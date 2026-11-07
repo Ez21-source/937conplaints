@@ -65,8 +65,18 @@ button,input,select,textarea{font:inherit;color:inherit}
 .logo-drop .ph{width:120px;height:56px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;color:var(--muted);font-size:12px;overflow:hidden}
 .logo-drop .ph img{max-width:100%;max-height:100%;object-fit:contain}
 .swatch{width:28px;height:28px;border-radius:8px;border:1px solid var(--line);display:inline-block;vertical-align:middle}
-@media (max-width:600px){ .pgrid{grid-template-columns:1fr} .checks{grid-template-columns:1fr} .brand-logo{display:none!important} }
+@media (max-width:600px){ .hdr-img img{max-width:90px} .hdr-b{padding:2px 8px} .pgrid{grid-template-columns:1fr} .checks{grid-template-columns:1fr} .brand-logo{display:none!important} }
 .brand-mark{font-family:var(--f-display);font-weight:700;font-size:15px;background:var(--accent);color:var(--accent-ink);border-radius:8px;padding:4px 9px;line-height:1.3}
+.topbar.hs-l .wrap{padding-block:16px}.topbar.hs-l .brand h1{font-size:19px}
+.topbar.hs-xl .wrap{padding-block:22px}.topbar.hs-xl .brand h1{font-size:21px}
+.hdr-img{display:flex;align-items:center;flex:none;padding-inline-end:10px;border-inline-end:1px solid var(--line)}.hdr-img img{display:block;max-width:150px;object-fit:contain}
+.topbar.hdr-hasimg #brandLogo,.topbar.hdr-hasimg #brandMark{display:none!important}
+.hdr-a{display:flex;gap:8px;flex-wrap:wrap;align-items:baseline;font-size:12px;color:var(--muted);margin-top:2px}.hdr-a b{color:var(--ink);font-weight:700}
+.hdr-b{display:grid;justify-items:center;gap:0;padding:2px 12px;border-inline-start:1px solid var(--line);font-size:11.5px;color:var(--muted);line-height:1.45;text-align:center}.hdr-b b{font-size:18px;color:var(--ink);font-family:var(--f-display);line-height:1.2}
+.hdr-c{background:var(--accent-soft);border-bottom:1px solid var(--line);font-size:12.5px}.hdr-c .wrap{display:flex!important;justify-content:space-between;gap:10px;padding-block:5px!important;flex-wrap:wrap}.hdr-c b{font-weight:700}
+.act-off{display:none!important}
+.topbar>.wrap{flex-wrap:nowrap}.topbar .brand{flex:1 1 0;min-width:0}.topbar .brand-txt .org{white-space:normal;line-height:1.35}
+@media (max-width:600px){ .topbar>.wrap:has(.hdr-b){flex-wrap:wrap} .hdr-b{order:10;flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px 12px;justify-content:center;align-items:baseline;border-inline-start:0;border-top:1px solid var(--line);padding:6px 0 0;font-size:12px}.hdr-b b{font-size:16px}.hdr-b span{white-space:nowrap} .hdr-img img{max-width:60px} .topbar .brand h1{white-space:normal;line-height:1.3} .topbar .brand{gap:8px} .topbar .brand h1{font-size:16px} .topbar.hs-l .brand h1{font-size:17px} .topbar.hs-xl .brand h1{font-size:18px} }
 .brand h1{font-family:var(--f-display);font-size:17px;font-weight:600;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .brand small{display:block;color:var(--muted);font-size:12px;font-family:var(--f-body);font-weight:400}
 .btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 12px;cursor:pointer;font-weight:500;white-space:nowrap}
@@ -670,7 +680,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '74';
+const APP_VER = '75';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'',
@@ -1352,7 +1362,7 @@ function tickerHTML(items){
   if(!items.length) return '';
   let copy=items.slice(); while(copy.length<14) copy=copy.concat(items);
   const one=copy.map(([t,x])=>`<span class="tk-i tk-${t}">${esc(x)}</span>`).join('');
-  return `<div class="ticker" role="marquee" aria-label="شريط الأخبار"><span class="tk-lbl">آخر المستجدات</span><div class="tk-win"><div class="tk-track"><div class="tk-copy">${one}</div><div class="tk-copy" aria-hidden="true">${one}</div></div></div><button type="button" class="tk-pause" aria-label="إيقاف الشريط" title="إيقاف / تشغيل">❚❚</button></div>`;
+  return `<div class="ticker" role="marquee" aria-label="شريط الأخبار"><span class="tk-lbl">آخر المستجدات</span><div class="tk-win"><div class="tk-track"><div class="tk-copy">${one}</div><div class="tk-copy" aria-hidden="true">${one}</div></div></div><button type="button" class="tk-pause tk-voice" ${GEN.voice.on?'':'hidden'} aria-label="قراءة صوتية" title="قراءة صوتية">🔊</button><button type="button" class="tk-pause tk-mute" ${GEN.voice.on?'':'hidden'} aria-label="كتم الصوت" title="${GEN.voice.muted?'الصوت مكتوم':'كتم الصوت'}">${GEN.voice.muted?'🔇':'🔈'}</button><button type="button" class="tk-pause" aria-label="إيقاف الشريط" title="إيقاف / تشغيل">❚❚</button></div>`;
 }
 function startTicker(root){
   root.querySelectorAll('.ticker').forEach(tk=>{ const tr=tk.querySelector('.tk-track'), c=tk.querySelector('.tk-copy'); if(!tr||!c) return;
@@ -2488,14 +2498,14 @@ function cpTryClose(){
 new MutationObserver(()=>{ if(CP_SNAP && !document.querySelector('#layer .panelx')){ CP_SNAP=null; try{ localStorage.removeItem(CP_PENDING); }catch(e){} } }).observe(document.getElementById('layer'),{childList:true});
 function controlPanel(tab){
   const layer=document.getElementById('layer');
-  const tabs=[['home','الشاشة الرئيسية'],['filters','الفلاتر'],['alerts','التنبيهات'],['log','سجل التعديلات'],['cols','الأعمدة'],['lists','القوائم والقطاعات'],['lock','الحماية'],['brand','الهوية'],['data','البيانات']];
+  const tabs=[['home','الشاشة الرئيسية'],['general','إعدادات عامة'],['filters','الفلاتر'],['alerts','التنبيهات'],['log','سجل التعديلات'],['cols','الأعمدة'],['lists','القوائم والقطاعات'],['lock','الحماية'],['brand','الهوية'],['data','البيانات']];
   layer.innerHTML=`<div class="scrim"><div class="dialog wide panelx" role="dialog" aria-modal="true" aria-labelledby="cpT"><div class="dlg-h"><h3 id="cpT">لوحة التحكم</h3><button type="button" class="iconbtn dlg-x" data-close aria-label="إغلاق" title="إغلاق"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <div class="ptabs" role="tablist">${tabs.map(([k,l])=>`<button type="button" role="tab" data-ptab="${k}" aria-selected="${k===tab}">${l}</button>`).join('')}</div>
     <div class="pbody" id="pbody"></div>
     <div class="acts"><button type="button" class="btn primary" data-cpsave>حفظ</button><button type="button" class="btn" data-cpcancel>إلغاء</button><span class="hint" id="cpHint" style="align-self:center">تظهر التغييرات مباشرة للمعاينة، ولا تُحفظ إلا بعد الضغط على «حفظ».</span></div></div></div>`;
   cpBegin();
   const scrim=layer.firstChild, body=scrim.querySelector('#pbody');
-  const draw=()=>{ scrim.querySelectorAll('[data-ptab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.ptab===tab)); body.dataset.tab=tab; body.innerHTML=({home:panelHome,filters:panelFilters,alerts:panelAlerts,log:panelLog,cols:panelCols,lists:panelLists,lock:panelLock,brand:panelBrand,data:panelData})[tab](); };
+  const draw=()=>{ scrim.querySelectorAll('[data-ptab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.ptab===tab)); body.dataset.tab=tab; body.innerHTML=({home:panelHome,general:panelGeneral,filters:panelFilters,alerts:panelAlerts,log:panelLog,cols:panelCols,lists:panelLists,lock:panelLock,brand:panelBrand,data:panelData})[tab](); };
   scrim.addEventListener('click',async e=>{
     if(e.target===scrim||e.target.closest('[data-close]')){ cpTryClose(); return; }
     if(e.target.closest('[data-cpsave]')){ cpSave(); return; }
@@ -2803,6 +2813,7 @@ async function panelAction(b,body){
     try{ localStorage.setItem(PIN_KEY,await hashPin(a)); unlocked=true; renderLock(); toast('فُعّل رمز التعديل'); }catch(e){ m.textContent='تعذر حفظ الرمز في هذا المتصفح'; return; }
     return 'redraw';
   }
+  { const gr=genAction(b); if(gr!==null) return gr; }
   if(b.id==='hUnfold'){ HOME.folded=[]; saveHome(); renderSummary(); toast('ظهرت كل البطاقات'); return 'redraw'; }
   if(b.id==='pinOff'){ try{ localStorage.removeItem(PIN_KEY); localStorage.removeItem(PINOPEN_KEY); }catch(e){} unlocked=false; renderLock(); toast('أُلغي رمز التعديل'); return 'redraw'; }
   if(b.id==='openRStyle'){ document.getElementById('layer').innerHTML=''; setTimeout(reportStyleDialog,0); return; }
@@ -2838,6 +2849,7 @@ function panelChange(t){
   if(t.dataset.dfield||t.name==='dLatestN'){ const d=dashCfg(); if(t.name==='dLatestN') d.latestN=+t.value; else d.fields[t.dataset.dfield]=t.checked?1:0; HOME.dash=d; saveHome(); renderView(); const pv=document.getElementById('tkPrev'); if(pv){ const r=RECS.slice().sort((a,b)=>String(b.date).localeCompare(a.date))[0]; pv.textContent=r?recTick(r):'—'; } return; }
   if(t.id==='dTicker'||t.id==='dHome'||t.name==='dSpeed'||t.dataset.ditem){ const d=dashCfg(); if(t.id==='dTicker') d.ticker=t.checked?1:0; if(t.id==='dHome') d.home=t.checked?1:0; if(t.name==='dSpeed') d.speed=+t.value; if(t.dataset.ditem) d.items[t.dataset.ditem]=t.checked?1:0; HOME.dash=d; saveHome(); renderView(); return; }
   if(t.name==='hSide'){ HOME.side=t.value; saveHome(); applySide(); renderSide(); return; }
+  if(genChange(t)) return;
   if(t.name==='hUpdView'){ HOME.updView=t.value; saveHome(); return; }
   if(t.name==='hFold'){ HOME.fold=t.value; saveHome(); renderSummary(); return; }
   if(t.name==='hTheme'){ HOME.theme=t.value; saveHome(); applyHome(); return; }
@@ -2871,7 +2883,7 @@ function panelChange(t){
 const SETTINGS_APP='r937-db-settings';
 function settingsSnapshot(){
   return {app:SETTINGS_APP, version:1, exported:nowLocal(), brand:BRAND, schema:schemaSerial(), secmap:SECMAP, clinics:CLINICS,
-    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE, filters:FCFG, staffOvr:SOVR, staffSrc:STAFF_SRC, staffPos:STAFF_POS, closerNames:CLOSER_NAMES, ctype:CTYPE, visitsSet:VSET};
+    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE, filters:FCFG, staffOvr:SOVR, staffSrc:STAFF_SRC, staffPos:STAFF_POS, closerNames:CLOSER_NAMES, ctype:CTYPE, visitsSet:VSET, general:GEN};
 }
 async function exportSettings(){
   const blob=new Blob([JSON.stringify(settingsSnapshot(),null,2)],{type:'application/json'});
@@ -2893,6 +2905,7 @@ async function importSettings(file){
         if(Array.isArray(s.staffHide)){ STAFF_HIDE=new Set(s.staffHide); saveStaffHide(); }
         if(s.staffMin){ STAFF_MIN=+s.staffMin||1; localStorage.setItem('r937-staffmin-v1',String(STAFF_MIN)); }
         if(s.repeat){ RPT={min:2,short:false,...s.repeat}; saveRpt(); }
+        if(s.general && typeof s.general==='object'){ GEN=normGen(s.general); saveGen(); }
         if(s.ctype && typeof s.ctype==='object'){ CTYPE={...s.ctype}; saveCtype(); }
         if(s.visitsSet && typeof s.visitsSet==='object'){ VSET={...DEF_VSET,...s.visitsSet}; saveVset(); }
         if(s.print){ PRINT={...DEF_PRINT,...s.print,sec:{...DEF_PRINT.sec,...(s.print.sec||{})}}; localStorage.setItem(PRINT_KEY,JSON.stringify(PRINT)); }
@@ -3038,6 +3051,7 @@ function applyBrand(){
   og.textContent=BRAND.org; og.hidden=!BRAND.org;
   document.getElementById('footOrg').textContent=(BRAND.org?BRAND.org+' · ':'')+'قاعدة بلاغات المراكز الصحية · 937';
   document.getElementById('footBy').innerHTML=BRAND.preparer?`إعداد: <b>${esc(BRAND.preparer)}</b>`:'';
+  try{ renderHeader(); }catch(e){}
 }
 function dominantColor(img){
   const s=64, cv=document.createElement('canvas'); cv.width=cv.height=s; const g=cv.getContext('2d'); g.drawImage(img,0,0,s,s);
@@ -3823,6 +3837,145 @@ function panelCtype(){
     </div></div>`;
 }
 
+/* ---------- إعدادات عامة: الترويسة، شريط الإجراءات، القارئ الصوتي ---------- */
+const GEN_KEY='r937-general-v1';
+const DEF_GREET='السلام عليكم ورحمة الله وبركاته، {التحية}، أهلاً بك عبدالعزيز، أتمنى لك يوماً حافلاً';
+const DEF_GEN={hdr:{style:'a',size:'l',wday:1,hijri:1,greg:1,time:1,digits:'latn',logo:1,img:'',logoH:44},
+  acts:[['new',1],['imp',1],['exp',1],['panel',1]],
+  voice:{on:1,muted:0,rate:1,vname:'',auto:1,read:{alerts:1,updates:1,ticker:0},greet:{on:1,text:DEF_GREET,freq:'day'}}};
+const ACT_DEF={new:'بلاغ جديد',imp:'استيراد Excel',exp:'طباعة وتصدير',panel:'لوحة التحكم'};
+function normGen(g){ g=g||{}; const d=DEF_GEN; const o={...d,...g,hdr:{...d.hdr,...(g.hdr||{})},voice:{...d.voice,...(g.voice||{}),read:{...d.voice.read,...((g.voice||{}).read||{})},greet:{...d.voice.greet,...((g.voice||{}).greet||{})}}};
+  o.acts=mergeOrder(g.acts,d.acts); return o; }
+let GEN=(()=>{ try{ return normGen(JSON.parse(localStorage.getItem(GEN_KEY)||'{}')); }catch(e){ return normGen({}); } })();
+const saveGen=()=>{ try{ localStorage.setItem(GEN_KEY,JSON.stringify(GEN)); }catch(e){ toast('تعذر الحفظ — قد تكون الصورة كبيرة'); } };
+// ---- التاريخ والوقت
+function dtParts(d=new Date()){ const n='-nu-'+(GEN.hdr.digits==='arab'?'arab':'latn');
+  const f=(loc,o)=>{ try{ return new Intl.DateTimeFormat(loc+n,o).format(d); }catch(e){ return ''; } };
+  return {wday:f('ar-u',{weekday:'long'}), hijri:f('ar-SA-u-ca-islamic-umalqura',{day:'numeric',month:'long',year:'numeric'}).replace(/\s*هـ$/,'')+'هـ',
+    greg:f('ar-u-ca-gregory',{day:'numeric',month:'long',year:'numeric'})+'م', time:f('ar-u',{hour:'numeric',minute:'2-digit',hour12:true})}; }
+function renderHeader(){
+  const H=GEN.hdr, top=document.querySelector('.topbar'); if(!top) return;
+  top.classList.remove('hs-n','hs-l','hs-xl'); top.classList.add('hs-'+(H.size||'n'));
+  // الشعار / الصورة
+  const brandEl=top.querySelector('.brand'); let im=document.getElementById('hdrImg');
+  if(!im){ im=document.createElement('span'); im.id='hdrImg'; im.className='hdr-img'; brandEl.prepend(im); }
+  const src=H.img||BRAND.logo; const showImg=!!(H.logo&&src);
+  im.hidden=!showImg; im.innerHTML=showImg?`<img src="${src}" alt="الشعار" style="height:${+H.logoH||44}px">`:'';
+  top.classList.toggle('hdr-hasimg',showImg);
+  // التاريخ والوقت
+  document.querySelectorAll('.hdr-dt').forEach(x=>x.remove());
+  if(H.style==='off') return;
+  const p=dtParts(), parts=[H.wday&&p.wday,H.hijri&&p.hijri,H.greg&&p.greg].filter(Boolean);
+  if(!parts.length && !H.time) return;
+  if(H.style==='a'){ const el=document.createElement('div'); el.className='hdr-dt hdr-a'; el.innerHTML=`<span>${esc(parts.join(' · '))}</span>${H.time?`<b>${esc(p.time)}</b>`:''}`; top.querySelector('.brand-txt').appendChild(el); }
+  else if(H.style==='b'){ const el=document.createElement('div'); el.className='hdr-dt hdr-b'; el.innerHTML=`${H.time?`<b>${esc(p.time)}</b>`:''}${H.wday?`<span>${esc(p.wday)}</span>`:''}${H.hijri?`<span>${esc(p.hijri)}</span>`:''}${H.greg?`<span>${esc(p.greg)}</span>`:''}`; brandEl.after(el); }
+  else { const el=document.createElement('div'); el.className='hdr-dt hdr-c'; el.innerHTML=`<div class="wrap"><span>${esc(parts.join('  ·  '))}</span>${H.time?`<b>${esc(p.time)}</b>`:''}</div>`; top.prepend(el); }
+}
+setInterval(()=>{ if(GEN.hdr.time||GEN.hdr.style!=='off') renderHeader(); },30000);
+// ---- ترتيب شريط الإجراءات
+function applyActs(){ const m={new:'#btnNew',imp:'#btnImport',exp:'.actionbar .menu-wrap',panel:'#btnPanel'};
+  GEN.acts.forEach(([k,on],i)=>{ const el=document.querySelector(m[k]); if(!el) return; el.style.order=String(i+1); el.classList.toggle('act-off',!on); }); }
+// ---- القارئ الصوتي
+const SS=window.speechSynthesis||null; let VQ=null;
+function arVoice(){ if(!SS) return null; const vs=SS.getVoices().filter(v=>/^ar/i.test(v.lang)); return vs.find(v=>v.name===GEN.voice.vname)||vs.find(v=>/SA/i.test(v.lang))||vs[0]||null; }
+function speakClean(t){ return String(t||'').replace(/\(/g,'، ').replace(/\)/g,'').replace(/↑/g,' ارتفاع ').replace(/↓/g,' انخفاض ').replace(/%/g,' بالمئة').replace(/(\d),(\d)/g,'$1$2').replace(/(\d{4})[\/-](\d{2})[\/-](\d{2})/g,'$3 $2 $1').replace(/[·•|]/g,'، ').replace(/\s+/g,' ').trim(); }
+function userActive(){ return !navigator.userActivation || navigator.userActivation.hasBeenActive; }
+function speak(text,force){
+  if(!SS||!text) return; if(!GEN.voice.on||(GEN.voice.muted&&!force)) return;
+  if(!userActive()){ VQ=text; return; } // المتصفح لا يسمح بالصوت قبل أول لمسة
+  SS.cancel(); const v=arVoice();
+  speakClean(text).split(/(?<=[.،!؟])\s+/).reduce((acc,s)=>{ const l=acc[acc.length-1]; if(l && (l+' '+s).length<180) acc[acc.length-1]=l+' '+s; else acc.push(s); return acc; },[]).forEach(ch=>{
+    const u=new SpeechSynthesisUtterance(ch); u.lang=v?.lang||'ar-SA'; if(v) u.voice=v; u.rate=+GEN.voice.rate||1; SS.speak(u); });
+  setTimeout(syncVoiceBtns,100);
+}
+function stopSpeak(){ if(SS) SS.cancel(); VQ=null; setTimeout(syncVoiceBtns,50); }
+['pointerdown','keydown'].forEach(ev=>document.addEventListener(ev,()=>{ if(VQ){ const t=VQ; VQ=null; setTimeout(()=>speak(t),60); } },{capture:true}));
+if(SS && 'onvoiceschanged' in SS) SS.onvoiceschanged=()=>{};
+function greetText(){ const h=new Date().getHours(); return String(GEN.voice.greet.text||'').replace(/\{التحية\}/g,h<12?'صباح الخير':'مساء الخير'); }
+function summaryText(){ const R=GEN.voice.read, out=[];
+  if(R.updates){ try{ const u=updStats(); if(u.nNew) out.push(`لديك ${u.nNew} ${u.nNew===1?'بلاغ محدّث':'بلاغات محدّثة'} لم تُفتح بعد.`); }catch(e){} }
+  if(R.alerts){ try{ const al=evalRules(filtered); if(al.length){ out.push(`لديك ${al.length} تنبيه.`); const top=al.slice().sort((a,b)=>((b.sev||0)-(a.sev||0))||((b.diff??b.n??0)-(a.diff??a.n??0))).slice(0,3).map(a=>a.tick||a.title||'').filter(Boolean); if(top.length) out.push('أهمها: '+top.join('. ')+'.'); } }catch(e){} }
+  if(R.ticker){ try{ const it=tickerItems(dashStats(),evalRules(filtered)); if(it.length) out.push('آخر المستجدات: '+it.map(x=>x[1]).join('. ')+'.'); }catch(e){} }
+  return out.join(' '); }
+function voiceOnOpen(){ const V=GEN.voice; if(!V.on||V.muted) return; const parts=[];
+  if(V.greet.on && String(V.greet.text||'').trim()){ let go=true; if(V.greet.freq==='day'){ const td=iso(new Date()); try{ go=localStorage.getItem('r937-greet-last')!==td; if(go) localStorage.setItem('r937-greet-last',td); }catch(e){} } if(go) parts.push(greetText()); }
+  if(V.auto){ const s=summaryText(); if(s) parts.push(s); }
+  if(parts.length) speak(parts.join('. ')); }
+function syncVoiceBtns(){ const sp=SS&&(SS.speaking||SS.pending);
+  document.querySelectorAll('.tk-voice').forEach(b=>{ b.hidden=!GEN.voice.on; b.textContent=sp?'■':'🔊'; b.title=sp?'إيقاف القراءة':'قراءة صوتية'; });
+  document.querySelectorAll('.tk-mute').forEach(b=>{ b.hidden=!GEN.voice.on; b.textContent=GEN.voice.muted?'🔇':'🔈'; b.title=GEN.voice.muted?'الصوت مكتوم — اضغط للتشغيل':'كتم الصوت'; }); }
+setInterval(()=>{ if(SS&&GEN.voice.on) syncVoiceBtns(); },1000);
+document.addEventListener('click',e=>{ const b=e.target.closest('.tk-voice,.tk-mute'); if(!b) return; e.stopPropagation();
+  if(b.classList.contains('tk-mute')){ GEN.voice.muted=!GEN.voice.muted; saveGen(); if(GEN.voice.muted) stopSpeak(); toast(GEN.voice.muted?'كُتم القارئ الصوتي':'شُغّل القارئ الصوتي'); syncVoiceBtns(); return; }
+  if(SS&&(SS.speaking||SS.pending)){ stopSpeak(); return; }
+  const it=tickerItems(dashStats(),evalRules(filtered)); const t=[summaryText(), GEN.voice.read.ticker?'':(it.length?'آخر المستجدات: '+it.map(x=>x[1]).join('. '):'')].filter(Boolean).join(' ');
+  speak(t||'لا توجد مستجدات',true); },true);
+// ---- لوحة التحكم: إعدادات عامة
+function panelGeneral(){
+  const H=GEN.hdr, V=GEN.voice;
+  const sg=(name,vals,cur)=>`<div class="seg">${vals.map(([v,l])=>`<label><input type="radio" name="${name}" value="${v}" ${String(v)===String(cur)?'checked':''}><span>${l}</span></label>`).join('')}</div>`;
+  const ck=(id,on,l,sm)=>`<label class="opt"><input type="checkbox" id="${id}" ${on?'checked':''}><span>${l}${sm?`<small>${sm}</small>`:''}</span></label>`;
+  const row=(l,x)=>`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0"><span class="hint" style="min-width:110px">${l}</span>${x}</div>`;
+  const voices=SS?SS.getVoices().filter(v=>/^ar/i.test(v.lang)):[];
+  return `<div class="pcard"><h4>الترويسة (الجزء العلوي)</h4>
+    ${row('شكل التاريخ والوقت',sg('gStyle',[['a','(أ) سطر تحت العنوان'],['b','(ب) ساعة على الطرف'],['c','(ج) شريط مستقل أعلى'],['off','بدون']],H.style))}
+    ${row('ارتفاع المربع',sg('gSize',[['n','عادي'],['l','أطول'],['xl','أطول جداً']],H.size))}
+    <div class="checks" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px;margin:6px 0">${ck('gWday',H.wday,'اليوم')}${ck('gHijri',H.hijri,'التاريخ الهجري')}${ck('gGreg',H.greg,'التاريخ الميلادي')}${ck('gTime',H.time,'الوقت (12 ساعة: ص / م)')}</div>
+    ${row('الأرقام',sg('gDigits',[['latn','123'],['arab','١٢٣']],H.digits))}
+    <div style="display:grid;gap:8px;margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:10px">
+      ${ck('gLogo',H.logo,'إظهار الشعار أو صورة في الترويسة','يظهر على الكمبيوتر والجوال. إن لم تختر صورة يُستخدم شعار «الهوية».')}
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${H.img||BRAND.logo?`<img src="${H.img||BRAND.logo}" alt="" style="height:44px;border:1px solid var(--line);border-radius:8px;padding:3px;background:#fff">`:'<span class="hint">لا توجد صورة</span>'}
+        <label class="btn sm" style="cursor:pointer">اختيار صورة<input type="file" id="gImgIn" accept="image/*" hidden></label>${H.img?'<button type="button" class="btn sm ghost" id="gImgDel">حذف الصورة (والعودة لشعار الهوية)</button>':''}</div>
+      ${row('حجم الصورة',sg('gLogoH',[[34,'صغير'],[44,'متوسط'],[56,'كبير'],[70,'كبير جداً']],H.logoH))}
+    </div></div>
+  <div class="pcard"><h4>شريط الإجراءات (الجزء السفلي)</h4><p class="hint">رتّب الأزرار بالأسهم، وأخفِ ما لا تحتاجه.</p>
+    <div class="hlist">${GEN.acts.map(([k,on],i)=>`<div class="hrow"><label><input type="checkbox" data-gact="${k}" ${on?'checked':''}><span>${esc(ACT_DEF[k])}</span></label><div class="mv" style="display:flex;gap:2px"><button type="button" class="iconbtn" data-gmv="${k}" data-d="-1" ${i===0?'disabled':''} aria-label="للأعلى">${IC.up}</button><button type="button" class="iconbtn" data-gmv="${k}" data-d="1" ${i===GEN.acts.length-1?'disabled':''} aria-label="للأسفل">${IC.down}</button></div></div>`).join('')}</div>
+    <p class="hint" style="margin:6px 0 0">الأعلى في القائمة = أول زر من اليمين.</p></div>
+  <div class="pcard"><h4>القارئ الصوتي</h4>
+    ${SS?'':'<p class="err">هذا المتصفح لا يدعم القراءة الصوتية.</p>'}
+    ${ck('gVOn',V.on,'تفعيل القارئ الصوتي','عند الإيقاف تختفي كل خصائص الصوت، بما فيها الترحيب وأزرار الصوت في الشريط.')}
+    ${ck('gVMute',V.muted,'كتم الصوت مؤقتاً','نفس زر 🔈 / 🔇 في شريط المستجدات.')}
+    <div style="display:grid;gap:6px;margin:8px 0;padding:10px;border:1px solid var(--line);border-radius:10px"><b>ماذا يقرأ؟</b>
+      ${ck('gRUpd',V.read.updates,'تحديثات البلاغات الجديدة','مثال: «لديك 12 بلاغاً محدّثاً لم تُفتح بعد»')}
+      ${ck('gRAl',V.read.alerts,'أهم التنبيهات','عدد التنبيهات وأكبر ثلاثة منها')}
+      ${ck('gRTk',V.read.ticker,'كل ما في شريط المستجدات')}
+      ${ck('gVAuto',V.auto,'القراءة تلقائياً عند فتح التطبيق','وإلا تقرأ فقط عند الضغط على 🔊 في الشريط')}</div>
+    ${row('السرعة',sg('gRate',[[0.8,'بطيئة'],[1,'عادية'],[1.2,'سريعة']],V.rate))}
+    ${voices.length>1?row('الصوت',`<select class="inp" id="gVName" style="width:auto"><option value="">تلقائي</option>${voices.map(v=>`<option ${v.name===V.vname?'selected':''}>${esc(v.name)}</option>`).join('')}</select>`):''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn sm" id="gVTest">تجربة القراءة</button></div>
+    <div style="display:grid;gap:6px;margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:10px"><b>الترحيب الصوتي</b>
+      ${ck('gGOn',V.greet.on,'تشغيل الترحيب عند فتح التطبيق')}
+      <textarea class="inp" id="gGText" rows="3" placeholder="اكتب عبارة الترحيب">${esc(V.greet.text||'')}</textarea>
+      <span class="hint">{التحية} تُقرأ «صباح الخير» قبل الظهر و«مساء الخير» بعده.</span>
+      ${row('التكرار',sg('gGFreq',[['day','مرة واحدة في اليوم'],['open','عند كل فتح']],V.greet.freq))}
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn sm" id="gGTest">تجربة الترحيب</button><button type="button" class="btn sm ghost" id="gGReset">استعادة العبارة الأصلية</button><button type="button" class="btn sm ghost" id="gGDel">حذف العبارة</button></div>
+    </div>
+    <p class="hint" style="margin:8px 0 0">المتصفح لا يسمح بتشغيل الصوت قبل أول لمسة للشاشة، فيبدأ الترحيب مع أول لمسة بعد فتح التطبيق.</p></div>`;
+}
+function genChange(t){
+  const H=GEN.hdr, V=GEN.voice; let hit=true;
+  if(t.name==='gStyle') H.style=t.value; else if(t.name==='gSize') H.size=t.value; else if(t.name==='gDigits') H.digits=t.value; else if(t.name==='gLogoH') H.logoH=+t.value;
+  else if(t.id==='gWday') H.wday=t.checked?1:0; else if(t.id==='gHijri') H.hijri=t.checked?1:0; else if(t.id==='gGreg') H.greg=t.checked?1:0; else if(t.id==='gTime') H.time=t.checked?1:0; else if(t.id==='gLogo') H.logo=t.checked?1:0;
+  else if(t.dataset.gact){ const x=GEN.acts.find(a=>a[0]===t.dataset.gact); if(x) x[1]=t.checked?1:0; }
+  else if(t.id==='gVOn'){ V.on=t.checked?1:0; if(!V.on) stopSpeak(); } else if(t.id==='gVMute'){ V.muted=t.checked?1:0; if(V.muted) stopSpeak(); }
+  else if(t.id==='gRUpd') V.read.updates=t.checked?1:0; else if(t.id==='gRAl') V.read.alerts=t.checked?1:0; else if(t.id==='gRTk') V.read.ticker=t.checked?1:0; else if(t.id==='gVAuto') V.auto=t.checked?1:0;
+  else if(t.name==='gRate') V.rate=+t.value; else if(t.id==='gVName') V.vname=t.value;
+  else if(t.id==='gGOn') V.greet.on=t.checked?1:0; else if(t.id==='gGText') V.greet.text=t.value; else if(t.name==='gGFreq') V.greet.freq=t.value;
+  else if(t.id==='gImgIn'){ const f=t.files[0]; if(!f) return true; const rd=new FileReader(); rd.onload=()=>{ const img=new Image(); img.onload=()=>{ const h=Math.min(200,img.height), w=Math.round(img.width*h/img.height); const cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h); H.img=cv.toDataURL('image/png'); H.logo=1; saveGen(); renderHeader(); document.querySelector('[data-ptab=general]')?.click(); toast('أُضيفت الصورة للترويسة'); }; img.src=rd.result; }; rd.readAsDataURL(f); return true; }
+  else hit=false;
+  if(hit){ saveGen(); renderHeader(); applyActs(); syncVoiceBtns(); }
+  return hit;
+}
+function genAction(b){
+  if(b.dataset.gmv){ const L=GEN.acts, i=L.findIndex(x=>x[0]===b.dataset.gmv), j=i+(+b.dataset.d); if(j<0||j>=L.length) return; [L[i],L[j]]=[L[j],L[i]]; saveGen(); applyActs(); return 'redraw'; }
+  if(b.id==='gImgDel'){ GEN.hdr.img=''; saveGen(); renderHeader(); return 'redraw'; }
+  if(b.id==='gVTest'){ speak(summaryText()||'لا توجد تنبيهات أو تحديثات جديدة الآن.',true); return; }
+  if(b.id==='gGTest'){ const t=document.getElementById('gGText')?.value; if(!String(t||'').trim()){ toast('لا توجد عبارة ترحيب'); return; } GEN.voice.greet.text=t; speak(greetText(),true); return; }
+  if(b.id==='gGReset'){ GEN.voice.greet.text=DEF_GREET; saveGen(); return 'redraw'; }
+  if(b.id==='gGDel'){ GEN.voice.greet.text=''; GEN.voice.greet.on=0; saveGen(); toast('حُذفت عبارة الترحيب وأُوقف الترحيب'); return 'redraw'; }
+  return null;
+}
+
 /* ---------- install + offline ---------- */
 let installEvt=null; const standalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
 window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); installEvt=e; document.getElementById('btnInstall').hidden=false; });
@@ -3866,7 +4019,7 @@ try{ navigator.storage && navigator.storage.persist && navigator.storage.persist
   if(HOME.defView && HOME.views.some(v=>v[0]===HOME.defView&&v[1])){ view=HOME.defView; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); }
   applyHome(); applySide();
   renderAll();
-  renderBackupBanner(); renderViewerBar();
+  renderBackupBanner(); renderViewerBar(); try{ renderHeader(); applyActs(); }catch(e){ console.error(e); } setTimeout(voiceOnOpen,1200);
   try{ const m=sessionStorage.getItem('r937-cp-msg'); if(m){ sessionStorage.removeItem('r937-cp-msg'); setTimeout(()=>toast(m==='cancel'?'أُلغيت تغييرات لوحة التحكم':'لم تُحفظ تغييرات لوحة التحكم السابقة، فأُعيدت الإعدادات كما كانت'),400); } }catch(e){}
 })();
 window.__db={applyChange, slaKey, prep, buildPdf, printOpts, get LOG(){return LOG;}, evalRules, undoEntry, get HOME(){return HOME;}, kwIndex, parseNos, get BK(){return BK;}, maskNums, staffGroups, clinicGroups, pairGroups, buildReportXlsx, get recs(){return RECS;}, readXlsx, parseRecords, buildXlsx, buildReport, get filtered(){return filtered;}};
