@@ -685,7 +685,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '87';
+const APP_VER = '89';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'',
@@ -1006,7 +1006,7 @@ let filtered=[];
 /* ---------- change log & undo ---------- */
 const LOG_MAX=60, LOG_SNAP_MAX=25000;
 let LOG=[], LAST_LOG=null;
-const LOG_TYPES={reopen:'فحص حالة التذاكر',status:'تعبئة حالة البلاغ',add:'إضافة',edit:'تعديل',del:'حذف',import:'استيراد',update:'تحديث من ملف',bulk:'تعديل جماعي',replace:'استبدال القاعدة',clear:'مسح القاعدة',restore:'استعادة الملف الأصلي',dedupe:'حذف المكرر',sector:'تطبيق القطاعات',mask:'إخفاء الأرقام',undo:'تراجع'};
+const LOG_TYPES={reopen:'فحص تغييرات التذاكر',status:'تعبئة حالة البلاغ',add:'إضافة',edit:'تعديل',del:'حذف',import:'استيراد',update:'تحديث من ملف',bulk:'تعديل جماعي',replace:'استبدال القاعدة',clear:'مسح القاعدة',restore:'استعادة الملف الأصلي',dedupe:'حذف المكرر',sector:'تطبيق القطاعات',mask:'إخفاء الأرقام',undo:'تراجع'};
 async function loadLog(){ try{ const l=await dbMeta('changelog'); if(Array.isArray(l)) LOG=l; }catch(e){} LOG_VER++; }
 let LOG_VER=0;
 function saveLog(){
@@ -2608,7 +2608,7 @@ function controlPanel(tab){
     <div class="acts"><button type="button" class="btn primary" data-cpsave>حفظ</button><button type="button" class="btn" data-cpcancel>إلغاء</button><span class="hint" id="cpHint" style="align-self:center">تظهر التغييرات مباشرة للمعاينة، ولا تُحفظ إلا بعد الضغط على «حفظ».</span></div></div></div>`;
   cpBegin();
   const scrim=layer.firstChild, body=scrim.querySelector('#pbody');
-  const draw=()=>{ scrim.querySelectorAll('[data-ptab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.ptab===tab)); body.dataset.tab=tab; body.innerHTML=({home:panelHome,general:panelGeneral,filters:panelFilters,alerts:panelAlerts,log:panelLog,cols:()=>panelDur()+panelCols(),lists:panelLists,lock:panelLock,brand:panelBrand,data:panelData})[tab](); };
+  const draw=()=>{ scrim.querySelectorAll('[data-ptab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.ptab===tab)); body.dataset.tab=tab; body.innerHTML=({home:panelHome,general:panelGeneral,filters:panelFilters,alerts:panelAlerts,log:panelLog,cols:()=>panelDur()+panelRoset()+panelCols(),lists:panelLists,lock:panelLock,brand:panelBrand,data:panelData})[tab](); };
   scrim.addEventListener('click',async e=>{
     if(e.target===scrim||e.target.closest('[data-close]')){ cpTryClose(); return; }
     if(e.target.closest('[data-cpsave]')){ cpSave(); return; }
@@ -2887,6 +2887,9 @@ async function panelAction(b,body){
   if(b.id==='ruleAdd'){ const [t,sub]=body.querySelector('#ruleType').value.split('@'); const r={id:'r'+uid(),type:t,on:1,...(sub?{subset:sub,dir:'both'}:{})}; if(t==='center') Object.assign(r,{n:15,per:'week',auto:1,margin:1,floor:10}); if(t==='sub') Object.assign(r,{n:40,per:'week',auto:1,margin:1,floor:15}); if(t==='sector') Object.assign(r,{n:60,per:'week',auto:1,margin:1,floor:30}); if(t==='total') Object.assign(r,{n:200,per:'day'}); if(t==='caller') Object.assign(r,{n:3,days:30}); if(t==='kw') Object.assign(r,{name:'كلمات جديدة',words:''}); if(t==='rise') Object.assign(r,{field:'center',pct:30,min:10,days:7}); if(t==='value') Object.assign(r,{name:'متابعة جديدة',field:active('sub')?'sub':'main',values:''}); RULES.push(r); saveRules(); refresh(true); return 'redraw'; }
   if(b.id==='ruleReset'){ RULES=DEF_RULES.map(x=>({...x})); saveRules(); refresh(true); toast('استُعيدت القواعد الافتراضية'); return 'redraw'; }
   if(b.dataset.undo){ undoDialog(b.dataset.undo); return; }
+  if(b.id==='roAddBtn'){ const v=document.getElementById('roAdd').value.trim(); if(!v) return; if(!ROSET.closed.some(c=>nrm(c)===nrm(v))) ROSET.closed.push(v); saveRoset(); refresh(true); return 'redraw'; }
+  if(b.dataset.rodel){ ROSET.closed=ROSET.closed.filter(c=>c!==b.dataset.rodel); saveRoset(); refresh(true); return 'redraw'; }
+  if(b.id==='roReset'){ ROSET={...DEF_ROSET,closed:[...DEF_ROSET.closed]}; saveRoset(); refresh(true); return 'redraw'; }
   if(b.id==='logPinned'){ setTimeout(()=>pinnedDialog(),0); return; }
   if(b.id==='logPrune'){ if(!b.classList.contains('confirm')){ b.classList.add('confirm'); b.textContent='اضغط مرة أخرى للتأكيد'; return; } const d=+document.getElementById('logAge').value||30; const n0=LOG.length; keepPinned(LOG.filter(e=>Date.now()-new Date(e.t)>d*864e5)); LOG=LOG.filter(e=>Date.now()-new Date(e.t)<=d*864e5); LAST_LOG=LOG[0]||null; saveLog(); toast(`حُذفت ${fmt(n0-LOG.length)} عملية من السجل — البلاغات لم تتغيّر`); return 'redraw'; }
   if(b.id==='logLost'){ if(!b.classList.contains('confirm')){ b.classList.add('confirm'); b.textContent='اضغط مرة أخرى للتأكيد'; return; } const n0=LOG.length; LOG=LOG.filter(e=>!e.lost); LAST_LOG=LOG[0]||null; saveLog(); toast(`حُذفت ${fmt(n0-LOG.length)} عملية`); return 'redraw'; }
@@ -2963,6 +2966,8 @@ function panelChange(t){
   if(t.name==='hSide'){ HOME.side=t.value; saveHome(); applySide(); renderSide(); return; }
   if(genChange(t)) return;
   { const dr=durChange(t); if(dr==='redraw') return 'redraw'; if(dr) return; }
+  if(t.id==='roCol'){ ROSET.col=t.value; saveRoset(); refresh(true); return 'redraw'; }
+  if(t.name==='roMode'){ ROSET.mode=t.value; saveRoset(); refresh(true); return; }
   if(t.name==='hUpdView'){ HOME.updView=t.value; saveHome(); return; }
   if(t.name==='hFold'){ HOME.fold=t.value; saveHome(); renderSummary(); return; }
   if(t.name==='hTheme'){ HOME.theme=t.value; saveHome(); applyHome(); return; }
@@ -2996,7 +3001,7 @@ function panelChange(t){
 const SETTINGS_APP='r937-db-settings';
 function settingsSnapshot(){
   return {app:SETTINGS_APP, version:1, exported:nowLocal(), brand:BRAND, schema:schemaSerial(), secmap:SECMAP, clinics:CLINICS,
-    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE, filters:FCFG, staffOvr:SOVR, staffSrc:STAFF_SRC, staffPos:STAFF_POS, closerNames:CLOSER_NAMES, ctype:CTYPE, visitsSet:VSET, general:GEN, dur:DUR, fixes:FIX};
+    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE, filters:FCFG, staffOvr:SOVR, staffSrc:STAFF_SRC, staffPos:STAFF_POS, closerNames:CLOSER_NAMES, ctype:CTYPE, visitsSet:VSET, general:GEN, dur:DUR, fixes:FIX, reopenSet:ROSET};
 }
 async function exportSettings(){
   const blob=new Blob([JSON.stringify(settingsSnapshot(),null,2)],{type:'application/json'});
@@ -3018,6 +3023,7 @@ async function importSettings(file){
         if(Array.isArray(s.staffHide)){ STAFF_HIDE=new Set(s.staffHide); saveStaffHide(); }
         if(s.staffMin){ STAFF_MIN=+s.staffMin||1; localStorage.setItem('r937-staffmin-v1',String(STAFF_MIN)); }
         if(s.repeat){ RPT={min:2,short:false,...s.repeat}; saveRpt(); }
+        if(s.reopenSet && typeof s.reopenSet==='object'){ ROSET={...DEF_ROSET,...s.reopenSet}; saveRoset(); }
         if(Array.isArray(s.fixes)){ FIX=s.fixes; saveFix(); }
         if(s.dur && typeof s.dur==='object'){ DUR={...DEF_DUR,...s.dur}; saveDur(); }
         if(s.general && typeof s.general==='object'){ GEN=normGen(s.general); saveGen(); }
@@ -3084,7 +3090,7 @@ function parseNos(txt){ return [...new Set(String(txt||'').split(/[\s,،;؛]+/).
 function verifyDialog(prefill){
   const html=`<p>اكتب رقم بلاغ أو الصق عدة أرقام (كل رقم في سطر، أو مفصولة بمسافة أو فاصلة)، أو قارن ملف Excel بالقاعدة بدون استيراده.</p>
     <textarea class="inp" id="vNos" rows="4" dir="ltr" placeholder="B1234567&#10;B1234568" style="font-family:ui-monospace,Menlo,Consolas,monospace">${esc(prefill||'')}</textarea>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" id="vGo">تحقق</button><button type="button" class="btn" id="vFileBtn">مقارنة ملف Excel</button><button type="button" class="btn" id="vStatus">فحص حالة التذاكر</button><input type="file" id="vFile" accept=".xlsx,.xlsm" hidden></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" id="vGo">تحقق</button><button type="button" class="btn" id="vFileBtn">مقارنة ملف Excel</button><button type="button" class="btn" id="vStatus">فحص تغييرات التذاكر</button><input type="file" id="vFile" accept=".xlsx,.xlsm" hidden></div>
     <div id="vOut"></div>`;
   dialog({title:'التحقق من تسجيل البلاغات', wide:true, html, actions:[{label:'إغلاق'}], onOpen:s=>{
     s.querySelector('#vStatus')?.addEventListener('click',()=>{ document.getElementById('layer').innerHTML=''; pickStatusFile(); });
@@ -3775,6 +3781,7 @@ function continueImport(file,res){
       upd.length=0; updCh.forEach(x=>upd.push(x));
       busy('جارٍ الحفظ…'); try{ if(add.length||upd.length) await saveRecords(add.concat(upd),{type:mode==='onlyupd'?'update':'import',note:file.name}); else logChange(mode==='onlyupd'?'update':'import',{n:0,note:file.name}); } finally{ busy(null); }
       if(mode!=='onlyupd' && late.length) addLate(late,file.name);
+      { const rk=roKey(); if(rk && upd.length){ const rl=upd.map(n=>{ const o=existing.get(keyNo(n.no)); return o&&isReopen(o[rk],n[rk])?{o,from:o[rk]||'',to:n[rk]||'',ch:CK.filter(c=>vNorm(o[c])!==vNorm(n[c]))}:null; }).filter(Boolean); if(rl.length){ const sv=ROSET.mode; ROSET.mode='reopen'; addReopen(rl,file.name); ROSET.mode=sv; } } }
       if(upd.length || late.length || (!add.length && updAll)){ const eid=LAST_LOG?.id; toast((mode==='onlyupd'?`حُدّث ${fmt(upd.length)} بلاغ`:`أضيف ${fmt(add.length)} بلاغ${upd.length?` وحُدّث ${fmt(upd.length)}`:''}`)+(updAll>upd.length?` · ${fmt(updAll-upd.length)} بلاغ بدون تغيير`:'')); setTimeout(()=>importSummary(eid),60); return; }
       if(false){ setTimeout(()=>dialog({title:'تم الاستيراد', html:`<p style="margin-top:0">أضيف ${fmt(add.length)} بلاغ${upd.length?` وحُدّث ${fmt(upd.length)}`:''}.</p><div class="rpt-note" style="border-color:#D69E2E;background:color-mix(in srgb,#D69E2E 12%,transparent)"><span>⏱ <b>${fmt(late.length)} بلاغ متأخر</b>: تاريخه قبل آخر يوم مسجل (${esc(lastDay)})، فلن يظهر في أعلى السجلات.</span></div>`, actions:[{label:`عرض البلاغات المتأخرة (${fmt(late.length)})`,cls:'primary',run:()=>{ setTimeout(()=>lateDialog(),0); }},{label:'لاحقاً'}]}),50); return; }
       toast((mode==='onlyupd'?`حُدّث ${fmt(upd.length)} بلاغ`:`أضيف ${fmt(add.length)} بلاغ${upd.length?` وحُدّث ${fmt(upd.length)}`:''}`)+flagNote(add.concat(upd)));
@@ -4163,50 +4170,70 @@ function panelFix(){
 }
 
 /* ---------- فحص حالة التذاكر من ملف بدون استيراد + «معاد فتحها» ---------- */
-const REOPEN_KEY='r937-reopen-v1';
+const REOPEN_KEY='r937-reopen-v1', ROSET_KEY='r937-reopenset-v1';
+const DEF_ROSET={col:'حالة التذكرة',closed:['تم الحل','قياس رضا المستفيد','مكتملة'],mode:'reopen'};
+let ROSET=(()=>{ try{ return {...DEF_ROSET,...JSON.parse(localStorage.getItem(ROSET_KEY)||'{}')}; }catch(e){ return {...DEF_ROSET}; } })();
+const saveRoset=()=>{ try{ localStorage.setItem(ROSET_KEY,JSON.stringify(ROSET)); }catch(e){} };
+const roKey=()=>colByLabel(ROSET.col);
+// القيمة «مغلقة» إذا احتوت أياً من القيم المحددة (مثل «قياس رضا المستفيد - شكوى أفراد»)
+const isClosedVal=v=>{ const n=nrm(String(v||'')); return !!n && ROSET.closed.some(c=>{ const x=nrm(c); return x && n.includes(x); }); };
+const isReopen=(from,to)=>isClosedVal(from) && String(to||'').trim()!=='' && !isClosedVal(to);
+function addReopen(list,file,sel){ const at=new Date().toISOString(); let n=0;
+  list.forEach(h=>{ if(ROSET.mode!=='all' && !isReopen(h.from,h.to)) return; const k=keyNo(h.o.no); REOPEN=REOPEN.filter(x=>x.k!==k); REOPEN.push({k,at,file,from:h.from,to:h.to,st:h.from!==h.to?1:0,cols:(h.ch||[]).filter(c=>!sel||sel.includes(c)).map(c=>label(c))}); n++; });
+  saveReopen(); return n; }
 let REOPEN=(()=>{ try{ return JSON.parse(localStorage.getItem(REOPEN_KEY)||'[]')||[]; }catch(e){ return []; } })();
 const saveReopen=()=>{ try{ localStorage.setItem(REOPEN_KEY,JSON.stringify(REOPEN.slice(-2000))); }catch(e){} };
 // أعمدة يُسمح أن تُفرَّغ من الملف (إعادة فتح التذكرة تمسح «تاريخ الحل»)
 function clearableKeys(){ return [durStKey(),durEndKey(),colByLabel('تاريخ الحل من المنسق')].filter(Boolean); }
 function mergeFromFile(o,r,fields){ const base={...o}; delete base._s; delete base._m; const CL=new Set(clearableKeys());
   fields.forEach(k=>{ if(k==='no') return; const v=r[k]; if(v!==undefined && v!==null && String(v).trim()!=='') base[k]=v; else if(CL.has(k)) base[k]=''; }); return prep(clean(base)); }
-function reopenRecs(){ const m=new Map(RECS.map(r=>[keyNo(r.no),r])); return REOPEN.map(x=>({...x,r:m.get(x.k)})).filter(x=>x.r).reverse(); }
+function reopenRecs(){ const m=new Map(RECS.map(r=>[keyNo(r.no),r])); return REOPEN.filter(x=>ROSET.mode==='all'||isReopen(x.from,x.to)).map(x=>({...x,r:m.get(x.k)})).filter(x=>x.r).reverse(); }
 function reopenStats(){ const L=reopenRecs(); return {all:L.length,nNew:L.filter(x=>readState(x.r).st!=='read').length}; }
 function reopenTile(){ const u=reopenStats();
-  return `<div role="button" tabindex="0" class="kpi" data-dgo="reopendlg" style="cursor:pointer;${u.nNew?'border-color:color-mix(in srgb,#E5484D 55%,var(--line))':''}"><span class="lbl">معاد فتحها</span><span class="val" style="${u.nNew?'color:#E5484D':''}">${fmt(u.nNew)}</span><span class="sub">${u.all?`لم تُفتح · من ${fmt(u.all)} تذكرة`:'اضغط لفحص ملف حالات التذاكر'}</span></div>`; }
+  return `<div role="button" tabindex="0" class="kpi" data-dgo="reopendlg" style="cursor:pointer;${u.nNew?'border-color:color-mix(in srgb,#E5484D 55%,var(--line))':''}"><span class="lbl">معاد فتحها</span><span class="val" style="${u.nNew?'color:#E5484D':''}">${fmt(u.nNew)}</span><span class="sub">${u.all?`لم تُفتح · من ${fmt(u.all)} تذكرة`:'اضغط لفحص ملف التذاكر'}</span></div>`; }
 function pickStatusFile(){ guard(()=>{ const i=document.createElement('input'); i.type='file'; i.accept='.xlsx,.xlsm'; i.onchange=()=>{ const f=i.files[0]; if(f) checkStatusFile(f); }; i.click(); }); }
 async function checkStatusFile(file){
-  const sk=durStKey(); if(!sk){ toast('لا يوجد عمود «حالة التذكرة» في القاعدة — حدّده من لوحة التحكم ← الأعمدة ← المدة الزمنية'); return; }
+  const sk=roKey()||durStKey();
   let res; busy('جارٍ فحص الملف…');
   try{ res=parseRecords(await readXlsx(await file.arrayBuffer())); if(FIX.length) res.recs.forEach(applyFixRec); }catch(e){ busy(null); toast(e.message||'تعذرت قراءة الملف'); return; } busy(null);
-  if(!res.fields.has(sk)){ dialog({title:'فحص حالة التذاكر',html:`<p>الملف لا يحتوي عمود «${esc(label(sk))}».</p>`,actions:[{label:'حسناً',cls:'primary'}]}); return; }
   const ex=new Map(RECS.map(r=>[keyNo(r.no),r])); const CK=ALLK().filter(k=>k!=='id'&&k!=='no');
   const seen=new Set(), hits=[]; let notIn=0, same=0;
   res.recs.forEach(n=>{ const k=keyNo(n.no); if(!k||seen.has(k)) return; seen.add(k); const o=ex.get(k); if(!o){ notIn++; return; }
     const m=mergeFromFile(o,n,res.fields); const ch=CK.filter(c=>vNorm(o[c])!==vNorm(m[c]));
-    if(vNorm(o[sk])!==vNorm(m[sk])) hits.push({o,m,ch,from:o[sk]||'',to:m[sk]||''}); else same++; });
+    if(ch.length) hits.push({o,m,ch,from:sk?o[sk]||'':'',to:sk?m[sk]||'':'',stCh:!!sk&&ch.includes(sk)}); else same++; });
   hits.sort((a,b)=>String(a.o.date).localeCompare(String(b.o.date)));
   const L=hits.slice(0,400);
-  const CC=new Map(); hits.forEach(h=>h.ch.forEach(c=>CC.set(c,(CC.get(c)||0)+1))); const ccl=[...CC.entries()].sort((a,b)=>(b[0]===sk)-(a[0]===sk)||b[1]-a[1]);
-  dialog({title:'فحص حالة التذاكر', wide:true, html:`<p class="hint" style="margin-top:0">قورن الملف «${esc(file.name)}» بالقاعدة <b>بدون استيراد</b>. لم يتغيّر شيء بعد.</p>
-    <div class="stats" style="margin-bottom:10px"><div><b style="color:${hits.length?'#E5484D':'inherit'}">${fmt(hits.length)}</b><span>تذكرة تغيّرت حالتها</span></div><div><b>${fmt(same)}</b><span>حالتها كما هي</span></div><div><b>${fmt(notIn)}</b><span>غير موجودة في القاعدة</span></div></div>
-    ${hits.length?`<div class="ctbl-wrap" style="max-height:50vh"><table class="ctbl"><thead><tr><th>رقم البلاغ</th><th>تاريخ البلاغ</th><th>المركز</th><th>الحالة في القاعدة</th><th>الحالة في الملف</th><th>أعمدة أخرى تتغيّر</th></tr></thead><tbody>${L.map(h=>`<tr><td><b dir="ltr">${esc(h.o.no)}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(h.o.date||''))}</td><td>${esc(shortName(h.o.center||''))}</td><td style="color:var(--muted);text-decoration:line-through">${esc(h.from||'فارغ')}</td><td><b>${esc(h.to||'فارغ')}</b></td><td style="font-size:12px">${esc(h.ch.filter(c=>c!==sk).map(c=>label(c)).join('، ')||'—')}</td></tr>`).join('')}</tbody></table></div>${hits.length>L.length?`<p class="hint">يظهر أقدم ${fmt(L.length)}.</p>`:''}
+  const CC=new Map(); hits.forEach(h=>h.ch.forEach(c=>CC.set(c,(CC.get(c)||0)+1))); const ccl=[...CC.entries()].sort((a,b)=>b[1]-a[1]);
+  const nSt=hits.filter(h=>h.stCh).length, nRo=hits.filter(h=>isReopen(h.from,h.to)).length;
+  dialog({title:'فحص تغييرات التذاكر', wide:true, html:`<p class="hint" style="margin-top:0">قورنت كل أعمدة الملف «${esc(file.name)}» بالقاعدة <b>بدون استيراد</b>. لم يتغيّر شيء بعد.</p>
+    <div class="stats" style="margin-bottom:10px"><div><b style="color:${hits.length?'#E5484D':'inherit'}">${fmt(hits.length)}</b><span>تذكرة فيها تغيير${sk?` (منها ${fmt(nSt)} تغيّرت حالتها، و<b style="color:#E5484D">${fmt(nRo)} معاد فتحها</b>)`:''}</span></div><div><b>${fmt(same)}</b><span>بدون أي تغيير</span></div><div><b>${fmt(notIn)}</b><span>غير موجودة في القاعدة</span></div></div>
+    ${hits.length?`<div class="ctbl-wrap" style="max-height:50vh"><table class="ctbl"><thead><tr><th>رقم البلاغ</th><th>تاريخ البلاغ</th><th>المركز</th><th>ما تغيّر</th>${sk?'<th>الحالة</th>':''}</tr></thead><tbody>${L.map(h=>`<tr><td><b dir="ltr">${esc(h.o.no)}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(h.o.date||''))}</td><td>${esc(shortName(h.o.center||''))}</td><td style="font-size:12.5px"><b>${esc(h.ch.map(c=>label(c)).join('، '))}</b></td>${sk?`<td style="font-size:12.5px">${h.stCh?`${isReopen(h.from,h.to)?'<b style="color:#E5484D">↺ معاد فتحها</b><br>':''}<span style="color:var(--muted);text-decoration:line-through">${esc(h.from||'فارغ')}</span> ← <b>${esc(h.to||'فارغ')}</b>`:`<span class="hint">${esc(h.from||'—')}</span>`}</td>`:''}</tr>`).join('')}</tbody></table></div>${hits.length>L.length?`<p class="hint">يظهر أقدم ${fmt(L.length)}.</p>`:''}
     <div style="margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:10px;display:grid;gap:6px"><b>الأعمدة التي ستُحدَّث عند الاستيراد</b><span class="hint">التذكرة نفسها تُحدَّث برقمها ولا تُكرَّر. كل الأعمدة المتغيّرة محددة؛ ألغِ تحديد أي عمود لا تريد تحديثه ليبقى كما هو.</span>
-      ${ccl.map(([c,n])=>`<label class="opt"><input type="checkbox" data-cc="${esc(c)}" checked><span>${esc(label(c))}<small>يتغيّر في ${fmt(n)} تذكرة</small></span></label>`).join('')}</div>`:'<p class="ro-empty" style="padding:14px;text-align:center">لا توجد تذاكر تغيّرت حالتها.</p>'}`,
+      ${ccl.map(([c,n])=>`<label class="opt"><input type="checkbox" data-cc="${esc(c)}" checked><span>${esc(label(c))}<small>يتغيّر في ${fmt(n)} تذكرة</small></span></label>`).join('')}</div>`:'<p class="ro-empty" style="padding:14px;text-align:center">لا توجد أي تغييرات: كل تذاكر الملف مطابقة للقاعدة.</p>'}`,
     actions:[...(hits.length&&!VIEWER?[{label:`تحديث الأعمدة المحددة فقط (${fmt(hits.length)} تذكرة)`,cls:'primary',run:async(dl)=>{ const at=new Date().toISOString();
         const sel=[...(dl||document).querySelectorAll('[data-cc]:checked')].map(x=>x.dataset.cc); if(!sel.length){ toast('اختر عموداً واحداً على الأقل'); return false; }
         const puts=hits.map(h=>{ const n={...h.o}; delete n._s; delete n._m; sel.forEach(c=>{ n[c]=h.m[c]; }); return prep(clean(n)); });
         busy('جارٍ الحفظ…'); try{ await saveRecords(puts,{type:'reopen',note:file.name+' · '+sel.map(c=>label(c)).join('، ')}); } finally{ busy(null); }
-        const have=new Map(REOPEN.map(x=>[x.k,x])); hits.forEach(h=>{ const k=keyNo(h.o.no); have.delete(k); REOPEN=REOPEN.filter(x=>x.k!==k); REOPEN.push({k,at,file:file.name,from:h.from,to:h.to}); }); saveReopen();
-        toast(`حُدّثت ${fmt(hits.length)} تذكرة`); setTimeout(()=>reopenDialog('new'),60); }}]:[]),
+        const nR=addReopen(hits.map(h=>sel.includes(sk)?h:{...h,to:h.from}),file.name,sel);
+        toast(`حُدّثت ${fmt(hits.length)} تذكرة${nR?` · ${fmt(nR)} في «معاد فتحها»`:''}`); if(nR) setTimeout(()=>reopenDialog('new'),60); }}]:[]),
       ...(hits.length?[{label:'عرضها في السجلات',run:()=>{ filt={...filt,q:'',from:'',to:'',nos:hits.map(h=>keyNo(h.o.no)).join(' ')}; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); toast('تُعرض بحالتها الحالية في القاعدة — لم تُستورد بعد'); }}]:[]),{label:'إغلاق'}]});
+}
+function panelRoset(){
+  const k=roKey(); const vals=k?countBy(RECS,k).filter(x=>x[0]):[]; const cols=SCHEMA.filter(c=>!c.removed).map(c=>c.l);
+  return `<div class="pcard"><h4>بطاقة «معاد فتحها»</h4><p class="hint">تذكرة «معاد فتحها» = تغيّرت قيمة العمود المحدد من حالة مغلقة إلى أي حالة أخرى، في الاستيراد أو في «فحص تغييرات التذاكر».</p>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0"><span class="hint">عمود الحالة</span><select class="inp" id="roCol" style="width:auto">${cols.map(l=>`<option ${l===ROSET.col?'selected':''}>${esc(l)}</option>`).join('')}</select></div>
+    <div style="display:grid;gap:6px;margin-top:6px;padding:10px;border:1px solid var(--line);border-radius:10px"><b>الحالات المغلقة</b><span class="hint">القيمة تُعد مغلقة إذا احتوت إحدى هذه العبارات (مثل «قياس رضا المستفيد - شكوى أفراد»).</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${ROSET.closed.map(c=>`<span class="badge" style="display:inline-flex;gap:6px;align-items:center;padding:4px 10px">${esc(c)}<button type="button" class="iconbtn" data-rodel="${esc(c)}" aria-label="حذف" style="width:20px;height:20px;font-size:12px">✕</button></span>`).join('')}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><input class="inp" id="roAdd" list="roVals" placeholder="أضف حالة مغلقة" style="flex:1;min-width:160px"><datalist id="roVals">${vals.map(([v])=>`<option value="${esc(v)}">`).join('')}</datalist><button type="button" class="btn sm" id="roAddBtn">إضافة</button><button type="button" class="btn sm ghost" id="roReset">الافتراضي</button></div>
+      ${vals.length?`<details><summary class="hint" style="cursor:pointer">قيم العمود الموجودة في القاعدة (${fmt(vals.length)})</summary><div style="display:grid;gap:3px;margin-top:6px;font-size:12.5px">${vals.map(([v,n])=>`<div>${isClosedVal(v)?'<b style="color:#8A9693">● مغلقة</b>':'<b style="color:#1F9D62">● مفتوحة</b>'} ${esc(v)} <span class="hint">(${fmt(n)})</span></div>`).join('')}</div></details>`:''}</div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px"><span class="hint">تظهر في البطاقة</span><div class="seg"><label><input type="radio" name="roMode" value="reopen" ${ROSET.mode!=='all'?'checked':''}><span>المعاد فتحها فقط</span></label><label><input type="radio" name="roMode" value="all"  ${ROSET.mode==='all'?'checked':''}><span>كل التذاكر المتغيّرة من الفحص</span></label></div></div></div>`;
 }
 function reopenDialog(tab){
   const L=reopenRecs(), nw=L.filter(x=>readState(x.r).st!=='read'); tab=tab||(nw.length?'new':'all'); const list=tab==='new'?nw:L;
   const tb=(k,l,n)=>`<button type="button" class="btn sm ${tab===k?'primary':''}" data-rtab="${k}">${l} (${fmt(n)})</button>`;
-  dialog({title:'معاد فتحها', wide:true, html:`<p class="hint" style="margin-top:0">تذاكر تغيّرت حالتها واستُوردت من «فحص حالة التذاكر». اضغط أي تذكرة لعرض ما تغيّر فيها.</p>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${tb('new','لم تُفتح',nw.length)}${tb('all','الكل',L.length)}<button type="button" class="btn sm" id="rCheck">فحص ملف حالات التذاكر</button></div>
-    ${list.length?`<div class="ctbl-wrap" style="max-height:56vh"><table class="ctbl"><thead><tr><th style="width:44px"></th><th>رقم البلاغ</th><th>تاريخ البلاغ</th><th>المركز</th><th>الحالة</th><th>وقت الفحص</th></tr></thead><tbody>${list.slice(0,500).map(x=>`<tr data-openrec="${esc(x.r.id)}" style="cursor:pointer"><td style="text-align:center">${envHTML(x.r)}</td><td><b dir="ltr">${esc(x.r.no||'')}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(x.r.date||''))}</td><td>${esc(shortName(x.r.center||''))}</td><td style="font-size:12.5px"><span style="color:var(--muted);text-decoration:line-through">${esc(x.from||'فارغ')}</span> ← <b>${esc(x.to||'فارغ')}</b></td><td dir="ltr" style="text-align:right;font-size:12px">${esc(fmtLocal(x.at))}</td></tr>`).join('')}</tbody></table></div>`:`<p class="ro-empty" style="padding:20px;text-align:center">${L.length?'كل التذاكر المعاد فتحها تم فتحها.':'لا توجد تذاكر بعد. اضغط «فحص ملف حالات التذاكر» واختر ملف Care.'}</p>`}`,
+  dialog({title:'معاد فتحها', wide:true, html:`<p class="hint" style="margin-top:0">${ROSET.mode==='all'?'كل التذاكر التي حُدّثت من «فحص تغييرات التذاكر» أو الاستيراد.':`تذاكر تغيّرت «${esc(ROSET.col)}» فيها من حالة مغلقة (${esc(ROSET.closed.join('، '))}) إلى حالة أخرى — من الفحص أو الاستيراد.`} اضغط أي تذكرة لعرض «قبل / بعد». <span style="opacity:.8">(تُضبط من لوحة التحكم ← الأعمدة)</span></p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${tb('new','لم تُفتح',nw.length)}${tb('all','الكل',L.length)}<button type="button" class="btn sm" id="rCheck">فحص ملف التذاكر</button></div>
+    ${list.length?`<div class="ctbl-wrap" style="max-height:56vh"><table class="ctbl"><thead><tr><th style="width:44px"></th><th>رقم البلاغ</th><th>تاريخ البلاغ</th><th>المركز</th><th>الحالة / ما تغيّر</th><th>وقت الفحص</th></tr></thead><tbody>${list.slice(0,500).map(x=>`<tr data-openrec="${esc(x.r.id)}" style="cursor:pointer"><td style="text-align:center">${envHTML(x.r)}</td><td><b dir="ltr">${esc(x.r.no||'')}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(x.r.date||''))}</td><td>${esc(shortName(x.r.center||''))}</td><td style="font-size:12.5px">${x.st===0?`<span class="hint">تغيّر:</span> <b>${esc((x.cols||[]).join('، ')||'—')}</b>`:`<span style="color:var(--muted);text-decoration:line-through">${esc(x.from||'فارغ')}</span> ← <b>${esc(x.to||'فارغ')}</b>`}</td><td dir="ltr" style="text-align:right;font-size:12px">${esc(fmtLocal(x.at))}</td></tr>`).join('')}</tbody></table></div>`:`<p class="ro-empty" style="padding:20px;text-align:center">${L.length?'كل التذاكر المعاد فتحها تم فتحها.':'لا توجد تذاكر بعد. اضغط «فحص ملف التذاكر» واختر ملف Care.'}</p>`}`,
     actions:[...(L.length?[{label:'عرضها في السجلات',run:()=>{ filt={...filt,q:'',from:'',to:'',nos:L.map(x=>x.k).join(' ')}; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); }}]:[]),
       ...(L.length&&!VIEWER?[{label:'مسح القائمة',run:()=>{ REOPEN=[]; saveReopen(); toast('مُسحت القائمة — البلاغات لم تتغيّر'); refresh(true); }}]:[]),{label:'إغلاق',cls:'primary'}],
     onOpen:s=>s.addEventListener('click',e=>{ if(e.target.closest('#rCheck')){ document.getElementById('layer').innerHTML=''; pickStatusFile(); return; }
