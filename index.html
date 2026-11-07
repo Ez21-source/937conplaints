@@ -685,7 +685,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '82';
+const APP_VER = '84';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'',
@@ -770,7 +770,7 @@ const MONTHS=['يناير','فبراير','مارس','أبريل','مايو','ي
 const monthOf = r => r.month || (r.date ? `${MONTHS[+r.date.slice(5,7)-1]} ${r.date.slice(0,4)}` : '');
 const monthKey = r => r.date ? r.date.slice(0,7) : '';
 const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmt = n => Math.round(n).toLocaleString('en-US');
+const NF_EN=new Intl.NumberFormat('en-US'); const fmt = n => NF_EN.format(Math.round(n));
 const pct = (a,b) => b ? (a/b*100).toFixed(1).replace(/\.0$/,'')+'%' : '—';
 const fmtDate = d => d ? d.replace('T',' ').slice(0,16).replace(/-/g,'/') : '';
 function nrm(v){ return String(v??'').toLowerCase().replace(/ـ/g,'').replace(/[ً-ْ]/g,'').replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').replace(/ؤ/g,'و').replace(/ئ/g,'ي').replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-0x660)).replace(/\s+/g,' ').trim(); }
@@ -1007,9 +1007,10 @@ let filtered=[];
 const LOG_MAX=60, LOG_SNAP_MAX=25000;
 let LOG=[], LAST_LOG=null;
 const LOG_TYPES={status:'تعبئة حالة البلاغ',add:'إضافة',edit:'تعديل',del:'حذف',import:'استيراد',update:'تحديث من ملف',bulk:'تعديل جماعي',replace:'استبدال القاعدة',clear:'مسح القاعدة',restore:'استعادة الملف الأصلي',dedupe:'حذف المكرر',sector:'تطبيق القطاعات',mask:'إخفاء الأرقام',undo:'تراجع'};
-async function loadLog(){ try{ const l=await dbMeta('changelog'); if(Array.isArray(l)) LOG=l; }catch(e){} }
+async function loadLog(){ try{ const l=await dbMeta('changelog'); if(Array.isArray(l)) LOG=l; }catch(e){} LOG_VER++; }
+let LOG_VER=0;
 function saveLog(){
-  LOG=LOG.slice(0,LOG_MAX);
+  LOG_VER++; LOG=LOG.slice(0,LOG_MAX);
   let snap=0; for(const e of LOG){ const n=(e.before?e.before.length:0); if(e.lost) continue; if(snap+n>LOG_SNAP_MAX){ e.before=null; e.added=null; e.lost=1; } else snap+=n; }
   return dbSetMeta('changelog',LOG).catch(e=>console.error(e));
 }
@@ -1195,7 +1196,13 @@ function autoLimits(rule){
     if(d!=='down' && g.cur>g.th && g.cur>=fl && (isP?(g.th?(g.cur-g.th)/g.th*100>=P:true):g.cur-g.th>=mg)) return 'up';
     if(d!=='up' && g.th>g.cur && g.th>=fl && (isP?(g.th-g.cur)/g.th*100>=P:g.th-g.cur>=mg)) return 'down'; return ''; })():(g.cur>=(+rule.n||1)?'up':'')})).sort((a,b)=>(!!b.hit-!!a.hit)||Math.abs(b.cur-b.th)-Math.abs(a.cur-a.th));
 }
+// التنبيهات تُحسب مرة واحدة لنفس البيانات والقواعد بدل تكرارها في كل بطاقة وشريط
+let ER_C={list:null,sig:'',out:null};
 function evalRules(list){
+  const sig=RECS.length+'|'+LOG_VER+'|'+JSON.stringify(RULES)+'|'+(typeof WEEK_START!=='undefined'?WEEK_START:'')+'|'+filt.from+'|'+filt.to;
+  if(ER_C.list===list && ER_C.sig===sig) return ER_C.out;
+  const out=evalRules0(list); ER_C={list,sig,out}; return out; }
+function evalRules0(list){
   const out=[];
   let base=null; const getBase=()=>base||(base=baseNoDates());
   RULES.filter(r=>r.on).forEach(rule=>{
@@ -1369,7 +1376,7 @@ function tickerHTML(items){
   if(!items.length) return '';
   let copy=items.slice(); while(copy.length<14) copy=copy.concat(items);
   const one=copy.map(([t,x])=>`<span class="tk-i tk-${t}">${esc(x)}</span>`).join('');
-  return `<div class="ticker" role="marquee" aria-label="شريط الأخبار"><span class="tk-lbl">آخر المستجدات</span><div class="tk-win"><div class="tk-track"><div class="tk-copy">${one}</div><div class="tk-copy" aria-hidden="true">${one}</div></div></div><button type="button" class="tk-pause tk-voice" ${GEN.voice.on?'':'hidden'} aria-label="قراءة صوتية" title="قراءة صوتية">🔊</button><button type="button" class="tk-pause tk-mute" ${GEN.voice.on?'':'hidden'} aria-label="كتم الصوت" title="${GEN.voice.muted?'الصوت مكتوم':'كتم الصوت'}">${GEN.voice.muted?'🔇':'🔈'}</button><button type="button" class="tk-pause" aria-label="إيقاف الشريط" title="إيقاف / تشغيل">❚❚</button></div>`;
+  return `<div class="ticker" role="marquee" aria-label="شريط الأخبار"><span class="tk-lbl">آخر المستجدات</span><div class="tk-win"><div class="tk-track"><div class="tk-copy">${one}</div><div class="tk-copy" aria-hidden="true">${one}</div></div></div><button type="button" class="tk-pause tk-voice" hidden aria-label="قراءة صوتية" title="قراءة صوتية">🔊</button><button type="button" class="tk-pause tk-mute" hidden aria-label="كتم الصوت" title="${GEN.voice.muted?'الصوت مكتوم':'كتم الصوت'}">${GEN.voice.muted?'🔇':'🔈'}</button><button type="button" class="tk-pause" aria-label="إيقاف الشريط" title="إيقاف / تشغيل">❚❚</button></div>`;
 }
 function startTicker(root){
   root.querySelectorAll('.ticker').forEach(tk=>{ const tr=tk.querySelector('.tk-track'), c=tk.querySelector('.tk-copy'); if(!tr||!c) return;
@@ -1455,7 +1462,11 @@ const STAT_KEY='r937-status-v1';
 const DEF_STAT={on:1,target:'حالة البلاغ',src1:'الإجراء المتخذ من الضابط',src2:'القرار الأخير من المنطقة',pending:'تحت الإجراء',mid:'src1',final:'src2'};
 let STAT=(()=>{ try{ return {...DEF_STAT,...JSON.parse(localStorage.getItem(STAT_KEY)||'{}')}; }catch(e){ return {...DEF_STAT}; } })();
 const saveStat=()=>{ try{ localStorage.setItem(STAT_KEY,JSON.stringify(STAT)); }catch(e){} };
-function colByLabel(l){ const n=nrm(l); if(!n) return null; const cs=(typeof SCHEMA!=='undefined'?SCHEMA:[]).filter(c=>!c.removed); const c=cs.find(c=>nrm(c.l)===n)||cs.find(c=>nrm(c.l).replace(/^ال/,'')===n.replace(/^ال/,'')); return c?c.k:null; }
+const CBL_CACHE=new Map(); let CBL_SIG='';
+function colByLabel(l){ const SC=(typeof SCHEMA!=='undefined'?SCHEMA:[]); let sig=SC.length+'|'; for(const c of SC) sig+=(c.removed?'x':'')+c.l.length; // يُعاد الحساب فقط إذا تغيّرت الأعمدة
+  if(sig!==CBL_SIG){ CBL_CACHE.clear(); CBL_SIG=sig; } const key=String(l??''); if(CBL_CACHE.has(key)) return CBL_CACHE.get(key);
+  const n=nrm(l); let out=null; if(n){ const cs=SC.filter(c=>!c.removed); const c=cs.find(c=>nrm(c.l)===n)||cs.find(c=>nrm(c.l).replace(/^ال/,'')===n.replace(/^ال/,'')); out=c?c.k:null; }
+  CBL_CACHE.set(key,out); return out; }
 function statusKeys(){ if(!STAT.on) return null; const t=colByLabel(STAT.target); if(!t) return null; return {t,a:colByLabel(STAT.src1),b:colByLabel(STAT.src2)}; }
 function deriveStatus(o,K){
   K=K||statusKeys(); if(!K) return o;
@@ -1954,7 +1965,7 @@ const sig=r=>{ const o=stripIdx(r); delete o.id; return JSON.stringify(o); };
 function bumpRev(oldR,newR){ if(!oldR||!newR) return; if(sig(oldR)===sig(newR)) return; const k=rKey(newR); if(!k) return; READ.rev[k]=(READ.rev[k]||0)+1; }
 const ENV_C='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 6.5A2.5 2.5 0 0 1 5.5 4h13A2.5 2.5 0 0 1 21 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" opacity=".22"/><path d="M3.6 6.2 12 12.6l8.4-6.4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><rect x="3" y="4" width="18" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.9"/></svg>';
 const ENV_O='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 10.5 12 4l9 6.5V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="m3.5 11 8.5 5.5 8.5-5.5"/></svg>';
-function envHTML(r){ const s=readState(r); let cf=''; if(s.st==='upd'){ try{ const h=recChanges(r)[0]; if(h) cf=' — تغيّر: '+h.ch.map(c=>label(c[0])).join('، '); }catch(e){} }
+function envHTML(r){ const s=readState(r); const cf='';
   return s.st==='read'?`<span class="env" title="تم فتحه">${ENV_O}</span>`:`<span class="env ${s.st}" title="${s.st==='new'?'لم يُفتح بعد':`تحديثات لم تُفتح: ${s.n}${esc(cf)}`}">${ENV_C}${s.st==='upd'?`<b>${s.n>99?'99+':s.n}</b>`:''}</span>`; }
 function renderView(){
   navPush(); setTimeout(renderSide,0); setTimeout(applyFolds,0);
@@ -2318,16 +2329,21 @@ function fieldValueHTML(r,c){
 }
 // ما الذي تغيّر في البلاغ: من سجل التغييرات (لقطة «قبل» لكل عملية) مقارنةً بالحالة التي تلتها
 const vNorm=v=>String(v??'').replace(/\s+/g,' ').trim();
+// فهرس سجل التغييرات: لكل بلاغ قائمة لقطاته (الأحدث أولاً) — يُبنى مرة واحدة لكل نسخة من السجل بدل البحث في السجل كله لكل بلاغ
+let LIDX=null, LIDX_V=-1;
+function logIdx(){ if(LIDX && LIDX_V===LOG_VER) return LIDX; const m=new Map();
+  LOG.forEach(e=>{ if(['undo','replace','clear'].includes(e.type)) return; (e.before||[]).forEach(b=>{ let a=m.get(b.id); if(!a){ a=[]; m.set(b.id,a); } a.push({e,b}); }); });
+  LIDX=m; LIDX_V=LOG_VER; return m; }
 function recChanges(r){
-  const ents=LOG.filter(e=>!['undo','replace','clear'].includes(e.type) && (e.before||[]).some(x=>x.id===r.id)).reverse(); // الأقدم أولاً
+  const ents=(logIdx().get(r.id)||[]).slice().reverse(); // الأقدم أولاً
   const out=[]; const keys=ALLK().filter(k=>k!=='id');
-  ents.forEach((e,i)=>{ const b=e.before.find(x=>x.id===r.id); const nx=ents[i+1]; const a=nx?nx.before.find(x=>x.id===r.id):r;
+  ents.forEach(({e,b},i)=>{ const nx=ents[i+1]; const a=nx?nx.b:r;
     const ch=keys.filter(k=>col(k) && vNorm(b[k])!==vNorm(a[k])).map(k=>[k,cellText(b,k),cellText(a,k)]);
     if(ch.length) out.push({t:e.t,type:e.type,note:e.note,ch}); });
   return out.reverse(); // الأحدث أولاً
 }
 function changesHTML(r,unseen){
-  const H=recChanges(r); if(!H.length) return unseen?`<div class="rpt-note" style="border-color:#D69E2E;background:color-mix(in srgb,#D69E2E 12%,transparent)"><span>🔔 تحدّث هذا البلاغ ${fmt(unseen)} ${unseen===1?'مرة':'مرات'} بعد الاستيراد، لكن تفاصيل التغيير غير محفوظة (حدث قبل تفعيل هذه الميزة أو حُذف من سجل التغييرات).</span></div>`:'';
+  const H=recChanges(r); if(!H.length) return unseen?`<div class="rpt-note" style="border-color:#D69E2E;background:color-mix(in srgb,#D69E2E 12%,transparent)"><span>🔔 تحدّث هذا البلاغ ${fmt(unseen)} ${unseen===1?'مرة':'مرات'} في الاستيراد، لكن لا يمكن عرض ما تغيّر: التحديث كان ضمن استيراد كبير لم يحفظ التطبيق نسخته السابقة (أو حُذف من سجل التغييرات). البيانات الظاهرة هنا هي الحالية الصحيحة.</span></div>`:'';
   const cut=v=>{ v=String(v??''); return v===''?'<span class="ro-empty">فارغ</span>':esc(v.length>220?v.slice(0,220)+'…':v); };
   const one=(h,isNew)=>`<div style="display:grid;gap:4px;margin-top:6px"><div style="font-size:12.5px;color:var(--muted)">${isNew?'<b style="color:#B7791F">جديد</b> · ':''}${esc(LOG_TYPES[h.type]||h.type)} · ${esc(fmtDate((d=>`${iso(d)}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`)(new Date(h.t))))}${h.note?' · '+esc(h.note):''}</div>
     <div class="ctbl-wrap" style="max-height:none"><table class="ctbl"><thead><tr><th style="width:24%">الحقل</th><th>قبل</th><th>بعد</th></tr></thead><tbody>${h.ch.map(([k,a,b])=>`<tr><td><b>${esc(label(k))}</b></td><td style="color:var(--muted);text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--bad) 60%,transparent)">${cut(a)}</td><td style="background:color-mix(in srgb,#D69E2E 14%,transparent)"><b>${cut(b)}</b></td></tr>`).join('')}</tbody></table></div></div>`;
@@ -2357,7 +2373,7 @@ function lateDialog(tab){
       const o=e.target.closest('[data-openrec]'); if(o){ const r=byId.get(o.dataset.openrec); if(r){ document.getElementById('layer').innerHTML=''; viewRecord(r); } } })});
 }
 // بطاقة ونافذة التحديثات
-function lastUpdIdx(){ const m=new Map(); LOG.forEach(e=>{ if(['undo','replace','clear'].includes(e.type)) return; (e.before||[]).forEach(b=>{ if(!m.has(b.id)) m.set(b.id,{t:e.t,type:e.type,note:e.note}); }); }); return m; }
+function lastUpdIdx(){ const m=new Map(); logIdx().forEach((a,id)=>{ const e=a[0].e; m.set(id,{t:e.t,type:e.type,note:e.note}); }); return m; }
 function updStats(){ let nNew=0, all=0; filtered.forEach(r=>{ if(revTotal(r)){ all++; if(readState(r).st==='upd') nNew++; } }); return {nNew,all}; }
 function updTile(){ const u=updStats();
   return `<div role="button" tabindex="0" class="kpi" data-dgo="upddlg" style="cursor:pointer;${u.nNew?'border-color:color-mix(in srgb,#D69E2E 60%,var(--line))':''}"><span class="lbl">تحديثات البلاغات</span><span class="val" style="${u.nNew?'color:#B7791F':''}">${fmt(u.nNew)}</span><span class="sub">${u.all?`تحديث جديد لم يُفتح · ${fmt(u.all-u.nNew)} سابق`:'لا توجد بلاغات محدّثة'}</span></div>`; }
@@ -2395,7 +2411,7 @@ function updatesDialog(tab){
 }
 // ملخص الاستيراد: الأعمدة التي تغيّرت في عملية استيراد واحدة
 const impEntries=()=>LOG.filter(e=>['import','update'].includes(e.type));
-function impAfter(idx,id){ for(let j=idx-1;j>=0;j--){ const b=(LOG[j].before||[]).find(x=>x.id===id); if(b) return b; } return byId.get(id); }
+function impAfter(idx,id){ const a=logIdx().get(id)||[]; const e=LOG[idx]; const i=a.findIndex(x=>x.e===e); return i>0?a[i-1].b:byId.get(id); }
 const IMP_CACHE=new Map();
 function impStats(e){ const key=e.id+'|'+LOG.length+'|'+RECS.length; if(IMP_CACHE.has(key)) return IMP_CACHE.get(key);
   const idx=LOG.indexOf(e), keys=ALLK().filter(k=>k!=='id'), by=new Map(); let upd=0;
@@ -2408,7 +2424,7 @@ function impTag(code){ const [eid,k]=String(code).split('|'); const e=LOG.find(x
 function importSummary(eid){
   const ents=impEntries(); if(!ents.length){ dialog({title:'ملخص آخر استيراد',html:'<p class="ro-empty" style="padding:16px;text-align:center">لا توجد عمليات استيراد محفوظة التفاصيل بعد. يظهر الملخص بعد أول استيراد.</p>',actions:[{label:'إغلاق',cls:'primary'}]}); return; }
   const e=ents.find(x=>x.id===eid)||ents[0], st=impStats(e);
-  const note0=e.lost?`<div class="rpt-note" style="margin-bottom:10px"><span>تفاصيل هذه العملية لم تعد محفوظة (سجل التغييرات يحتفظ بآخر 25,000 بلاغ متغيّر فقط). شملت ${fmt(e.n||0)} بلاغ.</span></div>`:(!e.n?`<div class="rpt-note" style="margin-bottom:10px"><span>هذا الاستيراد لم يُضف بلاغات ولم يغيّر أي بلاغ: كل ما في الملف موجود بنفس بياناته.</span></div>`:'');
+  const note0=e.lost?`<div class="rpt-note" style="margin-bottom:10px"><span>لا تظهر أرقام هذه العملية لأنها كانت كبيرة جداً (${fmt(e.n||0)} بلاغ)، فلم يحفظ التطبيق نسخة البلاغات كما كانت قبلها، وبدون هذه النسخة لا يمكن معرفة ما تغيّر ولا التراجع عنها. <b>البلاغات نفسها سليمة ولم تتأثر.</b></span></div>`:(!e.n?`<div class="rpt-note" style="margin-bottom:10px"><span>هذا الاستيراد لم يُضف بلاغات ولم يغيّر أي بلاغ: كل ما في الملف موجود بنفس بياناته.</span></div>`:'');
   const lateN=LATE.filter(x=>x.file===e.note && Math.abs(new Date(x.at)-new Date(e.t))<10*60000).length;
   const mx=st.by[0]?.[1].size||1;
   dialog({title:'ملخص الاستيراد', wide:true, html:`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><span class="hint">العملية</span><select class="inp" id="isPick" style="width:auto;max-width:100%">${ents.slice(0,20).map((x,i)=>`<option value="${x.id}" ${x.id===e.id?'selected':''}>${i===0?'آخر استيراد · ':''}${esc(x.note||'ملف')} · ${esc(fmtLocal(x.t))}${!x.n?' · بدون تغيير':x.lost?' · بلا تفاصيل':''}</option>`).join('')}</select></div>
@@ -2722,7 +2738,10 @@ function panelLog(){
     <td>${e.undone?'<span class="hint">تم التراجع</span>':e.lost?'<span class="hint">لا يمكن التراجع</span>':`<button type="button" class="btn sm" data-undo="${e.id}">تراجع</button>`}</td></tr>`).join('');
   return `<p class="hint">يُسجَّل هنا كل تغيير على البلاغات في هذا الجهاز: الإضافة، والتعديل، والحذف، والاستيراد، والتعديل الجماعي، والاستبدال. يُحفظ آخر ${LOG_MAX} عملية، ويمكن التراجع عن أي منها ما دامت نسختها السابقة محفوظة (حتى ${fmt(LOG_SNAP_MAX)} بلاغ بالمجمل). التراجع يُعيد البلاغات لحالتها قبل العملية. لا يشمل السجل تغييرات الإعدادات والأعمدة.</p>
     ${LOG.length?`<div class="ctbl-wrap"><table class="ctbl logt"><thead><tr><th>الوقت</th><th>العملية</th><th>البلاغات</th><th>التفاصيل</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div><button type="button" class="btn sm ghost danger" id="logClear">مسح السجل</button></div>`:'<div class="pcard"><p class="hint" style="margin:0">لا توجد تعديلات مسجلة بعد. يبدأ التسجيل من أول تعديل بعد هذا التحديث.</p></div>'}`;
+    <div class="pcard" style="margin-top:10px"><h4>تنظيف سجل التغييرات</h4><p class="hint">الحذف من السجل <b>لا يغيّر أي بلاغ</b>. يُحذف فقط تفصيل «قبل / بعد» وإمكانية التراجع للعمليات المحذوفة. عدد التحديثات ↻ والظرف الأحمر يبقيان.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="hint">حذف العمليات الأقدم من</span><select class="inp" id="logAge" style="width:auto">${[[7,'7 أيام'],[14,'14 يوماً'],[30,'30 يوماً'],[90,'90 يوماً']].map(([d,l])=>`<option value="${d}" ${d===30?'selected':''}>${l} (${fmt(LOG.filter(e=>Date.now()-new Date(e.t)>d*864e5).length)})</option>`).join('')}</select><button type="button" class="btn sm" id="logPrune">حذف</button></div>
+      <div style="margin-top:8px"><button type="button" class="btn sm ghost" id="logLost">حذف العمليات التي «لا يمكن التراجع» عنها (${fmt(LOG.filter(e=>e.lost).length)})</button></div>
+      <div style="margin-top:8px"><button type="button" class="btn sm ghost danger" id="logClear">مسح السجل كله</button></div></div>`:'<div class="pcard"><p class="hint" style="margin:0">لا توجد تعديلات مسجلة بعد. يبدأ التسجيل من أول تعديل بعد هذا التحديث.</p></div>'}`;
 }
 function panelStatus(){
   const t=colByLabel(STAT.target), a=colByLabel(STAT.src1), b=colByLabel(STAT.src2);
@@ -2855,6 +2874,8 @@ async function panelAction(b,body){
   if(b.id==='ruleAdd'){ const [t,sub]=body.querySelector('#ruleType').value.split('@'); const r={id:'r'+uid(),type:t,on:1,...(sub?{subset:sub,dir:'both'}:{})}; if(t==='center') Object.assign(r,{n:15,per:'week',auto:1,margin:1,floor:10}); if(t==='sub') Object.assign(r,{n:40,per:'week',auto:1,margin:1,floor:15}); if(t==='sector') Object.assign(r,{n:60,per:'week',auto:1,margin:1,floor:30}); if(t==='total') Object.assign(r,{n:200,per:'day'}); if(t==='caller') Object.assign(r,{n:3,days:30}); if(t==='kw') Object.assign(r,{name:'كلمات جديدة',words:''}); if(t==='rise') Object.assign(r,{field:'center',pct:30,min:10,days:7}); if(t==='value') Object.assign(r,{name:'متابعة جديدة',field:active('sub')?'sub':'main',values:''}); RULES.push(r); saveRules(); refresh(true); return 'redraw'; }
   if(b.id==='ruleReset'){ RULES=DEF_RULES.map(x=>({...x})); saveRules(); refresh(true); toast('استُعيدت القواعد الافتراضية'); return 'redraw'; }
   if(b.dataset.undo){ undoDialog(b.dataset.undo); return; }
+  if(b.id==='logPrune'){ if(!b.classList.contains('confirm')){ b.classList.add('confirm'); b.textContent='اضغط مرة أخرى للتأكيد'; return; } const d=+document.getElementById('logAge').value||30; const n0=LOG.length; LOG=LOG.filter(e=>Date.now()-new Date(e.t)<=d*864e5); LAST_LOG=LOG[0]||null; saveLog(); toast(`حُذفت ${fmt(n0-LOG.length)} عملية من السجل — البلاغات لم تتغيّر`); return 'redraw'; }
+  if(b.id==='logLost'){ if(!b.classList.contains('confirm')){ b.classList.add('confirm'); b.textContent='اضغط مرة أخرى للتأكيد'; return; } const n0=LOG.length; LOG=LOG.filter(e=>!e.lost); LAST_LOG=LOG[0]||null; saveLog(); toast(`حُذفت ${fmt(n0-LOG.length)} عملية`); return 'redraw'; }
   if(b.id==='logClear'){ if(!b.classList.contains('confirm')){ b.classList.add('confirm'); b.textContent='اضغط مرة أخرى لمسح السجل'; return; } LOG=[]; LAST_LOG=null; saveLog(); toast('مُسح السجل'); return 'redraw'; }
   if(b.dataset.mv){ const i=SCHEMA.findIndex(c=>c.k===b.dataset.mv); const live=SCHEMA.filter(c=>!c.removed); const li=live.indexOf(SCHEMA[i]); const other=live[li+(+b.dataset.d)]; if(!other) return; const j=SCHEMA.indexOf(other); [SCHEMA[i],SCHEMA[j]]=[SCHEMA[j],SCHEMA[i]]; schemaChanged(); return 'redraw'; }
   if(b.dataset.delcol){
@@ -3934,6 +3955,7 @@ const ACT_DEF={new:'بلاغ جديد',imp:'استيراد Excel',exp:'طباع�
 function normGen(g){ g=g||{}; const d=DEF_GEN; const o={...d,...g,hdr:{...d.hdr,...(g.hdr||{})},voice:{...d.voice,...(g.voice||{}),read:{...d.voice.read,...((g.voice||{}).read||{})},greet:{...d.voice.greet,...((g.voice||{}).greet||{})}}};
   o.acts=mergeOrder(g.acts,d.acts); return o; }
 let GEN=(()=>{ try{ return normGen(JSON.parse(localStorage.getItem(GEN_KEY)||'{}')); }catch(e){ return normGen({}); } })();
+GEN.voice.on=0; // القارئ الصوتي أُزيل بطلب المستخدم
 const saveGen=()=>{ try{ localStorage.setItem(GEN_KEY,JSON.stringify(GEN)); }catch(e){ toast('تعذر الحفظ — قد تكون الصورة كبيرة'); } };
 // ---- التاريخ والوقت
 function dtParts(d=new Date()){ const n='-nu-'+(GEN.hdr.digits==='arab'?'arab':'latn');
@@ -4018,26 +4040,7 @@ function panelGeneral(){
   <div class="pcard"><h4>شريط الإجراءات (الجزء السفلي)</h4><p class="hint">رتّب الأزرار بالأسهم، وأخفِ ما لا تحتاجه.</p>
     <div class="hlist">${GEN.acts.map(([k,on],i)=>`<div class="hrow"><label><input type="checkbox" data-gact="${k}" ${on?'checked':''}><span>${esc(ACT_DEF[k])}</span></label><div class="mv" style="display:flex;gap:2px"><button type="button" class="iconbtn" data-gmv="${k}" data-d="-1" ${i===0?'disabled':''} aria-label="للأعلى">${IC.up}</button><button type="button" class="iconbtn" data-gmv="${k}" data-d="1" ${i===GEN.acts.length-1?'disabled':''} aria-label="للأسفل">${IC.down}</button></div></div>`).join('')}</div>
     <p class="hint" style="margin:6px 0 0">الأعلى في القائمة = أول زر من اليمين.</p></div>
-  <div class="pcard"><h4>القارئ الصوتي</h4>
-    ${SS?'':'<p class="err">هذا المتصفح لا يدعم القراءة الصوتية.</p>'}
-    ${ck('gVOn',V.on,'تفعيل القارئ الصوتي','عند الإيقاف تختفي كل خصائص الصوت، بما فيها الترحيب وأزرار الصوت في الشريط.')}
-    ${ck('gVMute',V.muted,'كتم الصوت مؤقتاً','نفس زر 🔈 / 🔇 في شريط المستجدات.')}
-    <div style="display:grid;gap:6px;margin:8px 0;padding:10px;border:1px solid var(--line);border-radius:10px"><b>ماذا يقرأ؟</b>
-      ${ck('gRUpd',V.read.updates,'تحديثات البلاغات الجديدة','مثال: «لديك 12 بلاغاً محدّثاً لم تُفتح بعد»')}
-      ${ck('gRAl',V.read.alerts,'أهم التنبيهات','عدد التنبيهات وأكبر ثلاثة منها')}
-      ${ck('gRTk',V.read.ticker,'كل ما في شريط المستجدات')}
-      ${ck('gVAuto',V.auto,'القراءة تلقائياً عند فتح التطبيق','وإلا تقرأ فقط عند الضغط على 🔊 في الشريط')}</div>
-    ${row('السرعة',sg('gRate',[[0.8,'بطيئة'],[1,'عادية'],[1.2,'سريعة']],V.rate))}
-    ${voices.length>1?row('الصوت',`<select class="inp" id="gVName" style="width:auto"><option value="">تلقائي</option>${voices.map(v=>`<option ${v.name===V.vname?'selected':''}>${esc(v.name)}</option>`).join('')}</select>`):''}
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn sm" id="gVTest">تجربة القراءة</button></div>
-    <div style="display:grid;gap:6px;margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:10px"><b>الترحيب الصوتي</b>
-      ${ck('gGOn',V.greet.on,'تشغيل الترحيب عند فتح التطبيق')}
-      <textarea class="inp" id="gGText" rows="3" placeholder="اكتب عبارة الترحيب">${esc(V.greet.text||'')}</textarea>
-      <span class="hint">{التحية} تُقرأ «صباح الخير» قبل الظهر و«مساء الخير» بعده.</span>
-      ${row('التكرار',sg('gGFreq',[['day','مرة واحدة في اليوم'],['open','عند كل فتح']],V.greet.freq))}
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn sm" id="gGTest">تجربة الترحيب</button><button type="button" class="btn sm ghost" id="gGReset">استعادة العبارة الأصلية</button><button type="button" class="btn sm ghost" id="gGDel">حذف العبارة</button></div>
-    </div>
-    <p class="hint" style="margin:8px 0 0">المتصفح لا يسمح بتشغيل الصوت قبل أول لمسة للشاشة، فيبدأ الترحيب مع أول لمسة بعد فتح التطبيق.</p></div>`;
+`;
 }
 function genChange(t){
   const H=GEN.hdr, V=GEN.voice; let hit=true;
@@ -4073,9 +4076,9 @@ function anyDate(v){ if(v==null||v==='') return null; const s=toISO(v); if(!s) r
 function durStart(r){
   if(DUR.start!=='status') return anyDate(r.date);
   const k=durStKey(); if(!k) return anyDate(r.date); const want=nrm(DUR.stVal);
-  const ents=LOG.filter(e=>!['undo','replace','clear'].includes(e.type) && (e.before||[]).some(x=>x.id===r.id)).reverse();
-  const states=[{t:null,v:ents.length?ents[0].before.find(x=>x.id===r.id)[k]:r[k]}];
-  ents.forEach((e,i)=>{ const nx=ents[i+1]; const a=nx?nx.before.find(x=>x.id===r.id):r; states.push({t:e.t,v:a[k]}); });
+  const ents=(logIdx().get(r.id)||[]).slice().reverse();
+  const states=[{t:null,v:ents.length?ents[0].b[k]:r[k]}];
+  ents.forEach(({e},i)=>{ const nx=ents[i+1]; const a=nx?nx.b:r; states.push({t:e.t,v:a[k]}); });
   const hit=states.find(x=>nrm(x.v||'')===want); if(!hit) return null;
   return hit.t?new Date(hit.t):anyDate(r.date);
 }
@@ -4187,7 +4190,7 @@ try{ navigator.storage && navigator.storage.persist && navigator.storage.persist
   if(HOME.defView && HOME.views.some(v=>v[0]===HOME.defView&&v[1])){ view=HOME.defView; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); }
   applyHome(); applySide();
   renderAll();
-  renderBackupBanner(); renderViewerBar(); try{ renderHeader(); applyActs(); }catch(e){ console.error(e); } setTimeout(voiceOnOpen,1200);
+  renderBackupBanner(); renderViewerBar(); try{ renderHeader(); applyActs(); }catch(e){ console.error(e); }
   try{ const m=sessionStorage.getItem('r937-cp-msg'); if(m){ sessionStorage.removeItem('r937-cp-msg'); setTimeout(()=>toast(m==='cancel'?'أُلغيت تغييرات لوحة التحكم':'لم تُحفظ تغييرات لوحة التحكم السابقة، فأُعيدت الإعدادات كما كانت'),400); } }catch(e){}
 })();
 window.__db={applyChange, slaKey, prep, buildPdf, printOpts, get LOG(){return LOG;}, evalRules, undoEntry, get HOME(){return HOME;}, kwIndex, parseNos, get BK(){return BK;}, maskNums, staffGroups, clinicGroups, pairGroups, buildReportXlsx, get recs(){return RECS;}, readXlsx, parseRecords, buildXlsx, buildReport, get filtered(){return filtered;}};
