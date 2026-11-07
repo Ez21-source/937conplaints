@@ -685,7 +685,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '89';
+const APP_VER = '90';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'',
@@ -2327,7 +2327,12 @@ function datalists(){
 function subToMain(sub){ const m=new Map(); RECS.forEach(r=>{ if(r.sub===sub && r.main) m.set(r.main,(m.get(r.main)||0)+1); }); return [...m.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||''; }
 const DEFSEC_KEY='r937-defsec-v1';
 const defSec=()=>{ try{ const v=localStorage.getItem(DEFSEC_KEY); return v===null?'تجمع مكة الصحي':v; }catch(e){ return 'تجمع مكة الصحي'; } };
-function centerToSector(c){ if(SECMAP[c]) return SECMAP[c]; const m=new Map(); RECS.forEach(r=>{ if(r.center===c && r.sector) m.set(r.sector,(m.get(r.sector)||0)+1); }); return [...m.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||''; }
+// خريطة «المركز ← القطاع الأكثر» تُبنى مرة واحدة لكل نسخة من البيانات (كانت تمسح كل البلاغات لكل بلاغ مستورد فيتجمّد التطبيق مع الملفات الكبيرة)
+let C2S={recs:null,len:-1,v:-1,m:null};
+function centerToSector(c){ if(SECMAP[c]) return SECMAP[c];
+  if(C2S.recs!==RECS || C2S.len!==RECS.length || C2S.v!==LOG_VER){ const cnt=new Map(); RECS.forEach(r=>{ if(!r.center||!r.sector) return; let x=cnt.get(r.center); if(!x){ x=new Map(); cnt.set(r.center,x); } x.set(r.sector,(x.get(r.sector)||0)+1); });
+    const m=new Map(); cnt.forEach((x,cn)=>m.set(cn,[...x.entries()].sort((a,b)=>b[1]-a[1])[0][0])); C2S={recs:RECS,len:RECS.length,v:LOG_VER,m}; }
+  return C2S.m.get(c)||''; }
 function nowLocal(){ const d=new Date(); return `${iso(d)}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
 function fieldValueHTML(r,c){
   const v=cellText(r,c.k);
