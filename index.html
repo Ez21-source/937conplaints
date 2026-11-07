@@ -685,7 +685,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '79';
+const APP_VER = '80';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'',
@@ -2429,7 +2429,7 @@ function editRecord(r){
     o.no=String(o.no).trim();
     return true;
   };
-  const doSave=async(s)=>{ const o=collect(s); if(!validate(s,o)) return false; const rec=prep(clean({...o,id:r?r.id:undefined})); await saveRecords([rec],isNew?'add':'edit'); markSeen(rec); toast(isNew?'أضيف البلاغ':'حُفظت التعديلات'); return rec; };
+  const doSave=async(s)=>{ const o=collect(s); if(!validate(s,o)) return false; const rec=prep(clean({...o,id:r?r.id:undefined})); await saveRecords([rec],isNew?'add':'edit'); markSeen(rec); toast(isNew?'أضيف البلاغ':'حُفظت التعديلات'); if(!isNew && r && r.center && rec.center && nrm(r.center)!==nrm(rec.center)) askFixForever('center',[r.center],rec.center); return rec; };
   const actions=[{label:isNew?'إضافة البلاغ':'حفظ التعديلات',cls:'primary',run:async s=>{ const rec=await doSave(s); if(!rec) return false; if(!isNew) setTimeout(()=>viewRecord(rec),0); }}];
   if(isNew) actions.push({label:'إضافة وبلاغ آخر',run:async s=>{ if(!(await doSave(s))) return false; setTimeout(()=>editRecord(null),0); }});
   if(!isNew) actions.push({label:'حذف البلاغ',cls:'danger',run:()=>{ setTimeout(()=>confirmDelete([r.id]),0); }});
@@ -2452,7 +2452,7 @@ function bulkEdit(){
   dialog({title:`تعديل ${fmt(ids.length)} بلاغ دفعة واحدة`, html:`<p>اختر الحقل والقيمة الجديدة. تُطبَّق على كل البلاغات المحددة.</p>
     <div class="form"><div class="field"><label for="bk">الحقل</label><select class="inp" id="bk">${fields.map(k=>`<option value="${k}">${esc(label(k))}</option>`).join('')}</select></div>
     <div class="field"><label for="bv">القيمة الجديدة</label><input class="inp" id="bv" list="dl-sector" autocomplete="off"></div>${datalists()}</div>`,
-    actions:[{label:'تطبيق',cls:'primary',run:async s=>{ const k=s.querySelector('#bk').value, val=s.querySelector('#bv').value; const recs=ids.map(id=>byId.get(id)).filter(Boolean).map(r=>prep(clean({...r,[k]:val}))); await saveRecords(recs,{type:'bulk',note:label(k)}); toast(`عُدّل ${fmt(recs.length)} بلاغ`); }},{label:'إلغاء'}],
+    actions:[{label:'تطبيق',cls:'primary',run:async s=>{ const k=s.querySelector('#bk').value, val=s.querySelector('#bv').value; const olds=k==='center'?ids.map(id=>byId.get(id)?.center).filter(Boolean):[]; const recs=ids.map(id=>byId.get(id)).filter(Boolean).map(r=>prep(clean({...r,[k]:val}))); await saveRecords(recs,{type:'bulk',note:label(k)}); toast(`عُدّل ${fmt(recs.length)} بلاغ`); if(k==='center'&&val) askFixForever('center',olds,val); }},{label:'إلغاء'}],
     onOpen:s=>{ s.querySelector('#bk').addEventListener('change',e=>{ const k=e.target.value; s.querySelector('#bv').setAttribute('list',col(k).dl?'dl-'+k:''); }); }});
 }
 const saveRecords=(recs,meta)=>applyChange(recs,[],meta);
@@ -2754,7 +2754,7 @@ function panelLists(){
   const lists=cols().filter(c=>c.type==='list');
   const centers=countBy(RECS,'center').filter(x=>x[0]);
   const noSec=c=>RECS.filter(r=>r.center===c && !r.sector).length;
-  return panelClosers()+panelClinics()+panelCtype()+`${lists.length?lists.map(c=>`<div class="pcard"><h4>خيارات «${esc(c.l)}»</h4><textarea class="inp" rows="4" data-opts="${c.k}">${esc((c.options||[]).join('\n'))}</textarea><span class="hint">كل خيار في سطر. تظهر في نموذج الإدخال وكفلتر في البحث.</span></div>`).join(''):`<div class="pcard"><h4>قوائم الاختيار</h4><p class="hint">لا توجد أعمدة من نوع «قائمة اختيار». أضف عموداً بهذا النوع من تبويب «الأعمدة» لتدير خياراته هنا.</p></div>`}
+  return panelFix()+panelClosers()+panelClinics()+panelCtype()+`${lists.length?lists.map(c=>`<div class="pcard"><h4>خيارات «${esc(c.l)}»</h4><textarea class="inp" rows="4" data-opts="${c.k}">${esc((c.options||[]).join('\n'))}</textarea><span class="hint">كل خيار في سطر. تظهر في نموذج الإدخال وكفلتر في البحث.</span></div>`).join(''):`<div class="pcard"><h4>قوائم الاختيار</h4><p class="hint">لا توجد أعمدة من نوع «قائمة اختيار». أضف عموداً بهذا النوع من تبويب «الأعمدة» لتدير خياراته هنا.</p></div>`}
     ${active('sector')?`<div class="pcard"><h4>ربط المراكز بالقطاعات</h4><p class="hint">اكتب قطاع كل مركز مرة واحدة، فيُعبّأ تلقائياً عند إدخال بلاغ جديد، ويمكنك تطبيقه على البلاغات الحالية.</p>
       <div class="ctbl-wrap secmap"><table class="ctbl"><thead><tr><th>المركز الصحي</th><th>البلاغات</th><th>بدون قطاع</th><th>القطاع</th></tr></thead><tbody>${centers.map(([c,n])=>`<tr><td>${esc(c)}</td><td>${fmt(n)}</td><td>${fmt(noSec(c))}</td><td><input class="inp" list="dl-sector" data-secmap="${esc(c)}" value="${esc(SECMAP[c]||'')}" aria-label="القطاع"></td></tr>`).join('')}</tbody></table></div>
       ${datalists()}
@@ -2834,6 +2834,8 @@ async function panelAction(b,body){
     const options= type==='list' ? body.querySelector('#ncOpts').value.split('\n').map(s=>s.trim()).filter(Boolean) : [];
     SCHEMA.push({k:'c_'+uid(),l:name,type,custom:1,table:1,rep:0,req:0,pii:0,options}); schemaChanged(); toast(`أضيف عمود «${name}»`); return 'redraw';
   }
+  if(b.id==='fixAdd'){ const f=document.getElementById('fixFrom').value.trim(), t=document.getElementById('fixTo').value.trim(); if(!f||!t){ toast('اختر الاسم الخاطئ واكتب الاسم الصحيح'); return; } if(nrm(f)===nrm(t)){ toast('الاسمان متطابقان'); return; } addFixes('center',[f],t).then(n=>{ toast(`أُضيف التصحيح وصُحّح ${fmt(n)} بلاغ`); document.querySelector('[data-ptab=lists]')?.click(); }); return; }
+  if(b.dataset.fixdel){ FIX=FIX.filter(x=>!(x.k==='center'&&x.from===b.dataset.fixdel)); saveFix(); toast('حُذف التصحيح (البلاغات المصححة تبقى كما هي)'); return 'redraw'; }
   if(b.dataset.ctall){ countBy(RECS,'center').forEach(([c])=>{ if(c) CTYPE[c]=b.dataset.ctall; }); saveCtype(); toast('عُيّن نوع الدوام لكل المراكز، غيّر المختلف منها من القائمة'); return 'redraw'; }
   if(b.dataset.applysec){
     const all=b.dataset.applysec==='all'; const ch=[];
@@ -2920,7 +2922,7 @@ function panelChange(t){
 const SETTINGS_APP='r937-db-settings';
 function settingsSnapshot(){
   return {app:SETTINGS_APP, version:1, exported:nowLocal(), brand:BRAND, schema:schemaSerial(), secmap:SECMAP, clinics:CLINICS,
-    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE, filters:FCFG, staffOvr:SOVR, staffSrc:STAFF_SRC, staffPos:STAFF_POS, closerNames:CLOSER_NAMES, ctype:CTYPE, visitsSet:VSET, general:GEN, dur:DUR};
+    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE, filters:FCFG, staffOvr:SOVR, staffSrc:STAFF_SRC, staffPos:STAFF_POS, closerNames:CLOSER_NAMES, ctype:CTYPE, visitsSet:VSET, general:GEN, dur:DUR, fixes:FIX};
 }
 async function exportSettings(){
   const blob=new Blob([JSON.stringify(settingsSnapshot(),null,2)],{type:'application/json'});
@@ -2942,6 +2944,7 @@ async function importSettings(file){
         if(Array.isArray(s.staffHide)){ STAFF_HIDE=new Set(s.staffHide); saveStaffHide(); }
         if(s.staffMin){ STAFF_MIN=+s.staffMin||1; localStorage.setItem('r937-staffmin-v1',String(STAFF_MIN)); }
         if(s.repeat){ RPT={min:2,short:false,...s.repeat}; saveRpt(); }
+        if(Array.isArray(s.fixes)){ FIX=s.fixes; saveFix(); }
         if(s.dur && typeof s.dur==='object'){ DUR={...DEF_DUR,...s.dur}; saveDur(); }
         if(s.general && typeof s.general==='object'){ GEN=normGen(s.general); saveGen(); }
         if(s.ctype && typeof s.ctype==='object'){ CTYPE={...s.ctype}; saveCtype(); }
@@ -3640,7 +3643,7 @@ async function importFile(file){
   busy('جارٍ قراءة الملف…');
   let res;
   let sheets;
-  try{ sheets=await readXlsx(await file.arrayBuffer()); res=parseRecords(sheets); }
+  try{ sheets=await readXlsx(await file.arrayBuffer()); res=parseRecords(sheets); if(FIX.length) res.recs.forEach(applyFixRec); }
   catch(e){ console.error(e); busy(null); toast(e.message||'تعذرت قراءة الملف'); return; }
   busy(null);
   { const vsh=sheets.filter(x=>x.name==='المستفيدون'); if(vsh.length){ const vr=parseVisits(vsh); if(vr.rows.length){ await mergeVisits(vr.rows); toast(`استُعيد ${fmt(vr.rows.length)} سجل مستفيدين من الملف`); if(view==='visits') renderView(); if(!res.recs.length) return; } } }
@@ -3826,7 +3829,7 @@ function parseVisits(sheets){
 }
 async function importVisits(file){
   let res; busy('جارٍ قراءة ملف المستفيدين…');
-  try{ res=parseVisits(await readXlsx(await file.arrayBuffer())); }catch(e){ busy(null); toast(e&&e.message||'تعذر قراءة الملف'); return; } busy(null);
+  try{ res=parseVisits(await readXlsx(await file.arrayBuffer())); if(FIX.length) res.rows.forEach(r=>{ r[1]=fixVal('center',r[1]); }); }catch(e){ busy(null); toast(e&&e.message||'تعذر قراءة الملف'); return; } busy(null);
   if(!res.rows.length){ dialog({title:'لم يُتعرّف على الملف', html:'<p>لم أجد صف عناوين فيه: <b>التاريخ</b> و<b>المركز</b> و<b>عدد المستفيدين</b> (أو أعمدة: بموعد / بدون موعد / صباحية / مسائية).</p><p class="hint">أرسل الملف لمعدّ التطبيق لإضافة أسماء أعمدتك.</p>', actions:[{label:'حسناً',cls:'primary'}]}); return; }
   const known=new Set(RECS.map(r=>ckey(r.center))); const cs=new Map(); res.rows.forEach(r=>cs.set(ckey(r[1]),r[1]));
   const miss=[...cs.entries()].filter(([k])=>!known.has(k)).map(x=>x[1]); const ds=res.rows.map(r=>r[0]).sort();
@@ -4068,6 +4071,32 @@ function durChange(t){
   else if(t.id==='duT1') DUR.t1=Math.max(1,+t.value||24); else if(t.id==='duT2') DUR.t2=Math.max((+DUR.t1||24)+1,+t.value||48); else if(t.name==='duAct') DUR.active=t.value;
   else return null;
   saveDur(); refresh(true); return true;
+}
+
+/* ---------- تصحيح أسماء المراكز (يُطبّق على الموجود وعلى كل استيراد قادم) ---------- */
+const FIX_KEY='r937-fix-v1';
+let FIX=(()=>{ try{ return JSON.parse(localStorage.getItem(FIX_KEY)||'[]')||[]; }catch(e){ return []; } })();
+const saveFix=()=>{ try{ localStorage.setItem(FIX_KEY,JSON.stringify(FIX)); }catch(e){} };
+function fixVal(k,v){ if(v==null||v==='') return v; const n=nrm(String(v)); for(let i=0;i<5;i++){ const f=FIX.find(x=>x.k===k&&nrm(x.from)===n); if(!f) break; v=f.to; if(nrm(v)===n) break; } return v; }
+function applyFixRec(r){ let c=false; ['center'].forEach(k=>{ if(r[k]!=null){ const v=fixVal(k,r[k]); if(v!==r[k]){ r[k]=v; c=true; } } }); return c; }
+async function addFixes(k,froms,to){ to=String(to||'').trim(); if(!to) return 0;
+  froms.forEach(f=>{ f=String(f||'').trim(); if(!f||nrm(f)===nrm(to)) return; FIX=FIX.filter(x=>!(x.k===k&&nrm(x.from)===nrm(f))); FIX.push({k,from:f,to}); });
+  saveFix(); const ch=[]; RECS.forEach(r=>{ const v=fixVal(k,r[k]); if(v!==r[k]) ch.push(prep(clean({...r,[k]:v}))); });
+  if(ch.length){ busy('جارٍ التصحيح…'); try{ await applyChange(ch,[],{type:'bulk',note:'تصحيح اسم '+label(k)}); }finally{ busy(null); } }
+  return ch.length; }
+function askFixForever(k,olds,to){ olds=[...new Set(olds.filter(o=>o&&nrm(o)!==nrm(to)))]; if(!olds.length||VIEWER) return;
+  const others=RECS.filter(r=>olds.some(o=>nrm(r[k]||'')===nrm(o))).length;
+  setTimeout(()=>dialog({title:'تصحيح دائم للاسم؟', html:`<p style="margin-top:0">غيّرت ${esc(label(k))} من <b>«${olds.map(esc).join('»، «')}»</b> إلى <b>«${esc(to)}»</b>.</p>
+    <p>هل هذا تصحيح لاسم مكتوب خطأ؟ إن اخترت «نعم» يُصحَّح ${others?`<b>${fmt(others)}</b> بلاغ آخر بنفس الاسم الآن، و`:''}كل بلاغ يأتي بهذا الاسم في أي استيراد قادم تلقائياً.</p><p class="hint">تجد التصحيحات وتحذفها من لوحة التحكم ← القوائم والقطاعات ← «تصحيح أسماء المراكز».</p>`,
+    actions:[{label:'نعم، صحّح دائماً',cls:'primary',run:async()=>{ const n=await addFixes(k,olds,to); toast(`حُفظ التصحيح${n?` وصُحّح ${fmt(n)} بلاغ`:''}`); }},{label:'هذا البلاغ فقط'}]}),80); }
+function panelFix(){
+  const cents=countBy(RECS,'center').filter(x=>x[0]); const rules=FIX.filter(x=>x.k==='center');
+  return `<div class="pcard" id="fixCard"><h4>تصحيح أسماء المراكز</h4><p class="hint">اسم خاطئ ← الاسم الصحيح. يُطبّق على البلاغات الموجودة وعلى كل ملف تستورده لاحقاً، فلا يعود الاسم الخاطئ.</p>
+    ${rules.length?`<div class="ctbl-wrap" style="max-height:260px"><table class="ctbl"><thead><tr><th>الاسم الخاطئ (كما في الملف)</th><th></th><th>يُصحَّح إلى</th><th></th></tr></thead><tbody>${rules.map((x,i)=>`<tr><td>${esc(x.from)}</td><td style="color:var(--muted)">←</td><td><b>${esc(x.to)}</b></td><td><button type="button" class="btn sm ghost" data-fixdel="${esc(x.from)}">حذف</button></td></tr>`).join('')}</tbody></table></div>`:'<p class="hint">لا توجد تصحيحات بعد. تُضاف من هنا، أو تلقائياً حين تعدّل اسم مركز في بلاغ وتختار «صحّح دائماً».</p>'}
+    <div style="display:grid;gap:6px;margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:10px"><b>إضافة تصحيح</b>
+      <input class="inp" id="fixFrom" list="fixFromL" placeholder="الاسم الخاطئ — اختره من القائمة أو اكتبه كما يأتي في ملف Care"><datalist id="fixFromL">${cents.map(([c,n])=>`<option value="${esc(c)}">${fmt(n)} بلاغ</option>`).join('')}</datalist>
+      <input class="inp" id="fixTo" list="fixToL" placeholder="الاسم الصحيح"><datalist id="fixToL">${cents.map(([c])=>`<option value="${esc(c)}">`).join('')}</datalist>
+      <div><button type="button" class="btn sm primary" id="fixAdd">إضافة وتطبيق</button></div></div></div>`;
 }
 
 /* ---------- install + offline ---------- */
