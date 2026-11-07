@@ -75,6 +75,11 @@ button,input,select,textarea{font:inherit;color:inherit}
 .hdr-b{display:grid;justify-items:center;gap:0;padding:2px 12px;border-inline-start:1px solid var(--line);font-size:11.5px;color:var(--muted);line-height:1.45;text-align:center}.hdr-b b{font-size:18px;color:var(--ink);font-family:var(--f-display);line-height:1.2}
 .hdr-c{background:var(--accent-soft);border-bottom:1px solid var(--line);font-size:12.5px}.hdr-c .wrap{display:flex!important;justify-content:space-between;gap:10px;padding-block:5px!important;flex-wrap:wrap}.hdr-c b{font-weight:700}
 .act-off{display:none!important}
+.dur{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-weight:700;font-size:12.5px;white-space:nowrap}
+.dur-g{background:color-mix(in srgb,#22A06B 18%,transparent);color:#1F9D62}
+.dur-o{background:color-mix(in srgb,#E8890C 20%,transparent);color:#D97706}
+.dur-r{background:color-mix(in srgb,#E5484D 18%,transparent);color:#E5484D}
+.dur-c{background:color-mix(in srgb,#8A9693 18%,transparent);color:#8A9693}
 .topbar>.wrap{flex-wrap:nowrap}.topbar .brand{flex:1 1 0;min-width:0}.topbar .brand-txt .org{white-space:normal;line-height:1.35}
 @media (max-width:600px){ .topbar>.wrap:has(.hdr-b){flex-wrap:wrap} .hdr-b{order:10;flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px 12px;justify-content:center;align-items:baseline;border-inline-start:0;border-top:1px solid var(--line);padding:6px 0 0;font-size:12px}.hdr-b b{font-size:16px}.hdr-b span{white-space:nowrap} .hdr-img img{max-width:60px} .topbar .brand h1{white-space:normal;line-height:1.3} .topbar .brand{gap:8px} .topbar .brand h1{font-size:16px} .topbar.hs-l .brand h1{font-size:17px} .topbar.hs-xl .brand h1{font-size:18px} }
 .brand h1{font-family:var(--f-display);font-size:17px;font-weight:600;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -680,7 +685,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '75';
+const APP_VER = '78';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'',
@@ -1063,14 +1068,14 @@ async function applyChange(puts,dels,meta){
 
 /* ---------- home screen customisation ---------- */
 const HOME_KEY='r937-home-v1';
-const DASH_TILES=[['day','آخر يوم مسجل'],['wk','آخر 7 أيام'],['mo','الشهر الحالي'],['tot','إجمالي الفترة'],['alerts','التنبيهات'],['upd','تحديثات البلاغات'],['sla','خارج مستوى الخدمة'],['slaIn','داخل مستوى الخدمة'],['kw','بلاغات بكلمات حساسة'],['callers','متصلون متكررون'],['topDay','أعلى مركز في آخر يوم']];
+const DASH_TILES=[['day','آخر يوم مسجل'],['wk','آخر 7 أيام'],['mo','الشهر الحالي'],['tot','إجمالي الفترة'],['alerts','التنبيهات'],['upd','تحديثات البلاغات'],['late','البلاغات المتأخرة'],['sla','خارج مستوى الخدمة'],['slaIn','داخل مستوى الخدمة'],['kw','بلاغات بكلمات حساسة'],['callers','متصلون متكررون'],['topDay','أعلى مركز في آخر يوم']];
 const DEF_DASH={tiles:{},ticker:1,speed:70,home:1,cats:[],items:{alerts:1,stats:1,latest:1,kw:1,rise:1,value:1,up:1,down:1,sla:1},fields:{day:1,date:1,time:1,center:1,cat:1,no:0},latestN:10};
 const TK_FIELDS=[['day','اليوم'],['date','التاريخ'],['time','الساعة'],['center','المركز'],['cat','التصنيف'],['no','رقم البلاغ']];
-const KPI_DEF={alerts:'التنبيهات',updates:'تحديثات البلاغات',sla:'خارج مستوى الخدمة',slaIn:'داخل مستوى الخدمة',total:'عدد البلاغات',centers:'المراكز الصحية',topCenter:'أعلى مركز',topCat:'أعلى تصنيف',lastDay:'آخر يوم مسجل',callers:'متصلون متكررون',flagged:'بلاغات بكلمات حساسة',sectors:'أعلى قطاع'};
+const KPI_DEF={alerts:'التنبيهات',updates:'تحديثات البلاغات',late:'البلاغات المتأخرة',sla:'خارج مستوى الخدمة',slaIn:'داخل مستوى الخدمة',total:'عدد البلاغات',centers:'المراكز الصحية',topCenter:'أعلى مركز',topCat:'أعلى تصنيف',lastDay:'آخر يوم مسجل',callers:'متصلون متكررون',flagged:'بلاغات بكلمات حساسة',sectors:'أعلى قطاع'};
 const CARD_DEF={daily:'البلاغات اليومية',centers:'أعلى المراكز',cats:'أعلى التصنيفات',sectors:'البلاغات حسب القطاع',weekday:'البلاغات حسب أيام الأسبوع',hours:'البلاغات حسب ساعة الاتصال'};
 const VIEW_DEF={table:'السجلات',dash:'لوحة المؤشرات',callers:'المتصلون المتكررون',staff:'الموظفون المذكورون',clinics:'العيادات المذكورة',visits:'المستفيدون والمعدل',report:'معاينة التقرير'};
 const DEF_HOME={side:'pin',theme:'system',zoom:100,bars:6,pageSize:50,alerts:0,presets:1,defView:'table',
-  kpis:[['alerts',1],['updates',1],['total',1],['centers',1],['topCenter',1],['topCat',1],['lastDay',0],['callers',0],['flagged',0],['sectors',0],['slaIn',0],['sla',0]],
+  kpis:[['alerts',1],['updates',1],['late',1],['total',1],['centers',1],['topCenter',1],['topCat',1],['lastDay',0],['callers',0],['flagged',0],['sectors',0],['slaIn',0],['sla',0]],
   cards:[['daily',1],['centers',1],['cats',1],['sectors',0],['weekday',0],['hours',0]],
   views:[['table',1],['dash',1],['callers',1],['staff',1],['clinics',1],['visits',1],['report',1]]};
 function mergeOrder(saved,def){ const out=[]; const seen=new Set(); (Array.isArray(saved)?saved:[]).forEach(x=>{ if(Array.isArray(x) && def.some(d=>d[0]===x[0]) && !seen.has(x[0])){ out.push([x[0],x[1]?1:0]); seen.add(x[0]); } }); def.forEach(d=>{ if(!seen.has(d[0])) out.push([...d]); }); return out; }
@@ -1388,6 +1393,7 @@ function renderDash(v){
       mo:()=>tile(`${MONTHS[+st.d.slice(5,7)-1]} حتى يوم ${st.dom}`,fmt(st.mo),deltaHTML(st.mo,st.prevMo,'الشهر السابق')),
       tot:()=>tile('إجمالي الفترة',fmt(tot),days?`${fmt(days)} يوم · ${(tot/days).toFixed(1)} يومياً`:''),
       alerts:()=>tile('التنبيهات',fmt(al.length),al.length?'اضغط للعرض':'لا توجد تنبيهات',al.length?'warn click" data-dgo="alertsdlg':''),
+      late:()=>{ const u=lateStats(); return tile('البلاغات المتأخرة',fmt(u.nNew),u.all?`لم تُفتح · من ${fmt(u.all)}`:'لا توجد',u.all?(u.nNew?'warn ':'')+'click" data-dgo="latedlg':''); },
       upd:()=>{ const u=updStats(); return tile('تحديثات البلاغات',fmt(u.nNew),u.all?`جديدة · من ${fmt(u.all)} بلاغ محدّث`:'لا توجد تحديثات',u.all?(u.nNew?'warn ':'')+'click" data-dgo="upddlg':''); },
       sla:()=>st.sla?tile('خارج مستوى الخدمة',fmt(st.sla.all),`${pct(st.sla.all,st.sla.all+st.sla.allIn)} من الفترة`,'bad click" data-dgo="sla'):'',
       slaIn:()=>st.sla?tile('داخل مستوى الخدمة',fmt(st.sla.allIn),pct(st.sla.allIn,st.sla.all+st.sla.allIn)+' من الفترة','good click" data-dgo="slain'):'',
@@ -1492,7 +1498,9 @@ let _empSet=null,_empKey=null;
 function empSet(){ if(_empKey!==filt.emp+'|'+STAFF_POS||!_empSet){ const g=staffIndex().get(filt.emp); _empSet=new Set(g?(filt.empc?complaintsOnly(g.recs):g.recs).filter(r=>posOk(g,r)).map(r=>r.id):[]); _empKey=filt.emp+'|'+STAFF_POS; } return _empSet; }
 function apply(){ _empSet=null; _clSet=null;
   const words=nrm(filt.q).split(' ').filter(Boolean);
+  const LS=filt.late?new Set(LATE.map(x=>x.k)):null;
   filtered=RECS.filter(r=>{
+    if(LS && !LS.has(keyNo(r.no))) return false;
     if(filt.from && (!r.date || r.date.slice(0,10)<filt.from)) return false;
     if(filt.to && (!r.date || r.date.slice(0,10)>filt.to)) return false;
     if(!fOk('month',r._m)) return false;
@@ -1637,6 +1645,7 @@ function renderFilters(){
   if(filt.cl) tags.push(['cl',`العيادة: ${filt.cl}`]);
   if(filt.kw) tags.push(['kw',`تنبيه: ${kwRuleName(filt.kw)}`]);
   if(filt.sla) tags.push(['sla',filt.sla==='out'?'خارج مستوى الخدمة':'داخل مستوى الخدمة']);
+  if(filt.late) tags.push(['late','البلاغات المتأخرة فقط']);
   if(filt.unread) tags.push(['unread',({new:'غير مقروء',upd:'محدّث',read:'تم الفتح'})[filt.unread]||'غير المقروءة']);
   activeFilterKeys().forEach(k=>{ if(fVals(k).length) tags.push([k,`${short(k)}: ${fText(k)}`]); });
   document.getElementById('fstate').innerHTML = `<span><b>${fmt(total(filtered))}</b> بلاغ${filtered.length!==RECS.length?` من أصل ${fmt(total(RECS))}`:''}</span>` + tags.map(([k,t])=>`<span class="tag">${esc(t)}<button type="button" data-untag="${k}" aria-label="إزالة">×</button></span>`).join('') + (tags.length?`<button type="button" class="btn sm ghost" data-untag="all">مسح الفلاتر</button>`:'');
@@ -1758,6 +1767,7 @@ function renderSummary(){
     flagged:()=>{ const idx=kwIndex(); const n=filtered.filter(r=>idx.has(r.id)).length; return kpi('بلاغات بكلمات حساسة',fmt(n),n?pct(n,tot)+' من النتائج':'حسب قواعد التنبيه'); },
     alerts:()=>alertsTile(),
     updates:()=>updTile(),
+    late:()=>lateTile(),
     sla:()=>slaTile('out',CMP),
     slaIn:()=>slaTile('in',CMP),
     sectors:()=>{ const sc=countBy(filtered,'sector').filter(x=>x[0]); return kpi('أعلى قطاع',esc(sc[0]?shortName(sc[0][0]):'—'),sc[0]?`${fmt(sc[0][1])} بلاغ · ${pct(sc[0][1],tot)}`:'لا توجد قطاعات مسجلة',1,sc[0]?CMP(r=>r.sector===sc[0][0]):'',sc[0]?.[0]); }
@@ -1967,9 +1977,10 @@ function renderView(){
   const rows=filtered.slice(page*pageSize,(page+1)*pageSize);
   const allSel = rows.every(r=>selected.has(r.id));
   const COLS=tableCols();
-  const th=COLS.map(c=>`<th data-sort="${c.k}" scope="col">${esc(short(c.k))}${sort.k===c.k?`<span class="ar">${sort.dir>0?'▲':'▼'}</span>`:''}</th>`).join('');
+  const DUK=DUR.on?(COLS.some(c=>c.k==='date')?'date':COLS[COLS.length-1]?.k):null;
+  const th=COLS.map(c=>`<th data-sort="${c.k}" scope="col">${esc(short(c.k))}${sort.k===c.k?`<span class="ar">${sort.dir>0?'▲':'▼'}</span>`:''}</th>${c.k===DUK?'<th class="nosort" scope="col">المدة الزمنية للإغلاق</th>':''}`).join('');
   const KWI=kwIndex(); const SK2=slaKey();
-  const body=rows.map(r=>{ const fl=KWI.get(r.id); return `<tr data-id="${r.id}" class="${selected.has(r.id)?'sel':''}${fl?' flag':''}${readState(r).st!=='read'?' unread':''}"${fl?` title="كلمات حساسة: ${esc([...new Set(fl.map(x=>x.w))].join('، '))}"`:''}><td class="cb"><input type="checkbox" data-sel="${r.id}" ${selected.has(r.id)?'checked':''} aria-label="تحديد"></td><td class="ms">${envHTML(r)}${revTotal(r)?`<span class="revc" title="عدد مرات تحديث البلاغ من الاستيراد">↻ ${fmt(revTotal(r))}</span>`:''}</td>${COLS.map(c=>{ const raw=c.fmt?c.fmt(r[c.k],r):r[c.k]; const t= c.k==='count'?raw: (c.k===SK2&&raw) ? slaBadge(raw,slaState(r,SK2)) : hl(raw,fl&&c.cls==='desc'); return `<td class="${c.cls||''}">${c.cls==='desc'?`<div title="${esc(r[c.k])}">${t}</div>`:t}</td>`; }).join('')}</tr>`; }).join('');
+  const body=rows.map(r=>{ const fl=KWI.get(r.id); return `<tr data-id="${r.id}" class="${selected.has(r.id)?'sel':''}${fl?' flag':''}${readState(r).st!=='read'?' unread':''}"${fl?` title="كلمات حساسة: ${esc([...new Set(fl.map(x=>x.w))].join('، '))}"`:''}><td class="cb"><input type="checkbox" data-sel="${r.id}" ${selected.has(r.id)?'checked':''} aria-label="تحديد"></td><td class="ms">${envHTML(r)}${revTotal(r)?`<span class="revc" title="عدد مرات تحديث البلاغ من الاستيراد">↻ ${fmt(revTotal(r))}</span>`:''}</td>${COLS.map(c=>{ const raw=c.fmt?c.fmt(r[c.k],r):r[c.k]; const t= c.k==='count'?raw: (c.k===SK2&&raw) ? slaBadge(raw,slaState(r,SK2)) : hl(raw,fl&&c.cls==='desc'); return `<td class="${c.cls||''}">${c.cls==='desc'?`<div title="${esc(r[c.k])}">${t}</div>`:t}</td>${c.k===DUK?`<td>${durBadge(r)}</td>`:''}`; }).join('')}</tr>`; }).join('');
   v.innerHTML=`<div class="panel">${RB}<div class="tbl-wrap"><table class="rec"><thead><tr><th class="cb nosort"><input type="checkbox" id="selPage" ${allSel?'checked':''} aria-label="تحديد الصفحة"></th><th class="ms nosort" title="حالة القراءة">${ENV_O}</th>${th}</tr></thead><tbody>${body}</tbody></table></div>
     <div class="pager"><span>عرض ${fmt(page*pageSize+1)}–${fmt(page*pageSize+rows.length)} من ${fmt(filtered.length)}</span>
       <label>صفوف <select class="inp" id="pageSize" style="width:auto;display:inline-block">${[25,50,100,200].map(n=>`<option ${n===pageSize?'selected':''}>${n}</option>`).join('')}</select></label>
@@ -2151,6 +2162,7 @@ document.addEventListener('click',e=>{
     if(g==='kw'){ filt.kw='*'; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); }
     if(g==='alertsdlg'){ alertsDialog(); return; }
     if(g==='upddlg'){ updatesDialog(); return; }
+    if(g==='latedlg'){ lateDialog(); return; }
     if(g==='slacol'){ guard(()=>controlPanel('cols')); return; }
     if(g==='sla'||g==='slain'){ filt.sla=g==='sla'?'out':'in'; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); }
     if(g==='callers'){ view='callers'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); renderView(); }
@@ -2319,6 +2331,26 @@ function changesHTML(r,unseen){
   if(!unseen) return `<details class="rpt-note" style="display:block;background:var(--surface-2);border-color:var(--line)"><summary style="cursor:pointer">سجل تحديثات هذا البلاغ (${fmt(H.length)}) · آخر تغيير: ${esc(flds.join('، '))}</summary>${H.map(h=>one(h,false)).join('')}</details>`;
   return `<div class="rpt-note" style="display:block;border-color:#D69E2E;background:color-mix(in srgb,#D69E2E 10%,transparent)"><div>🔔 <b>تحدّث هذا البلاغ بعد آخر فتح</b> · تغيّر: <b>${esc(flds.join('، '))}</b></div>${first.map(h=>one(h,true)).join('')}${rest.length?`<details style="margin-top:6px"><summary style="cursor:pointer">تحديثات سابقة (${fmt(rest.length)})</summary>${rest.map(h=>one(h,false)).join('')}</details>`:''}</div>`;
 }
+// البلاغات المتأخرة: جديدة على القاعدة وتاريخها قبل آخر يوم مسجل وقت الاستيراد
+const LATE_KEY='r937-late-v1';
+let LATE=(()=>{ try{ return JSON.parse(localStorage.getItem(LATE_KEY)||'[]')||[]; }catch(e){ return []; } })();
+const saveLate=()=>{ try{ localStorage.setItem(LATE_KEY,JSON.stringify(LATE.slice(-1000))); }catch(e){} };
+function addLate(list,file){ const at=new Date().toISOString(), have=new Set(LATE.map(x=>x.k)); list.forEach(r=>{ const k=keyNo(r.no); if(k&&!have.has(k)) LATE.push({k,at,file}); }); saveLate(); }
+function lateRecs(){ const m=new Map(RECS.map(r=>[keyNo(r.no),r])); return LATE.map(x=>({...x,r:m.get(x.k)})).filter(x=>x.r).reverse(); }
+function lateStats(){ const L=lateRecs(); return {all:L.length,nNew:L.filter(x=>readState(x.r).st!=='read').length}; }
+function lateTile(){ const u=lateStats();
+  return `<div role="button" tabindex="0" class="kpi" data-dgo="latedlg" style="cursor:pointer;${u.nNew?'border-color:color-mix(in srgb,#D69E2E 60%,var(--line))':''}"><span class="lbl">البلاغات المتأخرة</span><span class="val" style="${u.nNew?'color:#B7791F':''}">${fmt(u.nNew)}</span><span class="sub">${u.all?`لم تُفتح · من ${fmt(u.all)} بلاغ متأخر`:'لا توجد بلاغات متأخرة'}</span></div>`; }
+function lateDialog(tab){
+  const L=lateRecs(), nw=L.filter(x=>readState(x.r).st!=='read'); tab=tab||(nw.length?'new':'all'); const list=tab==='new'?nw:L;
+  const tb=(k,l,n)=>`<button type="button" class="btn sm ${tab===k?'primary':''}" data-ltab="${k}">${l} (${fmt(n)})</button>`;
+  dialog({title:'البلاغات المتأخرة', wide:true, html:`<p class="hint" style="margin-top:0">بلاغات جديدة أُضيفت بالاستيراد وتاريخها أقدم من آخر يوم كان مسجلاً، فتظهر في السجلات بين بلاغات يومها لا في الأعلى. الأحدث استيراداً أولاً.</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${tb('new','لم تُفتح',nw.length)}${tb('all','الكل',L.length)}</div>
+    ${list.length?`<div class="ctbl-wrap" style="max-height:58vh"><table class="ctbl"><thead><tr><th style="width:44px"></th><th>رقم البلاغ</th><th>تاريخ البلاغ</th><th>المركز</th><th>أُضيف في</th></tr></thead><tbody>${list.slice(0,500).map(x=>`<tr data-openrec="${esc(x.r.id)}" style="cursor:pointer"><td style="text-align:center">${envHTML(x.r)}</td><td><b dir="ltr">${esc(x.r.no||'')}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(x.r.date||''))}</td><td>${esc(shortName(x.r.center||''))}</td><td dir="ltr" style="text-align:right;font-size:12px">${esc(fmtLocal(x.at))}</td></tr>`).join('')}</tbody></table></div>`:`<p class="ro-empty" style="padding:20px;text-align:center">${tab==='new'?'كل البلاغات المتأخرة تم فتحها.':'لا توجد بلاغات متأخرة.'}</p>`}`,
+    actions:[...(L.length?[{label:'عرضها في السجلات',run:()=>{ filt.q=''; filt.from=''; filt.to=''; filt.late=1; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); toast('تُعرض البلاغات المتأخرة فقط — أزل الفلتر من شريط الفلاتر'); }}]:[]),
+      ...(L.length&&!VIEWER?[{label:'مسح القائمة',run:()=>{ LATE=[]; saveLate(); toast('مُسحت قائمة البلاغات المتأخرة'); refresh(true); }}]:[]),{label:'إغلاق',cls:'primary'}],
+    onOpen:s=>s.addEventListener('click',e=>{ const t=e.target.closest('[data-ltab]'); if(t){ document.getElementById('layer').innerHTML=''; lateDialog(t.dataset.ltab); return; }
+      const o=e.target.closest('[data-openrec]'); if(o){ const r=byId.get(o.dataset.openrec); if(r){ document.getElementById('layer').innerHTML=''; viewRecord(r); } } })});
+}
 // بطاقة ونافذة التحديثات
 function lastUpdIdx(){ const m=new Map(); LOG.forEach(e=>{ if(['undo','replace','clear'].includes(e.type)) return; (e.before||[]).forEach(b=>{ if(!m.has(b.id)) m.set(b.id,{t:e.t,type:e.type,note:e.note}); }); }); return m; }
 function updStats(){ let nNew=0, all=0; filtered.forEach(r=>{ if(revTotal(r)){ all++; if(readState(r).st==='upd') nNew++; } }); return {nNew,all}; }
@@ -2361,7 +2393,8 @@ function viewRecord(r){
   const note= others.length ? `<div class="rpt-note"><span>لهذا المتصل <b>${fmt(others.length)}</b> ${others.length===1?'بلاغ آخر':'بلاغات أخرى'} · آخرها ${esc(fmtDate(others.map(x=>x.date).sort().pop()))}</span><button type="button" class="btn sm" id="seeCaller">عرض بلاغاته</button></div>` : '';
   const fl=kwIndex().get(r.id);
   const kwNote= fl ? `<div class="rpt-note" style="border-color:var(--bad);background:color-mix(in srgb,var(--bad) 9%,transparent)"><span><span class="kwflag"></span>يحتوي كلمات حساسة: <b>${esc([...new Set(fl.map(x=>x.w))].join('، '))}</b></span></div>` : '';
-  dialog({title:`البلاغ ${r.no||''}${revTotal(r)?` · ↻ ${fmt(revTotal(r))} ${revTotal(r)===1?'تحديث':'تحديثات'}`:''}`, html:chNote+kwNote+note+staffNote+clNote+html, wide:true, onOpen:s=>{ const b=s.querySelector('#seeCaller'); if(b) b.onclick=()=>{ document.getElementById('layer').innerHTML=''; showCaller(ck); }; s.querySelectorAll('[data-seestaff]').forEach(x=>x.onclick=()=>{ document.getElementById('layer').innerHTML=''; showStaff(x.dataset.seestaff); }); s.querySelectorAll('[data-seecl]').forEach(x=>x.onclick=()=>{ document.getElementById('layer').innerHTML=''; showClinic(x.dataset.seecl); }); }, actions:[
+  const durNote=DUR.on?`<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="hint">المدة الزمنية للإغلاق:</span>${durBadge(r)}</div>`:'';
+  dialog({title:`البلاغ ${r.no||''}${revTotal(r)?` · ↻ ${fmt(revTotal(r))} ${revTotal(r)===1?'تحديث':'تحديثات'}`:''}`, html:durNote+chNote+kwNote+note+staffNote+clNote+html, wide:true, onOpen:s=>{ const b=s.querySelector('#seeCaller'); if(b) b.onclick=()=>{ document.getElementById('layer').innerHTML=''; showCaller(ck); }; s.querySelectorAll('[data-seestaff]').forEach(x=>x.onclick=()=>{ document.getElementById('layer').innerHTML=''; showStaff(x.dataset.seestaff); }); s.querySelectorAll('[data-seecl]').forEach(x=>x.onclick=()=>{ document.getElementById('layer').innerHTML=''; showClinic(x.dataset.seecl); }); }, actions:[
     ...(VIEWER?[]:[{label:'تعديل',cls:'primary',run:()=>{ setTimeout(()=>guard(()=>editRecord(r)),0); }}]),
     {label:'إغلاق'}]});
 }
@@ -2505,7 +2538,7 @@ function controlPanel(tab){
     <div class="acts"><button type="button" class="btn primary" data-cpsave>حفظ</button><button type="button" class="btn" data-cpcancel>إلغاء</button><span class="hint" id="cpHint" style="align-self:center">تظهر التغييرات مباشرة للمعاينة، ولا تُحفظ إلا بعد الضغط على «حفظ».</span></div></div></div>`;
   cpBegin();
   const scrim=layer.firstChild, body=scrim.querySelector('#pbody');
-  const draw=()=>{ scrim.querySelectorAll('[data-ptab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.ptab===tab)); body.dataset.tab=tab; body.innerHTML=({home:panelHome,general:panelGeneral,filters:panelFilters,alerts:panelAlerts,log:panelLog,cols:panelCols,lists:panelLists,lock:panelLock,brand:panelBrand,data:panelData})[tab](); };
+  const draw=()=>{ scrim.querySelectorAll('[data-ptab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.ptab===tab)); body.dataset.tab=tab; body.innerHTML=({home:panelHome,general:panelGeneral,filters:panelFilters,alerts:panelAlerts,log:panelLog,cols:()=>panelDur()+panelCols(),lists:panelLists,lock:panelLock,brand:panelBrand,data:panelData})[tab](); };
   scrim.addEventListener('click',async e=>{
     if(e.target===scrim||e.target.closest('[data-close]')){ cpTryClose(); return; }
     if(e.target.closest('[data-cpsave]')){ cpSave(); return; }
@@ -2850,6 +2883,7 @@ function panelChange(t){
   if(t.id==='dTicker'||t.id==='dHome'||t.name==='dSpeed'||t.dataset.ditem){ const d=dashCfg(); if(t.id==='dTicker') d.ticker=t.checked?1:0; if(t.id==='dHome') d.home=t.checked?1:0; if(t.name==='dSpeed') d.speed=+t.value; if(t.dataset.ditem) d.items[t.dataset.ditem]=t.checked?1:0; HOME.dash=d; saveHome(); renderView(); return; }
   if(t.name==='hSide'){ HOME.side=t.value; saveHome(); applySide(); renderSide(); return; }
   if(genChange(t)) return;
+  { const dr=durChange(t); if(dr==='redraw') return 'redraw'; if(dr) return; }
   if(t.name==='hUpdView'){ HOME.updView=t.value; saveHome(); return; }
   if(t.name==='hFold'){ HOME.fold=t.value; saveHome(); renderSummary(); return; }
   if(t.name==='hTheme'){ HOME.theme=t.value; saveHome(); applyHome(); return; }
@@ -2883,7 +2917,7 @@ function panelChange(t){
 const SETTINGS_APP='r937-db-settings';
 function settingsSnapshot(){
   return {app:SETTINGS_APP, version:1, exported:nowLocal(), brand:BRAND, schema:schemaSerial(), secmap:SECMAP, clinics:CLINICS,
-    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE, filters:FCFG, staffOvr:SOVR, staffSrc:STAFF_SRC, staffPos:STAFF_POS, closerNames:CLOSER_NAMES, ctype:CTYPE, visitsSet:VSET, general:GEN};
+    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE, filters:FCFG, staffOvr:SOVR, staffSrc:STAFF_SRC, staffPos:STAFF_POS, closerNames:CLOSER_NAMES, ctype:CTYPE, visitsSet:VSET, general:GEN, dur:DUR};
 }
 async function exportSettings(){
   const blob=new Blob([JSON.stringify(settingsSnapshot(),null,2)],{type:'application/json'});
@@ -2905,6 +2939,7 @@ async function importSettings(file){
         if(Array.isArray(s.staffHide)){ STAFF_HIDE=new Set(s.staffHide); saveStaffHide(); }
         if(s.staffMin){ STAFF_MIN=+s.staffMin||1; localStorage.setItem('r937-staffmin-v1',String(STAFF_MIN)); }
         if(s.repeat){ RPT={min:2,short:false,...s.repeat}; saveRpt(); }
+        if(s.dur && typeof s.dur==='object'){ DUR={...DEF_DUR,...s.dur}; saveDur(); }
         if(s.general && typeof s.general==='object'){ GEN=normGen(s.general); saveGen(); }
         if(s.ctype && typeof s.ctype==='object'){ CTYPE={...s.ctype}; saveCtype(); }
         if(s.visitsSet && typeof s.visitsSet==='object'){ VSET={...DEF_VSET,...s.visitsSet}; saveVset(); }
@@ -3654,6 +3689,7 @@ function continueImport(file,res){
       // التحديث يدمج: يغيّر فقط الأعمدة الموجودة في الملف وقيمها غير فارغة
       const upd= (mode==='upd'||mode==='onlyupd') ? dups.map(r=>{ const base={...existing.get(keyNo(r.no))}; delete base._s; delete base._m; fields.forEach(k=>{ if(k==='no') return; const v=r[k]; if(v!==undefined && v!==null && String(v).trim()!=='') base[k]=v; }); return prep(clean(base)); }) : [];
       busy('جارٍ الحفظ…'); try{ await saveRecords(add.concat(upd),{type:mode==='onlyupd'?'update':'import',note:file.name}); } finally{ busy(null); }
+      if(mode!=='onlyupd' && late.length){ addLate(late,file.name); setTimeout(()=>dialog({title:'تم الاستيراد', html:`<p style="margin-top:0">أضيف ${fmt(add.length)} بلاغ${upd.length?` وحُدّث ${fmt(upd.length)}`:''}.</p><div class="rpt-note" style="border-color:#D69E2E;background:color-mix(in srgb,#D69E2E 12%,transparent)"><span>⏱ <b>${fmt(late.length)} بلاغ متأخر</b>: تاريخه قبل آخر يوم مسجل (${esc(lastDay)})، فلن يظهر في أعلى السجلات.</span></div>`, actions:[{label:`عرض البلاغات المتأخرة (${fmt(late.length)})`,cls:'primary',run:()=>{ setTimeout(()=>lateDialog(),0); }},{label:'لاحقاً'}]}),50); return; }
       toast((mode==='onlyupd'?`حُدّث ${fmt(upd.length)} بلاغ`:`أضيف ${fmt(add.length)} بلاغ${upd.length?` وحُدّث ${fmt(upd.length)}`:''}`)+flagNote(add.concat(upd)));
     }},{label:'إلغاء'}]});
 }
@@ -3974,6 +4010,59 @@ function genAction(b){
   if(b.id==='gGReset'){ GEN.voice.greet.text=DEF_GREET; saveGen(); return 'redraw'; }
   if(b.id==='gGDel'){ GEN.voice.greet.text=''; GEN.voice.greet.on=0; saveGen(); toast('حُذفت عبارة الترحيب وأُوقف الترحيب'); return 'redraw'; }
   return null;
+}
+
+/* ---------- المدة الزمنية للإغلاق ---------- */
+const DUR_KEY='r937-dur-v1';
+const DEF_DUR={on:1,start:'created',stCol:'حالة التذكرة',stVal:'تحت المعالجة - ضابط الاتصال',endCol:'تاريخ الحل',active:'hours',t1:24,t2:48};
+let DUR=(()=>{ try{ return {...DEF_DUR,...JSON.parse(localStorage.getItem(DUR_KEY)||'{}')}; }catch(e){ return {...DEF_DUR}; } })();
+const saveDur=()=>{ try{ localStorage.setItem(DUR_KEY,JSON.stringify(DUR)); }catch(e){} };
+const durEndKey=()=>colByLabel(DUR.endCol), durStKey=()=>colByLabel(DUR.stCol);
+function anyDate(v){ if(v==null||v==='') return null; const s=toISO(v); if(!s) return null; const d=new Date(s.length<=10?s+'T00:00:00':s); return isNaN(d)?null:d; }
+function durStart(r){
+  if(DUR.start!=='status') return anyDate(r.date);
+  const k=durStKey(); if(!k) return anyDate(r.date); const want=nrm(DUR.stVal);
+  const ents=LOG.filter(e=>!['undo','replace','clear'].includes(e.type) && (e.before||[]).some(x=>x.id===r.id)).reverse();
+  const states=[{t:null,v:ents.length?ents[0].before.find(x=>x.id===r.id)[k]:r[k]}];
+  ents.forEach((e,i)=>{ const nx=ents[i+1]; const a=nx?nx.before.find(x=>x.id===r.id):r; states.push({t:e.t,v:a[k]}); });
+  const hit=states.find(x=>nrm(x.v||'')===want); if(!hit) return null;
+  return hit.t?new Date(hit.t):anyDate(r.date);
+}
+function durInfo(r){ const ek=durEndKey(); const end=ek?anyDate(r[ek]):null;
+  if(end) return {st:'closed'};
+  // بلاغ لم يأتِ من ملف فيه «تاريخ الحل» ولا «حالة التذكرة» (من ملف قديم): لا نعرف حالته
+  const sk=durStKey(); if((!ek || r[ek]===undefined) && !(sk && String(r[sk]??'').trim())) return {st:'none'};
+  const st=durStart(r); if(!st) return {st:'none'};
+  const h=Math.max(0,(Date.now()-st.getTime())/3600000); return {st:'open',h,lvl:h<=(+DUR.t1||24)?'g':h<=(+DUR.t2||48)?'o':'r'}; }
+function durBadge(r){ const d=durInfo(r);
+  if(d.st==='closed') return `<span class="dur dur-c">مغلق</span>`;
+  if(d.st==='none') return '<span class="ro-empty">—</span>';
+  return `<span class="dur dur-${d.lvl}" title="منذ ${hrsTxt(d.h)}">نشط${DUR.active==='hours'?` · ${hrsTxt(d.h)}`:''}</span>`; }
+function hrsTxt(h){ const n=Math.floor(h); if(n<1) return 'أقل من ساعة'; if(n===1) return 'ساعة'; if(n===2) return 'ساعتان'; return fmt(n)+(n<=10?' ساعات':' ساعة'); }
+function panelDur(){
+  const sk=durStKey(); const vals=sk?countBy(RECS,sk).map(x=>x[0]).filter(Boolean):[];
+  const cols=SCHEMA.filter(c=>!c.removed).map(c=>c.l);
+  const ek=durEndKey();
+  return `<div class="pcard"><h4>المدة الزمنية للإغلاق</h4>
+    <label class="opt"><input type="checkbox" id="duOn" ${DUR.on?'checked':''}><span>إظهار عمود «المدة الزمنية للإغلاق» في السجلات وتفاصيل البلاغ</span></label>
+    <div style="margin-top:10px"><b>يبدأ الحساب من</b><div style="display:grid;gap:6px;margin-top:6px">
+      <label class="opt"><input type="radio" name="duStart" value="created" ${DUR.start!=='status'?'checked':''}><span>تاريخ إنشاء التذكرة</span></label>
+      <label class="opt"><input type="radio" name="duStart" value="status" ${DUR.start==='status'?'checked':''}><span>عندما تكون حالة التذكرة<small>يُعرف وقتها من أول استيراد ظهرت فيه التذكرة بهذه الحالة؛ وإن كانت بها من البداية فمن تاريخ الإنشاء.</small></span></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-inline-start:28px"><span class="hint">عمود الحالة</span><select class="inp" id="duStCol" style="width:auto">${cols.map(l=>`<option ${l===DUR.stCol?'selected':''}>${esc(l)}</option>`).join('')}</select><span class="hint">القيمة</span>${vals.length?`<select class="inp" id="duStVal" style="width:auto">${[...new Set([DUR.stVal,...vals])].map(v=>`<option ${v===DUR.stVal?'selected':''}>${esc(v)}</option>`).join('')}</select>`:`<input class="inp" id="duStVal" value="${esc(DUR.stVal)}" style="width:auto">`}</div>
+    </div></div>
+    <div style="margin-top:10px"><b>وينتهي عند</b> <select class="inp" id="duEnd" style="width:auto">${cols.map(l=>`<option ${l===DUR.endCol?'selected':''}>${esc(l)}</option>`).join('')}</select>
+      <p class="hint" style="margin:4px 0 0">${ek?'إذا كان هذا العمود فارغاً فالتذكرة «نشط»، وإن كان فيه تاريخ فهي «مغلق».':'<span style="color:var(--bad)">هذا العمود غير موجود في القاعدة بعد — استورد ملف Care الذي يحتويه وأضِفه عند ظهور نافذة الأعمدة الجديدة.</span>'}</p></div>
+    <div style="margin-top:10px"><b>ألوان التذاكر النشطة (بالساعات)</b>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px"><span class="dur dur-g">نشط</span><span class="hint">حتى</span><input class="inp" type="number" min="1" id="duT1" value="${+DUR.t1||24}" style="width:80px"><span class="dur dur-o">نشط</span><span class="hint">حتى</span><input class="inp" type="number" min="2" id="duT2" value="${+DUR.t2||48}" style="width:80px"><span class="dur dur-r">نشط</span><span class="hint">أكثر من ذلك</span><span class="dur dur-c">مغلق</span></div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px"><span class="hint">في التذاكر النشطة</span><div class="seg"><label><input type="radio" name="duAct" value="hours" ${DUR.active!=='label'?'checked':''}><span>«نشط · 22 ساعة»</span></label><label><input type="radio" name="duAct" value="label" ${DUR.active==='label'?'checked':''}><span>«نشط» فقط</span></label></div></div></div>
+  </div>`;
+}
+function durChange(t){
+  if(t.id==='duOn') DUR.on=t.checked?1:0; else if(t.name==='duStart') DUR.start=t.value; else if(t.id==='duStCol'){ DUR.stCol=t.value; saveDur(); refresh(true); return 'redraw'; }
+  else if(t.id==='duStVal') DUR.stVal=t.value; else if(t.id==='duEnd'){ DUR.endCol=t.value; saveDur(); refresh(true); return 'redraw'; }
+  else if(t.id==='duT1') DUR.t1=Math.max(1,+t.value||24); else if(t.id==='duT2') DUR.t2=Math.max((+DUR.t1||24)+1,+t.value||48); else if(t.name==='duAct') DUR.active=t.value;
+  else return null;
+  saveDur(); refresh(true); return true;
 }
 
 /* ---------- install + offline ---------- */
