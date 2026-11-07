@@ -1,5 +1,5 @@
 // غيّر رقم الإصدار عند تعديل ملفات التطبيق
-const VERSION = 'r937db-v84';
+const VERSION = 'r937db-v87';
 const APP_FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'maskable-512.png', 'apple-touch-icon.png', 'favicon.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(APP_FILES)).then(() => self.skipWaiting()));
