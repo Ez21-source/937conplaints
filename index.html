@@ -685,7 +685,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '78';
+const APP_VER = '79';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'',
@@ -758,7 +758,9 @@ function buildSchema(saved){
 let SCHEMA=buildSchema((()=>{ try{ return JSON.parse(localStorage.getItem(SCHEMA_KEY)||'[]'); }catch(e){ return []; } })());
 const schemaSerial=()=>SCHEMA.map(c=>({k:c.k,l:c.l,type:c.type,req:c.req?1:0,pii:c.pii?1:0,table:c.table?1:0,rep:c.rep?1:0,removed:c.removed?1:0,custom:c.custom?1:0,options:c.options||[]}));
 function saveSchema(){ try{ localStorage.setItem(SCHEMA_KEY,JSON.stringify(schemaSerial())); return true; }catch(e){ return false; } }
-const col = k => SCHEMA.find(c=>c.k===k);
+const VCOL_DUR={k:'__dur',l:'المدة الزمنية للإغلاق',type:'list',virt:1};
+const col = k => k==='__dur' ? VCOL_DUR : SCHEMA.find(c=>c.k===k);
+const rv = (r,k) => k==='__dur' ? durCat(r) : r[k];
 const cols = () => SCHEMA.filter(c=>!c.removed);
 const active = k => { const c=col(k); return !!c && !c.removed; };
 const ALLK = () => SCHEMA.map(c=>c.k);
@@ -1514,7 +1516,7 @@ function apply(){ _empSet=null; _clSet=null;
     if(filt.kw && !kwMatch(r,filt.kw)) return false;
     if(filt.sla && slaState(r)!==filt.sla) return false;
     if(filt.unread){ const st=readState(r).st; if(filt.unread==='1'?st==='read':st!==filt.unread) return false; }
-    for(const c of extraFilterCols()) if(!fOk(c.k,r[c.k])) return false;
+    for(const c of extraFilterCols()) if(!fOk(c.k,rv(r,c.k))) return false;
     for(const w of words) if(!r._s.includes(w)) return false;
     return true;
   });
@@ -1547,18 +1549,19 @@ function optionsFor(k){
     if(filt.cl && !clSet().has(r.id)) return false;
     if(filt.kw && !kwMatch(r,filt.kw)) return false;
     if(filt.sla && slaState(r)!==filt.sla) return false;
-    for(const c of extraFilterCols()) if(k!==c.k && !fOk(c.k,r[c.k])) return false;
+    for(const c of extraFilterCols()) if(k!==c.k && !fOk(c.k,rv(r,c.k))) return false;
     for(const w of words) if(!r._s.includes(w)) return false;
     return true;
   });
   filt[k]=save;
   if(k==='month'){ const m=new Map(); base.forEach(r=>{ if(r._m) m.set(r._m,{n:(m.get(r._m)?.n||0)+1, key:monthKey(r)}); }); return [...m.entries()].sort((a,b)=>b[1].key<a[1].key?-1:1).map(([v,o])=>[v,o.n]); }
+  if(k==='__dur'){ const m=new Map(); base.forEach(r=>{ const v=durCat(r); m.set(v,(m.get(v)||0)+1); }); const t1=+DUR.t1||24, t2=+DUR.t2||48; return [`نشط حتى ${t1} ساعة`,`نشط من ${t1} إلى ${t2} ساعة`,`نشط أكثر من ${t2} ساعة`,'مغلق'].filter(c=>m.has(c)).map(c=>[c,m.get(c)]).concat(m.has('')?[['__none',m.get('')]]:[]); }
   return countBy(base,k).filter(([v])=>v!=='');
 }
 // فلتر متعدد: القيمة '' = الكل، أو نص واحد، أو قائمة قيم
 const fVals=k=>{ const v=filt[k]; return Array.isArray(v)?v:(v?[v]:[]); };
 function fOk(k,val){ const vs=fVals(k); if(!vs.length) return true; return vs.some(x=> x==='__none' ? !val : val===x); }
-const fLabel=(k,v)=>v==='__none'?'بدون قطاع':v;
+const fLabel=(k,v)=>v==='__none'?(k==='__dur'?'غير معروف (ملفات قديمة)':'بدون قطاع'):v;
 const fText=k=>{ const vs=fVals(k); return vs.length<=2?vs.map(v=>fLabel(k,v)).join('، '):`${fLabel(k,vs[0])} و${fmt(vs.length-1)} أخرى`; };
 let FC_KEY='center', FC_ROWS=[];
 document.addEventListener('change',e=>{ const t=e.target;
@@ -1576,11 +1579,11 @@ const FCFG_KEY='r937-filters-v1';
 let FCFG=(()=>{ try{ return {list:[],desk:'full',mob:'compact',...JSON.parse(localStorage.getItem(FCFG_KEY)||'{}')}; }catch(e){ return {list:[],desk:'full',mob:'compact'}; } })();
 const saveFcfg=()=>{ try{ localStorage.setItem(FCFG_KEY,JSON.stringify(FCFG)); }catch(e){} };
 // كل الأعمدة التي يمكن الفلترة بها (بدون الرقم والتاريخ والوصف والهوية)
-function filterCandidates(){ return cols().filter(c=>!['no','date','desc','nid','caller'].includes(c.k) && c.type!=='long'); }
+function filterCandidates(){ return cols().filter(c=>!['no','date','desc','nid','caller'].includes(c.k) && c.type!=='long').concat(DUR.on?[VCOL_DUR]:[]); }
 function filterList(){
   const cand=filterCandidates().map(c=>c.k); const out=[]; const seen=new Set();
   (FCFG.list||[]).forEach(([k,on])=>{ if(cand.includes(k)&&!seen.has(k)){ out.push([k,on?1:0]); seen.add(k); } });
-  const defOn=k=>FBASE.includes(k)||(col(k)&&col(k).custom&&col(k).type==='list');
+  const defOn=k=>FBASE.includes(k)||k==='__dur'||(col(k)&&col(k).custom&&col(k).type==='list');
   FBASE.concat(cand).forEach(k=>{ if(cand.includes(k)&&!seen.has(k)){ out.push([k,defOn(k)?1:0]); seen.add(k); } });
   return out;
 }
@@ -4034,6 +4037,8 @@ function durInfo(r){ const ek=durEndKey(); const end=ek?anyDate(r[ek]):null;
   const sk=durStKey(); if((!ek || r[ek]===undefined) && !(sk && String(r[sk]??'').trim())) return {st:'none'};
   const st=durStart(r); if(!st) return {st:'none'};
   const h=Math.max(0,(Date.now()-st.getTime())/3600000); return {st:'open',h,lvl:h<=(+DUR.t1||24)?'g':h<=(+DUR.t2||48)?'o':'r'}; }
+function durCat(r){ const d=durInfo(r); if(d.st==='closed') return 'مغلق'; if(d.st!=='open') return '';
+  const t1=+DUR.t1||24, t2=+DUR.t2||48; return d.lvl==='g'?`نشط حتى ${t1} ساعة`:d.lvl==='o'?`نشط من ${t1} إلى ${t2} ساعة`:`نشط أكثر من ${t2} ساعة`; }
 function durBadge(r){ const d=durInfo(r);
   if(d.st==='closed') return `<span class="dur dur-c">مغلق</span>`;
   if(d.st==='none') return '<span class="ro-empty">—</span>';
