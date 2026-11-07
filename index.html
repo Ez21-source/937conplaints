@@ -685,7 +685,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '80';
+const APP_VER = '81';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'',
@@ -1500,8 +1500,9 @@ let _empSet=null,_empKey=null;
 function empSet(){ if(_empKey!==filt.emp+'|'+STAFF_POS||!_empSet){ const g=staffIndex().get(filt.emp); _empSet=new Set(g?(filt.empc?complaintsOnly(g.recs):g.recs).filter(r=>posOk(g,r)).map(r=>r.id):[]); _empKey=filt.emp+'|'+STAFF_POS; } return _empSet; }
 function apply(){ _empSet=null; _clSet=null;
   const words=nrm(filt.q).split(' ').filter(Boolean);
-  const LS=filt.late?new Set(LATE.map(x=>x.k)):null;
+  const LS=filt.late?new Set(LATE.map(x=>x.k)):null; const IS=filt.impk?impSet(filt.impk):null;
   filtered=RECS.filter(r=>{
+    if(IS && !IS.has(r.id)) return false;
     if(LS && !LS.has(keyNo(r.no))) return false;
     if(filt.from && (!r.date || r.date.slice(0,10)<filt.from)) return false;
     if(filt.to && (!r.date || r.date.slice(0,10)>filt.to)) return false;
@@ -1649,6 +1650,7 @@ function renderFilters(){
   if(filt.kw) tags.push(['kw',`تنبيه: ${kwRuleName(filt.kw)}`]);
   if(filt.sla) tags.push(['sla',filt.sla==='out'?'خارج مستوى الخدمة':'داخل مستوى الخدمة']);
   if(filt.late) tags.push(['late','البلاغات المتأخرة فقط']);
+  if(filt.impk) tags.push(['impk',impTag(filt.impk)]);
   if(filt.unread) tags.push(['unread',({new:'غير مقروء',upd:'محدّث',read:'تم الفتح'})[filt.unread]||'غير المقروءة']);
   activeFilterKeys().forEach(k=>{ if(fVals(k).length) tags.push([k,`${short(k)}: ${fText(k)}`]); });
   document.getElementById('fstate').innerHTML = `<span><b>${fmt(total(filtered))}</b> بلاغ${filtered.length!==RECS.length?` من أصل ${fmt(total(RECS))}`:''}</span>` + tags.map(([k,t])=>`<span class="tag">${esc(t)}<button type="button" data-untag="${k}" aria-label="إزالة">×</button></span>`).join('') + (tags.length?`<button type="button" class="btn sm ghost" data-untag="all">مسح الفلاتر</button>`:'');
@@ -2362,7 +2364,13 @@ function updTile(){ const u=updStats();
 const fmtLocal=t=>{ if(!t) return '—'; const d=new Date(t); return fmtDate(`${iso(d)}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`); };
 function updatesDialog(tab){
   const LI=lastUpdIdx();
-  const all=filtered.filter(r=>revTotal(r)).map(r=>({r,st:readState(r),last:LI.get(r.id)})).sort((a,b)=>String(b.last?.t||'').localeCompare(String(a.last?.t||''))||String(b.r.date).localeCompare(a.r.date));
+  const US=HOME.updSort||'recent';
+  const SRT={recent:(a,b)=>String(b.last?.t||'').localeCompare(String(a.last?.t||''))||String(b.r.date).localeCompare(a.r.date),
+    most:(a,b)=>revTotal(b.r)-revTotal(a.r)||String(b.last?.t||'').localeCompare(String(a.last?.t||'')),
+    least:(a,b)=>revTotal(a.r)-revTotal(b.r)||String(b.last?.t||'').localeCompare(String(a.last?.t||'')),
+    unseen:(a,b)=>(b.st.st==='upd'?b.st.n:0)-(a.st.st==='upd'?a.st.n:0)||revTotal(b.r)-revTotal(a.r),
+    date:(a,b)=>String(b.r.date).localeCompare(a.r.date), center:(a,b)=>String(a.r.center||'').localeCompare(String(b.r.center||''),'ar')||revTotal(b.r)-revTotal(a.r)};
+  const all=filtered.filter(r=>revTotal(r)).map(r=>({r,st:readState(r),last:LI.get(r.id)})).sort(SRT[US]||SRT.recent);
   const nw=all.filter(x=>x.st.st==='upd'), old=all.filter(x=>x.st.st!=='upd');
   tab=tab||(nw.length?'new':'old'); const list=tab==='new'?nw:tab==='old'?old:all; const lim=300;
   const UV=HOME.updView||'table';
@@ -2375,12 +2383,42 @@ function updatesDialog(tab){
     ? `<div style="border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:58vh">${sl.map((x,i)=>{ const f=chg(x); return `<div data-openrec="${esc(x.r.id)}" style="cursor:pointer;display:flex;gap:10px;align-items:center;padding:9px 12px;${i?'border-top:1px solid var(--line)':''}">${envOf(x)}<div style="flex:1;min-width:0"><div style="display:flex;gap:6px;align-items:baseline;min-width:0"><b dir="ltr">${esc(x.r.no||'')}</b><span style="font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">· ${esc(shortName(x.r.center||''))}</span></div><div style="font-size:12px;color:var(--muted)">${tm(x)}${f?' · '+esc(f):''}</div></div><span class="badge" title="عدد التحديثات">↻ ${fmt(cnt(x))}</span></div>`; }).join('')}</div>`
     : `<div class="ctbl-wrap" style="max-height:58vh"><table class="ctbl"><thead><tr><th style="width:44px"></th><th>رقم البلاغ</th><th>المركز</th><th>آخر تحديث</th></tr></thead><tbody>${sl.map(x=>`<tr data-openrec="${esc(x.r.id)}" style="cursor:pointer"><td style="text-align:center">${envOf(x)}<span class="revc">↻ ${fmt(cnt(x))}</span></td><td><b dir="ltr">${esc(x.r.no||'')}</b></td><td>${esc(shortName(x.r.center||''))}</td><td dir="ltr" style="text-align:right;font-size:12px">${tm(x)}</td></tr>`).join('')}</tbody></table></div>`;
   const tb=(k,l,n)=>`<button type="button" class="btn sm ${tab===k?'primary':''}" data-utab="${k}">${l} (${fmt(n)})</button>`;
-  dialog({title:'تحديثات البلاغات', wide:true, html:`<p class="hint" style="margin-top:0">البلاغات التي تغيّرت بياناتها عند الاستيراد${filtered.length!==RECS.length?' (حسب الفلاتر الحالية)':''}، الأحدث تحديثاً أولاً. اضغط أي بلاغ لعرض ما تغيّر فيه.</p>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${tb('new','جديدة لم تُفتح',nw.length)}${tb('old','سابقة تم فتحها',old.length)}${tb('all','الكل',all.length)}</div>
-    ${list.length?`${body}${list.length>lim?`<p class="hint">يظهر أحدث ${fmt(lim)}.</p>`:''}`:`<p class="ro-empty" style="padding:20px;text-align:center">${tab==='new'?'لا توجد تحديثات جديدة — كل البلاغات المحدّثة تم فتحها.':'لا توجد بلاغات هنا.'}</p>`}`,
+  dialog({title:'تحديثات البلاغات', wide:true, html:`<p class="hint" style="margin-top:0">البلاغات التي تغيّرت بياناتها عند الاستيراد${filtered.length!==RECS.length?' (حسب الفلاتر الحالية)':''}. اضغط أي بلاغ لعرض ما تغيّر فيه.</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${tb('new','جديدة لم تُفتح',nw.length)}${tb('old','سابقة تم فتحها',old.length)}${tb('all','الكل',all.length)}</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><span class="hint">الترتيب</span><select class="inp" id="uSort" style="width:auto">${[['recent','الأحدث تحديثاً'],['most','الأكثر تحديثات ↓'],['least','الأقل تحديثات ↑'],['unseen','الأكثر تحديثات لم تُفتح'],['date','تاريخ البلاغ (الأحدث)'],['center','المركز (أ–ي)']].map(([v,l])=>`<option value="${v}" ${US===v?'selected':''}>${l}</option>`).join('')}</select>
+      <button type="button" class="btn sm" id="uSum">ملخص آخر استيراد</button></div>
+    ${list.length?`${body}${list.length>lim?`<p class="hint">يظهر أول ${fmt(lim)}.</p>`:''}`:`<p class="ro-empty" style="padding:20px;text-align:center">${tab==='new'?'لا توجد تحديثات جديدة — كل البلاغات المحدّثة تم فتحها.':'لا توجد بلاغات هنا.'}</p>`}`,
     actions:[...(nw.length?[{label:'تحديد الجديدة كمقروءة',run:()=>{ markAllSeen(nw.map(x=>x.r)); toast('حُددت كمقروءة'); refresh(true); }}]:[]),{label:'إغلاق',cls:'primary'}],
-    onOpen:s=>s.addEventListener('click',e=>{ const t=e.target.closest('[data-utab]'); if(t){ document.getElementById('layer').innerHTML=''; updatesDialog(t.dataset.utab); return; }
-      const o=e.target.closest('[data-openrec]'); if(o){ const r=byId.get(o.dataset.openrec); if(r){ document.getElementById('layer').innerHTML=''; viewRecord(r); } } })});
+    onOpen:s=>{ s.querySelector('#uSort')?.addEventListener('change',e=>{ HOME.updSort=e.target.value; saveHome(); document.getElementById('layer').innerHTML=''; updatesDialog(tab); });
+      s.addEventListener('click',e=>{ if(e.target.closest('#uSum')){ document.getElementById('layer').innerHTML=''; importSummary(); return; } }); s.addEventListener('click',e=>{ const t=e.target.closest('[data-utab]'); if(t){ document.getElementById('layer').innerHTML=''; updatesDialog(t.dataset.utab); return; }
+      const o=e.target.closest('[data-openrec]'); if(o){ const r=byId.get(o.dataset.openrec); if(r){ document.getElementById('layer').innerHTML=''; viewRecord(r); } } }); }});
+}
+// ملخص الاستيراد: الأعمدة التي تغيّرت في عملية استيراد واحدة
+const impEntries=()=>LOG.filter(e=>['import','update'].includes(e.type) && !e.lost);
+function impAfter(idx,id){ for(let j=idx-1;j>=0;j--){ const b=(LOG[j].before||[]).find(x=>x.id===id); if(b) return b; } return byId.get(id); }
+const IMP_CACHE=new Map();
+function impStats(e){ const key=e.id+'|'+LOG.length+'|'+RECS.length; if(IMP_CACHE.has(key)) return IMP_CACHE.get(key);
+  const idx=LOG.indexOf(e), keys=ALLK().filter(k=>k!=='id'), by=new Map(); let upd=0;
+  (e.before||[]).forEach(b=>{ const a=impAfter(idx,b.id); if(!a) return; let any=false; keys.forEach(k=>{ if(col(k) && vNorm(b[k])!==vNorm(a[k])){ any=true; if(!by.has(k)) by.set(k,new Set()); by.get(k).add(b.id); } }); if(any) upd++; });
+  const o={upd,added:(e.added||[]).filter(id=>byId.has(id)),by:[...by.entries()].sort((x,y)=>y[1].size-x[1].size)}; IMP_CACHE.set(key,o); return o; }
+function impSet(code){ const [eid,k]=String(code).split('|'); const e=LOG.find(x=>x.id===eid); if(!e) return new Set(); const st=impStats(e);
+  if(k==='__added') return new Set(st.added); if(k==='__any'){ const s=new Set(); st.by.forEach(([,ids])=>ids.forEach(i=>s.add(i))); return s; } return st.by.find(x=>x[0]===k)?.[1]||new Set(); }
+function impTag(code){ const [eid,k]=String(code).split('|'); const e=LOG.find(x=>x.id===eid); const w=e?`استيراد ${e.note||''} (${fmtLocal(e.t)})`:'استيراد';
+  return k==='__added'?`أُضيفت في ${w}`:k==='__any'?`تحدّثت في ${w}`:`تغيّر «${label(k)}» في ${w}`; }
+function importSummary(eid){
+  const ents=impEntries(); if(!ents.length){ dialog({title:'ملخص آخر استيراد',html:'<p class="ro-empty" style="padding:16px;text-align:center">لا توجد عمليات استيراد محفوظة التفاصيل بعد. يظهر الملخص بعد أول استيراد.</p>',actions:[{label:'إغلاق',cls:'primary'}]}); return; }
+  const e=ents.find(x=>x.id===eid)||ents[0], st=impStats(e);
+  const lateN=LATE.filter(x=>x.file===e.note && Math.abs(new Date(x.at)-new Date(e.t))<10*60000).length;
+  const mx=st.by[0]?.[1].size||1;
+  dialog({title:'ملخص الاستيراد', wide:true, html:`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><span class="hint">العملية</span><select class="inp" id="isPick" style="width:auto;max-width:100%">${ents.slice(0,20).map((x,i)=>`<option value="${x.id}" ${x.id===e.id?'selected':''}>${i===0?'آخر استيراد · ':''}${esc(x.note||'ملف')} · ${esc(fmtLocal(x.t))}</option>`).join('')}</select></div>
+    <div class="stats" style="margin-bottom:10px"><div data-imp="__added" style="cursor:pointer"><b>${fmt(st.added.length)}</b><span>بلاغ جديد أُضيف</span></div><div data-imp="__any" style="cursor:pointer"><b>${fmt(st.upd)}</b><span>بلاغ تحدّث</span></div><div><b>${fmt(st.by.length)}</b><span>عمود تغيّر</span></div></div>
+    ${lateN?`<div class="rpt-note" style="border-color:#D69E2E;background:color-mix(in srgb,#D69E2E 12%,transparent);margin-bottom:10px"><span>⏱ <b>${fmt(lateN)} بلاغ متأخر</b> في هذا الاستيراد (تاريخه قبل آخر يوم مسجل).</span><button type="button" class="btn sm" id="isLate">عرضها</button></div>`:''}
+    ${st.by.length?`<div class="ctbl-wrap" style="max-height:52vh"><table class="ctbl"><thead><tr><th>العمود الذي تغيّر</th><th style="width:40%">عدد البلاغات</th><th></th></tr></thead><tbody>${st.by.map(([k,ids])=>`<tr data-imp="${esc(k)}" style="cursor:pointer"><td><b>${esc(label(k))}</b></td><td><div style="display:flex;gap:8px;align-items:center"><span style="flex:1;height:7px;background:var(--surface-2);border-radius:4px;overflow:hidden"><span style="display:block;height:100%;width:${(ids.size/mx*100).toFixed(1)}%;background:var(--accent)"></span></span><b>${fmt(ids.size)}</b></div></td><td><span class="btn sm ghost">عرضها</span></td></tr>`).join('')}</tbody></table></div>`:'<p class="ro-empty" style="padding:14px;text-align:center">لم يتغيّر أي عمود في البلاغات الموجودة في هذا الاستيراد.</p>'}
+    <p class="hint" style="margin-bottom:0">اضغط أي عمود أو رقم لعرض بلاغاته وحدها في السجلات. البلاغ الواحد قد يتغيّر فيه أكثر من عمود.</p>`,
+    actions:[{label:'تحديثات البلاغات',run:()=>{ setTimeout(()=>updatesDialog(),0); }},{label:'إغلاق',cls:'primary'}],
+    onOpen:s=>{ s.querySelector('#isPick').addEventListener('change',ev=>{ document.getElementById('layer').innerHTML=''; importSummary(ev.target.value); });
+      s.querySelector('#isLate')?.addEventListener('click',()=>{ document.getElementById('layer').innerHTML=''; lateDialog(); });
+      s.addEventListener('click',ev=>{ const t=ev.target.closest('[data-imp]'); if(!t) return; filt={...filt,q:'',from:'',to:'',impk:e.id+'|'+t.dataset.imp}; document.getElementById('layer').innerHTML=''; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); toast('أزل الفلتر من الوسم أعلى النتائج للرجوع'); }); }});
 }
 function viewRecord(r){
   const unseen0=r?readState(r):{st:'read',n:0}; const chNote=r?changesHTML(r,unseen0.st==='upd'?unseen0.n:0):'';
@@ -3695,7 +3733,9 @@ function continueImport(file,res){
       // التحديث يدمج: يغيّر فقط الأعمدة الموجودة في الملف وقيمها غير فارغة
       const upd= (mode==='upd'||mode==='onlyupd') ? dups.map(r=>{ const base={...existing.get(keyNo(r.no))}; delete base._s; delete base._m; fields.forEach(k=>{ if(k==='no') return; const v=r[k]; if(v!==undefined && v!==null && String(v).trim()!=='') base[k]=v; }); return prep(clean(base)); }) : [];
       busy('جارٍ الحفظ…'); try{ await saveRecords(add.concat(upd),{type:mode==='onlyupd'?'update':'import',note:file.name}); } finally{ busy(null); }
-      if(mode!=='onlyupd' && late.length){ addLate(late,file.name); setTimeout(()=>dialog({title:'تم الاستيراد', html:`<p style="margin-top:0">أضيف ${fmt(add.length)} بلاغ${upd.length?` وحُدّث ${fmt(upd.length)}`:''}.</p><div class="rpt-note" style="border-color:#D69E2E;background:color-mix(in srgb,#D69E2E 12%,transparent)"><span>⏱ <b>${fmt(late.length)} بلاغ متأخر</b>: تاريخه قبل آخر يوم مسجل (${esc(lastDay)})، فلن يظهر في أعلى السجلات.</span></div>`, actions:[{label:`عرض البلاغات المتأخرة (${fmt(late.length)})`,cls:'primary',run:()=>{ setTimeout(()=>lateDialog(),0); }},{label:'لاحقاً'}]}),50); return; }
+      if(mode!=='onlyupd' && late.length) addLate(late,file.name);
+      if(upd.length || late.length){ const eid=LAST_LOG?.id; toast((mode==='onlyupd'?`حُدّث ${fmt(upd.length)} بلاغ`:`أضيف ${fmt(add.length)} بلاغ${upd.length?` وحُدّث ${fmt(upd.length)}`:''}`)); setTimeout(()=>importSummary(eid),60); return; }
+      if(false){ setTimeout(()=>dialog({title:'تم الاستيراد', html:`<p style="margin-top:0">أضيف ${fmt(add.length)} بلاغ${upd.length?` وحُدّث ${fmt(upd.length)}`:''}.</p><div class="rpt-note" style="border-color:#D69E2E;background:color-mix(in srgb,#D69E2E 12%,transparent)"><span>⏱ <b>${fmt(late.length)} بلاغ متأخر</b>: تاريخه قبل آخر يوم مسجل (${esc(lastDay)})، فلن يظهر في أعلى السجلات.</span></div>`, actions:[{label:`عرض البلاغات المتأخرة (${fmt(late.length)})`,cls:'primary',run:()=>{ setTimeout(()=>lateDialog(),0); }},{label:'لاحقاً'}]}),50); return; }
       toast((mode==='onlyupd'?`حُدّث ${fmt(upd.length)} بلاغ`:`أضيف ${fmt(add.length)} بلاغ${upd.length?` وحُدّث ${fmt(upd.length)}`:''}`)+flagNote(add.concat(upd)));
     }},{label:'إلغاء'}]});
 }
