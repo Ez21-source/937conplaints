@@ -20,8 +20,8 @@
 /* Layout: sticky toolbar → filter bar → summary strip → records table (or report view). Same family as the 937 report form. */
 :root{
   --bg:#EEF3F2; --surface:#FFFFFF; --surface-2:#E4ECEA; --ink:#13211F; --muted:#5A6C69; --line:#D3DEDB;
-  --accent:#0B6B5D; --accent-ink:#FFFFFF; --accent-soft:#D6ECE7; --sel:#FFF6DB;
-  --good:#1D7A4C; --bad:#B4432D; --warn:#A86E12; --focus:#0B6B5D;
+  --accent:#1B2F5E; --accent-ink:#FFFFFF; --accent-soft:#D6ECE7; --sel:#FFF6DB;
+  --good:#1D7A4C; --bad:#B4432D; --warn:#A86E12; --focus:#1B2F5E;
   --f-display:"Readex Pro","IBM Plex Sans Arabic","Segoe UI",Tahoma,sans-serif;
   --f-body:"IBM Plex Sans Arabic","Segoe UI",Tahoma,"Noto Sans Arabic",sans-serif;
   --r:10px;
@@ -153,6 +153,9 @@ select.inp{padding-inline-end:6px}
 .foldable.folded>:not(h3){display:none!important}
 .foldable.folded>h3{margin-bottom:0}
 .barrow.on{background:var(--accent-soft);outline:1.5px solid var(--accent)}
+.chip-wrap{display:inline-flex;align-items:center;gap:0}.chip-wrap .chip{border-start-end-radius:0;border-end-end-radius:0}
+.chip-x{border:1px solid var(--line);border-inline-start:0;background:var(--surface);color:var(--muted);font:inherit;font-size:11px;padding:0 8px;align-self:stretch;border-start-end-radius:999px;border-end-end-radius:999px;cursor:pointer}
+.chip-x.confirm{color:#fff;background:var(--bad)}
 .bar-clear{margin-top:8px;border:1px dashed var(--accent);background:none;color:var(--accent);border-radius:8px;padding:6px 10px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;width:100%}
 .bar-clear:hover{background:var(--accent-soft)}
 .barrow .nm{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -311,11 +314,11 @@ table.ctbl .mv{display:flex;gap:2px}
 .vw-lock form{background:#fff;border:1px solid #D3DEDB;border-radius:14px;padding:22px;width:min(380px,100%);display:grid;gap:12px;box-shadow:0 8px 30px rgba(0,0,0,.08)}
 .vw-lock h1{margin:0;font-size:18px;color:#13211F}.vw-lock p{margin:0;color:#5A6C69;font-size:13px}
 .vw-lock input{font:inherit;padding:10px 12px;border:1px solid #D3DEDB;border-radius:9px;font-size:15px}
-.vw-lock button{font:inherit;padding:10px;border:0;border-radius:9px;background:#0B6B5D;color:#fff;font-weight:600;font-size:15px;cursor:pointer}
+.vw-lock button{font:inherit;padding:10px;border:0;border-radius:9px;background:#1B2F5E;color:#fff;font-weight:600;font-size:15px;cursor:pointer}
 .vw-lock .e{color:#B44;font-size:13px;min-height:1em}
 </style>
 <style id="reportCss">
-.rp{--rp-a:#0B6B5D;--rp-soft:#DCEEEA;--rp-band:#F3F7F6;--rp-line:#DCE5E3;--rp-ink:#16211F;--rp-mut:#5E6E6B;width:1120px;background:#fff;color:var(--rp-ink);font-family:"IBM Plex Sans Arabic","Segoe UI",Tahoma,"Noto Sans Arabic",sans-serif;direction:rtl;padding:30px 34px;font-size:13px;line-height:1.5}
+.rp{--rp-a:#1B2F5E;--rp-soft:#DCEEEA;--rp-band:#F3F7F6;--rp-line:#DCE5E3;--rp-ink:#16211F;--rp-mut:#5E6E6B;width:1120px;background:#fff;color:var(--rp-ink);font-family:"IBM Plex Sans Arabic","Segoe UI",Tahoma,"Noto Sans Arabic",sans-serif;direction:rtl;padding:30px 34px;font-size:13px;line-height:1.5}
 .rp.portrait{width:780px;padding:26px 28px}
 .rp .blk{padding-bottom:16px;background:#fff}
 .rp-top{display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center;padding-bottom:14px;border-bottom:3px solid var(--rp-a);margin-bottom:6px}
@@ -685,7 +688,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '92';
+const APP_VER = '94';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'',
@@ -1670,18 +1673,30 @@ function renderFilters(){
   document.getElementById('fstate').innerHTML = `<span><b>${fmt(total(filtered))}</b> بلاغ${filtered.length!==RECS.length?` من أصل ${fmt(total(RECS))}`:''}</span>` + tags.map(([k,t])=>`<span class="tag">${esc(t)}<button type="button" data-untag="${k}" aria-label="إزالة">×</button></span>`).join('') + (tags.length?`<button type="button" class="btn sm ghost" data-untag="all">مسح الفلاتر</button>`:'');
 }
 function iso(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+// الفترات المحفوظة: فترة (من–إلى) باسم تختاره، تبقى كزر للرجوع إليها وعمل تقريرها
+const PER_KEY='r937-periods-v1';
+let SPER=(()=>{ try{ return JSON.parse(localStorage.getItem(PER_KEY)||'[]')||[]; }catch(e){ return []; } })();
+const savePeriods=()=>{ try{ localStorage.setItem(PER_KEY,JSON.stringify(SPER)); }catch(e){} };
+function savePeriodDialog(){ const f=filt.from||'', t=filt.to||''; const def=f&&t?`${fmtDate(f)} – ${fmtDate(t)}`:(f?`من ${fmtDate(f)}`:`حتى ${fmtDate(t)}`);
+  dialog({title:'حفظ الفترة', html:`<p style="margin-top:0">من <b dir="ltr">${esc(f||'البداية')}</b> إلى <b dir="ltr">${esc(t||'اليوم')}</b></p><div class="field"><label for="perName">اسم الفترة</label><input class="inp" id="perName" value="${esc(def)}" placeholder="مثل: الأسبوع الأول من نوفمبر"></div><p class="hint">تظهر كزر 📌 مع الفترات الجاهزة. البلاغات نفسها محفوظة دائماً؛ هذا يحفظ «الفترة» للرجوع إليها وعمل تقريرها.</p>`,
+    actions:[{label:'حفظ',cls:'primary',run:s=>{ const n=s.querySelector('#perName').value.trim()||def; SPER.push({name:n,from:f,to:t}); savePeriods(); renderPresets(); toast('حُفظت الفترة'); }},{label:'إلغاء'}]}); }
+document.addEventListener('click',e=>{ if(e.target.closest('#perSave')){ savePeriodDialog(); return; }
+  const d=e.target.closest('[data-perdel]'); if(d){ e.stopPropagation(); const i=+d.dataset.perdel; const x=SPER[i]; if(!x) return; if(!d.classList.contains('confirm')){ d.classList.add('confirm'); d.textContent='حذف؟'; setTimeout(()=>{ d.classList.remove('confirm'); d.textContent='✕'; },3000); return; } SPER.splice(i,1); savePeriods(); renderPresets(); toast('حُذفت الفترة المحفوظة (البلاغات لم تتأثر)'); } },true);
 function presetList(){
   const t=new Date(); const today=iso(t);
   const back=n=>{ const d=new Date(t); d.setDate(d.getDate()-n+1); return iso(d); };
   const ws=new Date(t); ws.setDate(t.getDate()-weekOff(t)); // بداية الأسبوع حسب الإعداد
   const ms=new Date(t.getFullYear(),t.getMonth(),1), pms=new Date(t.getFullYear(),t.getMonth()-1,1), pme=new Date(t.getFullYear(),t.getMonth(),0);
-  const list=[['اليوم',today,today],['هذا الأسبوع',iso(ws),today],['آخر 7 أيام',back(7),today],['آخر 30 يوماً',back(30),today],['هذا الشهر',iso(ms),today],['الشهر الماضي',iso(pms),iso(pme)]];
+  const qs=new Date(t.getFullYear(),Math.floor(t.getMonth()/3)*3,1), pqs=new Date(qs.getFullYear(),qs.getMonth()-3,1), pqe=new Date(qs.getFullYear(),qs.getMonth(),0), ys=new Date(t.getFullYear(),0,1);
+  const list=[['اليوم',today,today],['هذا الأسبوع',iso(ws),today],['آخر 7 أيام',back(7),today],['آخر 30 يوماً',back(30),today],['هذا الشهر',iso(ms),today],['الشهر الماضي',iso(pms),iso(pme)],['هذا الربع',iso(qs),today],['الربع الماضي',iso(pqs),iso(pqe)],['هذه السنة',iso(ys),today]];
   const ds=RECS.map(r=>r.date).filter(Boolean).sort();
   if(ds.length){ const last=ds[ds.length-1].slice(0,10), lm=last.slice(0,7); const lme=iso(new Date(+lm.slice(0,4),+lm.slice(5,7),0)); list.push([`آخر شهر في البيانات (${MONTHS[+lm.slice(5,7)-1]})`,lm+'-01',lme]); }
   return list;
 }
 function renderPresets(){
-  document.getElementById('presets').innerHTML = presetList().map(([l,a,b])=>`<button type="button" class="chip" data-from="${a}" data-to="${b}" aria-pressed="${filt.from===a&&filt.to===b}">${esc(l)}</button>`).join('') + `<button type="button" class="chip" data-from="" data-to="" aria-pressed="${!filt.from&&!filt.to}">كل الفترات</button>`;
+  const sv=SPER.map((x,i)=>`<span class="chip-wrap"><button type="button" class="chip saved" data-from="${x.from}" data-to="${x.to}" aria-pressed="${filt.from===x.from&&filt.to===x.to}" title="${esc(x.from+' ← '+x.to)}">📌 ${esc(x.name)}</button><button type="button" class="chip-x" data-perdel="${i}" aria-label="حذف الفترة المحفوظة" title="حذف">✕</button></span>`).join('');
+  const canSave=(filt.from||filt.to) && !SPER.some(x=>x.from===filt.from&&x.to===filt.to);
+  document.getElementById('presets').innerHTML = presetList().map(([l,a,b])=>`<button type="button" class="chip" data-from="${a}" data-to="${b}" aria-pressed="${filt.from===a&&filt.to===b}">${esc(l)}</button>`).join('') + `<button type="button" class="chip" data-from="" data-to="" aria-pressed="${!filt.from&&!filt.to}">كل الفترات</button>` + sv + (canSave?`<button type="button" class="chip" id="perSave" title="حفظ الفترة المختارة باسم">＋ حفظ هذه الفترة</button>`:'');
 }
 function barsHTML(list,k,limit,tot){
   const max=list.length?list[0][1]:1;
@@ -3006,10 +3021,11 @@ function panelChange(t){
 const SETTINGS_APP='r937-db-settings';
 function settingsSnapshot(){
   return {app:SETTINGS_APP, version:1, exported:nowLocal(), brand:BRAND, schema:schemaSerial(), secmap:SECMAP, clinics:CLINICS,
-    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE, filters:FCFG, staffOvr:SOVR, staffSrc:STAFF_SRC, staffPos:STAFF_POS, closerNames:CLOSER_NAMES, ctype:CTYPE, visitsSet:VSET, general:GEN, dur:DUR, fixes:FIX, reopenSet:ROSET};
+    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE, filters:FCFG, staffOvr:SOVR, staffSrc:STAFF_SRC, staffPos:STAFF_POS, closerNames:CLOSER_NAMES, periods:SPER, ctype:CTYPE, visitsSet:VSET, general:GEN, dur:DUR, fixes:FIX, reopenSet:ROSET};
 }
+function pinnedExport(){ try{ keepPinned(LOG); }catch(e){} return [...PINL].map(id=>{ const r=byId.get(id); return r?{no:r.no,items:PINLOG[id]||[]}:null; }).filter(Boolean); }
 async function exportSettings(){
-  const blob=new Blob([JSON.stringify(settingsSnapshot(),null,2)],{type:'application/json'});
+  const blob=new Blob([JSON.stringify({...settingsSnapshot(),pinned:pinnedExport()},null,2)],{type:'application/json'});
   await saveFile(`إعدادات-قاعدة-937-${stamp()}.json`,blob);
 }
 async function importSettings(file){
@@ -3028,6 +3044,11 @@ async function importSettings(file){
         if(Array.isArray(s.staffHide)){ STAFF_HIDE=new Set(s.staffHide); saveStaffHide(); }
         if(s.staffMin){ STAFF_MIN=+s.staffMin||1; localStorage.setItem('r937-staffmin-v1',String(STAFF_MIN)); }
         if(s.repeat){ RPT={min:2,short:false,...s.repeat}; saveRpt(); }
+        if(Array.isArray(s.periods)){ SPER=s.periods; savePeriods(); }
+        if(Array.isArray(s.pinned) && s.pinned.length){ const m=new Map(RECS.map(r=>[keyNo(r.no),r])); let nP=0;
+          const pend=[]; s.pinned.forEach(x=>{ const r=m.get(keyNo(x.no)); if(!r){ pend.push(x); return; } PINL.add(r.id); const a=PINLOG[r.id]||(PINLOG[r.id]=[]); (x.items||[]).forEach(it=>{ if(!a.some(y=>y.eid===it.eid)) a.push(it); }); nP++; });
+          savePinIds(); savePinLog(); if(pend.length){ try{ localStorage.setItem('r937-pinpend-v1',JSON.stringify(pend)); }catch(e){} }
+          setTimeout(()=>toast(`نُقلت ${fmt(nP)} سجلات مثبتة${pend.length?` — و${fmt(pend.length)} تُطبَّق بعد استيراد بلاغاتها`:''}`),400); }
         if(s.reopenSet && typeof s.reopenSet==='object'){ ROSET={...DEF_ROSET,...s.reopenSet}; saveRoset(); }
         if(Array.isArray(s.fixes)){ FIX=s.fixes; saveFix(); }
         if(s.dur && typeof s.dur==='object'){ DUR={...DEF_DUR,...s.dur}; saveDur(); }
@@ -3162,7 +3183,7 @@ const rgbToHex=(r,g,b)=>'#'+[r,g,b].map(v=>Math.round(Math.max(0,Math.min(255,v)
 const mix=(a,b,t)=>{ const x=hexToRgb(a),y=hexToRgb(b); return rgbToHex(x[0]+(y[0]-x[0])*t,x[1]+(y[1]-x[1])*t,x[2]+(y[2]-x[2])*t); };
 function lum(h){ const c=hexToRgb(h).map(v=>{ v/=255; return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4); }); return 0.2126*c[0]+0.7152*c[1]+0.0722*c[2]; }
 function brandColors(){
-  let a=BRAND.accent && hexToRgb(BRAND.accent) ? BRAND.accent : '#0B6B5D';
+  let a=BRAND.accent && hexToRgb(BRAND.accent) ? BRAND.accent : '#1B2F5E';
   let guard=0; while(lum(a)>0.16 && guard++<12) a=mix(a,'#000000',0.12); // keep white text readable on it
   let d=a; guard=0; while(lum(d)<0.28 && guard++<14) d=mix(d,'#ffffff',0.14); // dark-theme variant
   return {a, soft:mix(a,'#ffffff',0.84), band:mix(a,'#ffffff',0.94), dark:d, darkSoft:mix(d,'#14201E',0.78)};
@@ -3200,7 +3221,7 @@ const RS_KEY='r937-rstyle-v1';
 const RS_THEMES={
   brand:{l:'لون الهوية'},
   navy:{l:'كحلي رسمي',a:'#1B2F5E',title:'#1B2F5E',bar:'#2E4C8F',th:'#1B2F5E',band:'#F1F4FA'},
-  green:{l:'أخضر صحي',a:'#0B6B5D',title:'#0B4F45',bar:'#1D8A78',th:'#0B6B5D',band:'#EFF6F4'},
+  green:{l:'أخضر صحي',a:'#1B2F5E',title:'#0B4F45',bar:'#1D8A78',th:'#1B2F5E',band:'#EFF6F4'},
   teal:{l:'تركوازي',a:'#0E6E86',title:'#0B4F61',bar:'#1A8FAA',th:'#0E6E86',band:'#EEF6F8'},
   maroon:{l:'عنابي',a:'#7A1F2B',title:'#5E1621',bar:'#A33445',th:'#7A1F2B',band:'#FAF1F2'},
   gray:{l:'رمادي',a:'#3F4A55',title:'#2A323A',bar:'#6B7884',th:'#3F4A55',band:'#F3F4F6'},
@@ -3306,7 +3327,7 @@ function brandDialog(){
       s.querySelector('#bLogoDel').onclick=()=>{ draft.logo=''; ph.textContent='بدون شعار'; };
       col.oninput=()=>{ draft.accent=col.value; note.textContent=''; };
       s.querySelector('#bColorAuto').onclick=()=>{ if(!draft.logo){ toast('ارفع الشعار أولاً'); return; } const img=new Image(); img.onload=()=>{ const c=dominantColor(img); if(c){ draft.accent=c; col.value=c; note.textContent='أُخذ اللون من الشعار'; } else toast('لم يُعثر على لون واضح في الشعار'); }; img.src=draft.logo; };
-      s.querySelector('#bColorReset').onclick=()=>{ draft.accent=''; col.value='#0B6B5D'; note.textContent='اللون الافتراضي'; };
+      s.querySelector('#bColorReset').onclick=()=>{ draft.accent=''; col.value='#1B2F5E'; note.textContent='اللون الافتراضي'; };
     }});
 }
 
@@ -3790,6 +3811,7 @@ function continueImport(file,res){
       upd.length=0; updCh.forEach(x=>upd.push(x));
       busy('جارٍ الحفظ…'); try{ if(add.length||upd.length) await saveRecords(add.concat(upd),{type:mode==='onlyupd'?'update':'import',note:file.name}); else logChange(mode==='onlyupd'?'update':'import',{n:0,note:file.name}); } finally{ busy(null); }
       if(mode!=='onlyupd' && late.length) addLate(late,file.name);
+      try{ resolvePendingPins(); }catch(e){}
       { const rk=roKey(); if(rk && upd.length){ const rl=upd.map(n=>{ const o=existing.get(keyNo(n.no)); return o&&isReopen(o[rk],n[rk])?{o,from:o[rk]||'',to:n[rk]||'',ch:CK.filter(c=>vNorm(o[c])!==vNorm(n[c]))}:null; }).filter(Boolean); if(rl.length){ const sv=ROSET.mode; ROSET.mode='reopen'; addReopen(rl,file.name); ROSET.mode=sv; } } }
       if(upd.length || late.length || (!add.length && updAll)){ const eid=LAST_LOG?.id; toast((mode==='onlyupd'?`حُدّث ${fmt(upd.length)} بلاغ`:`أضيف ${fmt(add.length)} بلاغ${upd.length?` وحُدّث ${fmt(upd.length)}`:''}`)+(updAll>upd.length?` · ${fmt(updAll-upd.length)} بلاغ بدون تغيير`:'')); setTimeout(()=>importSummary(eid),60); return; }
       if(false){ setTimeout(()=>dialog({title:'تم الاستيراد', html:`<p style="margin-top:0">أضيف ${fmt(add.length)} بلاغ${upd.length?` وحُدّث ${fmt(upd.length)}`:''}.</p><div class="rpt-note" style="border-color:#D69E2E;background:color-mix(in srgb,#D69E2E 12%,transparent)"><span>⏱ <b>${fmt(late.length)} بلاغ متأخر</b>: تاريخه قبل آخر يوم مسجل (${esc(lastDay)})، فلن يظهر في أعلى السجلات.</span></div>`, actions:[{label:`عرض البلاغات المتأخرة (${fmt(late.length)})`,cls:'primary',run:()=>{ setTimeout(()=>lateDialog(),0); }},{label:'لاحقاً'}]}),50); return; }
@@ -4262,6 +4284,11 @@ function keepPinned(entries){ if(!PINL.size) return false; let ch=false;
   if(ch) savePinLog(); return ch; }
 async function pinRecLog(r,on){ if(on){ PINL.add(r.id); savePinIds(); keepPinned(LOG); await savePinLog(); toast('ثُبّت سجل تغييرات البلاغ — لن يُحذف مع تنظيف السجل'); }
   else { PINL.delete(r.id); delete PINLOG[r.id]; savePinIds(); await savePinLog(); toast('أُلغي التثبيت وحُذف السجل المثبت لهذا البلاغ'); } }
+// سجلات مثبتة وصلت من جهاز آخر قبل أن تصل بلاغاتها: تُطبَّق عند ظهور البلاغ
+function resolvePendingPins(){ let pend; try{ pend=JSON.parse(localStorage.getItem('r937-pinpend-v1')||'[]'); }catch(e){ pend=[]; } if(!pend.length) return;
+  const m=new Map(RECS.map(r=>[keyNo(r.no),r])); const left=[]; let n=0;
+  pend.forEach(x=>{ const r=m.get(keyNo(x.no)); if(!r){ left.push(x); return; } PINL.add(r.id); const a=PINLOG[r.id]||(PINLOG[r.id]=[]); (x.items||[]).forEach(it=>{ if(!a.some(y=>y.eid===it.eid)) a.push(it); }); n++; });
+  if(n){ savePinIds(); savePinLog(); } try{ left.length?localStorage.setItem('r937-pinpend-v1',JSON.stringify(left)):localStorage.removeItem('r937-pinpend-v1'); }catch(e){} }
 function pinnedDialog(){
   const L=[...PINL].map(id=>byId.get(id)).filter(Boolean);
   dialog({title:`سجلات التغييرات المثبتة (${fmt(L.length)})`, wide:true, html:L.length?`<div class="ctbl-wrap" style="max-height:60vh"><table class="ctbl"><thead><tr><th>رقم البلاغ</th><th>المركز</th><th>عدد التغييرات المحفوظة</th><th></th></tr></thead><tbody>${L.map(r=>`<tr data-openrec="${esc(r.id)}" style="cursor:pointer"><td><b dir="ltr">${esc(r.no)}</b></td><td>${esc(shortName(r.center||''))}</td><td>${fmt(recChanges(r).length)}</td><td>📌</td></tr>`).join('')}</tbody></table></div>`:'<p class="ro-empty" style="padding:16px;text-align:center">لا توجد سجلات مثبتة. ثبّت سجل أي بلاغ من داخله بزر «📌 تثبيت سجل التغييرات».</p>',
@@ -4274,10 +4301,7 @@ window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); installEv
 window.addEventListener('appinstalled',()=>{ installEvt=null; document.getElementById('btnInstall').hidden=true; toast('ثُبّت التطبيق'); });
 if(IS_IOS && !standalone()) document.getElementById('btnInstall').hidden=false;
 document.getElementById('btnInstall').addEventListener('click',async()=>{ if(installEvt){ installEvt.prompt(); const r=await installEvt.userChoice; if(r.outcome==='accepted') document.getElementById('btnInstall').hidden=true; installEvt=null; return; } dialog({title:'تثبيت التطبيق على الآيفون', html:'<ol style="margin:0;padding-inline-start:20px;color:var(--muted);display:grid;gap:6px"><li>افتح هذه الصفحة في Safari.</li><li>اضغط زر المشاركة أسفل الشاشة.</li><li>اختر «إضافة إلى الشاشة الرئيسية» ثم «إضافة».</li></ol>', actions:[{label:'حسناً',cls:'primary'}]}); });
-if(!VIEWER && 'serviceWorker' in navigator && location.protocol!=='file:'){
-  navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(reg=>{ reg.update().catch(()=>{}); }).catch(()=>{});
-  let reloaded=false; navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(reloaded) return; reloaded=true; location.reload(); });
-}
+if(!VIEWER && 'serviceWorker' in navigator && location.protocol!=='file:'){ let _r=false; navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(_r) return; _r=true; location.reload(); }); navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(g=>g.update()).catch(()=>{}); }
 try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch(e){}
 
 /* ---------- boot ---------- */
@@ -4305,7 +4329,7 @@ try{ navigator.storage && navigator.storage.persist && navigator.storage.persist
   }
   }
   setAll(list);
-  await loadLog(); await loadRead(); await loadVisits(); await loadPinLog();
+  await loadLog(); await loadRead(); await loadVisits(); await loadPinLog(); try{ resolvePendingPins(); }catch(e){}
   setTimeout(()=>recomputeStatus(true),0);
   pageSize=+HOME.pageSize||50;
   if(HOME.defView && HOME.views.some(v=>v[0]===HOME.defView&&v[1])){ view=HOME.defView; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); }
