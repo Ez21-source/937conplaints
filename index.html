@@ -574,6 +574,7 @@ body.dash-full .actionbar{display:none}
         <button class="btn ghost" id="btnMore" type="button" aria-label="خيارات أخرى" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></button>
         <div class="menu" id="moreMenu" hidden>
           <button type="button" data-more="panel"><span>لوحة التحكم</span><span>الشاشة، التنبيهات، السجل، الأعمدة</span></button>
+          <button type="button" data-more="moves"><span>حركة البلاغات</span><span>كل تغيير على البلاغات، تصدير واستيراد</span></button>
           <button type="button" data-more="brand"><span>الهوية والتقارير</span><span>الشعار، الجهة، المُعدّ</span></button>
           <hr>
           <button type="button" data-more="restore"><span>استعادة بيانات الملف الأصلي</span></button>
@@ -688,7 +689,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '94';
+const APP_VER = '95';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'',
@@ -1065,6 +1066,7 @@ async function applyChange(puts,dels,meta){
   let type=meta.type;
   if(!type) type = dels.length&&!puts.length ? 'del' : puts.length===1 ? (added.length?'add':'edit') : 'bulk';
   if(puts.length||dels.length) logChange(type,{before,added,nos,n:puts.length+dels.length,note:meta.note||''});
+  try{ if(typeof mvRecord==='function') mvRecord(puts,dels,type,LAST_LOG&&LAST_LOG.t); }catch(e){ console.error(e); }
   bumpChanges(puts.length+dels.length);
   puts.forEach(r=>{ if(byId.has(r.id)){ const i=RECS.indexOf(byId.get(r.id)); RECS[i]=r; } else RECS.push(r); byId.set(r.id,r); });
   if(dels.length){ const s=new Set(dels); RECS=RECS.filter(r=>!s.has(r.id)); dels.forEach(id=>{ byId.delete(id); selected.delete(id); }); }
@@ -2303,6 +2305,7 @@ function renderViewerBar(){ if(!VIEWER) return; const app=document.getElementByI
   app.prepend(d); }
 document.getElementById('moreMenu').addEventListener('click',e=>{
   const b=e.target.closest('[data-more]'); if(!b) return; closeMenus();
+  if(b.dataset.more==='moves'){ moveDialog(); return; }
   if(b.dataset.more==='brand'){ guard(brandDialog); return; }
   if(b.dataset.more==='panel'){ guard(()=>controlPanel('home')); return; }
   if(b.dataset.more==='restore') guard(()=>dialog({title:'استعادة بيانات الملف الأصلي؟', body:`ستُستبدل كل البلاغات الحالية (${fmt(RECS.length)}) ببلاغات الملف الأصلي (${fmt((SEED||[]).length)}). يُنصح بتصدير نسخة احتياطية أولاً.`, actions:[{label:'استعادة',cls:'primary',run:async()=>{ await replaceAll(seedRecords(),'restore'); toast('استُعيدت بيانات الملف الأصلي'); }},{label:'إلغاء'}]}));
@@ -2362,7 +2365,11 @@ let LIDX=null, LIDX_V=-1;
 function logIdx(){ if(LIDX && LIDX_V===LOG_VER) return LIDX; const m=new Map();
   LOG.forEach(e=>{ if(['undo','replace','clear'].includes(e.type)) return; (e.before||[]).forEach(b=>{ let a=m.get(b.id); if(!a){ a=[]; m.set(b.id,a); } a.push({e,b}); }); });
   LIDX=m; LIDX_V=LOG_VER; return m; }
-function recChanges(r){
+function recChanges(r){ const out=recChangesLog(r); if(!MV.length) return out; const rows=mvIdx().get(keyNo(r.no)); if(!rows||!rows.length) return out;
+  const have=new Set(out.map(h=>h.t)); const g=new Map();
+  rows.forEach(x=>{ if(x[4]==='__new'||x[4]==='__del'||have.has(x[0])) return; const id=x[0]+'|'+x[3]; let h=g.get(id); if(!h){ h={t:x[0],type:x[3],note:'',ch:[]}; g.set(id,h); } h.ch.push([col(x[4])?x[4]:x[5],x[6],x[7]]); });
+  if(!g.size) return out; return [...out,...g.values()].sort((a,b)=>String(b.t).localeCompare(String(a.t))); }
+function recChangesLog(r){
   const A=(logIdx().get(r.id)||[]).slice(); const ids=new Set(A.map(x=>x.e.id));
   (PINLOG[r.id]||[]).forEach(x=>{ if(!ids.has(x.eid)) A.push({e:{id:x.eid,t:x.t,type:x.type,note:x.note},b:x.b}); });
   A.sort((a,b)=>String(b.e.t).localeCompare(String(a.e.t)));
@@ -2770,7 +2777,7 @@ function panelLog(){
     <td>${e.undone?'<span class="hint">تم التراجع</span>':e.lost?'<span class="hint">لا يمكن التراجع</span>':`<button type="button" class="btn sm" data-undo="${e.id}">تراجع</button>`}</td></tr>`).join('');
   return `<p class="hint">يُسجَّل هنا كل تغيير على البلاغات في هذا الجهاز: الإضافة، والتعديل، والحذف، والاستيراد، والتعديل الجماعي، والاستبدال. يُحفظ آخر ${LOG_MAX} عملية، ويمكن التراجع عن أي منها ما دامت نسختها السابقة محفوظة (حتى ${fmt(LOG_SNAP_MAX)} بلاغ بالمجمل). التراجع يُعيد البلاغات لحالتها قبل العملية. لا يشمل السجل تغييرات الإعدادات والأعمدة.</p>
     ${LOG.length?`<div class="ctbl-wrap"><table class="ctbl logt"><thead><tr><th>الوقت</th><th>العملية</th><th>البلاغات</th><th>التفاصيل</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div style="margin-top:10px"><button type="button" class="btn sm" id="logPinned">📌 السجلات المثبتة (${fmt(PINL.size)})</button></div>
+    <div style="margin-top:10px"><button type="button" class="btn sm" id="logPinned">📌 السجلات المثبتة (${fmt(PINL.size)})</button> <button type="button" class="btn sm" id="logMoves">📒 حركة البلاغات (${fmt(MV.length)})</button></div>
     <div class="pcard" style="margin-top:10px"><h4>تنظيف سجل التغييرات</h4><p class="hint" style="margin-top:0">📌 سجلات البلاغات المثبتة لا تُحذف من هنا، وتُحذف يدوياً من داخل كل بلاغ.</p><p class="hint">الحذف من السجل <b>لا يغيّر أي بلاغ</b>. يُحذف فقط تفصيل «قبل / بعد» وإمكانية التراجع للعمليات المحذوفة. عدد التحديثات ↻ والظرف الأحمر يبقيان.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="hint">حذف العمليات الأقدم من</span><select class="inp" id="logAge" style="width:auto">${[[7,'7 أيام'],[14,'14 يوماً'],[30,'30 يوماً'],[90,'90 يوماً']].map(([d,l])=>`<option value="${d}" ${d===30?'selected':''}>${l} (${fmt(LOG.filter(e=>Date.now()-new Date(e.t)>d*864e5).length)})</option>`).join('')}</select><button type="button" class="btn sm" id="logPrune">حذف</button></div>
       <div style="margin-top:8px"><button type="button" class="btn sm ghost" id="logLost">حذف العمليات التي «لا يمكن التراجع» عنها (${fmt(LOG.filter(e=>e.lost).length)})</button></div>
@@ -2911,6 +2918,7 @@ async function panelAction(b,body){
   if(b.dataset.rodel){ ROSET.closed=ROSET.closed.filter(c=>c!==b.dataset.rodel); saveRoset(); refresh(true); return 'redraw'; }
   if(b.id==='roReset'){ ROSET={...DEF_ROSET,closed:[...DEF_ROSET.closed]}; saveRoset(); refresh(true); return 'redraw'; }
   if(b.id==='logPinned'){ setTimeout(()=>pinnedDialog(),0); return; }
+  if(b.id==='logMoves'){ setTimeout(()=>moveDialog(),0); return; }
   if(b.id==='logPrune'){ if(!b.classList.contains('confirm')){ b.classList.add('confirm'); b.textContent='اضغط مرة أخرى للتأكيد'; return; } const d=+document.getElementById('logAge').value||30; const n0=LOG.length; keepPinned(LOG.filter(e=>Date.now()-new Date(e.t)>d*864e5)); LOG=LOG.filter(e=>Date.now()-new Date(e.t)<=d*864e5); LAST_LOG=LOG[0]||null; saveLog(); toast(`حُذفت ${fmt(n0-LOG.length)} عملية من السجل — البلاغات لم تتغيّر`); return 'redraw'; }
   if(b.id==='logLost'){ if(!b.classList.contains('confirm')){ b.classList.add('confirm'); b.textContent='اضغط مرة أخرى للتأكيد'; return; } const n0=LOG.length; LOG=LOG.filter(e=>!e.lost); LAST_LOG=LOG[0]||null; saveLog(); toast(`حُذفت ${fmt(n0-LOG.length)} عملية`); return 'redraw'; }
   if(b.id==='logClear'){ if(!b.classList.contains('confirm')){ b.classList.add('confirm'); b.textContent='اضغط مرة أخرى لمسح السجل'; return; } keepPinned(LOG); LOG=[]; LAST_LOG=null; saveLog(); toast('مُسح السجل'+(PINL.size?' — السجلات المثبتة محفوظة':'')); return 'redraw'; }
@@ -3498,11 +3506,11 @@ function summarySheet(list){
 }
 async function buildXlsx(list,o){
   const JSZip=await lib('jszip'); const z=new JSZip();
-  const sheets=o.visitsOnly?[]:[['البلاغات',recordsSheet(list,o.pii)]]; if(o.summary) sheets.push(['الملخص',summarySheet(list)]);
+  const sheets=o.sheets?o.sheets.slice():o.visitsOnly?[]:[['البلاغات',recordsSheet(list,o.pii)]]; if(o.summary) sheets.push(['الملخص',summarySheet(list)]);
   if((o.visits||o.visitsOnly) && VISITS.length) sheets.push(['المستفيدون',visitsSheet()]);
   z.file('[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`);
   z.file('_rels/.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`);
-  z.file('xl/workbook.xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((s,i)=>`<sheet name="${xe(s[0])}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}</sheets><definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">'البلاغات'!$A$1:$${colName(cols().filter(c=>o.pii||!c.pii).length-1)}$${list.length+1}</definedName></definedNames></workbook>`);
+  z.file('xl/workbook.xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((s,i)=>`<sheet name="${xe(s[0])}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}</sheets>${o.sheets?'':`<definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">'البلاغات'!$A$1:$${colName(cols().filter(c=>o.pii||!c.pii).length-1)}$${list.length+1}</definedName></definedNames>`}</workbook>`);
   z.file('xl/_rels/workbook.xml.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`);
   z.file('xl/styles.xml',STY.replace(/FF0B6B5D/g,'FF'+brandColors().a.slice(1).toUpperCase()).replace('FFDCEEEA','FF'+brandColors().soft.slice(1).toUpperCase()));
   sheets.forEach((s,i)=>z.file(`xl/worksheets/sheet${i+1}.xml`,s[1]));
@@ -4295,6 +4303,132 @@ function pinnedDialog(){
     actions:[{label:'إغلاق',cls:'primary'}], onOpen:s=>s.addEventListener('click',e=>{ const o=e.target.closest('[data-openrec]'); if(o){ const r=byId.get(o.dataset.openrec); if(r){ document.getElementById('layer').innerHTML=''; viewRecord(r); } } })});
 }
 
+/* ---------- قاعدة حركة البلاغات: كل تغيير على مستوى الحقل، تُصدَّر وتُستورد بين الأجهزة ---------- */
+// صف الحركة: [الوقت ISO, مفتاح رقم البلاغ, رقم البلاغ, نوع العملية, رمز الحقل, اسم الحقل, قبل, بعد]
+const MVS_KEY='r937-mv-v1';
+let MVS=(()=>{ try{ return {on:1,max:300000,...JSON.parse(localStorage.getItem(MVS_KEY)||'{}')}; }catch(e){ return {on:1,max:300000}; } })();
+const saveMVS=()=>{ try{ localStorage.setItem(MVS_KEY,JSON.stringify(MVS)); }catch(e){} };
+let MV=[], MV_VER=0, MV_T=null, MVIX=null, MVIX_V=-1;
+const mvCut=v=>{ v=String(v??''); return v.length>1500?v.slice(0,1500)+'…':v; };
+async function loadMV(){ try{ const v=await dbMeta('movelog'); MV=Array.isArray(v)?v:[]; }catch(e){ MV=[]; } MV_VER++; }
+function mvSave(now){ MV_VER++; LOG_VER++; clearTimeout(MV_T); const go=()=>dbSetMeta('movelog',MV).catch(e=>console.error(e)); if(now) return go(); MV_T=setTimeout(go,1200); }
+function mvTrim(){ const mx=+MVS.max||300000; if(MV.length>mx) MV=MV.slice(MV.length-mx); }
+function mvIdx(){ if(MVIX && MVIX_V===MV_VER) return MVIX; const m=new Map(); MV.forEach(x=>{ let a=m.get(x[1]); if(!a){ a=[]; m.set(x[1],a); } a.push(x); }); MVIX=m; MVIX_V=MV_VER; return m; }
+function mvRecord(puts,dels,type,t){
+  if(VIEWER||!MVS.on) return; t=t||new Date().toISOString();
+  const keys=ALLK().filter(k=>k!=='id'&&col(k)); let n=0;
+  puts.forEach(r=>{ const k=keyNo(r.no); if(!k) return; const old=byId.get(r.id);
+    if(!old){ MV.push([t,k,r.no,type,'__new','إضافة إلى القاعدة','',mvCut(cellText(r,'center'))]); n++; return; }
+    keys.forEach(f=>{ if(vNorm(old[f])!==vNorm(r[f])){ MV.push([t,k,r.no,type,f,label(f),mvCut(cellText(old,f)),mvCut(cellText(r,f))]); n++; } }); });
+  dels.forEach(id=>{ const old=byId.get(id); if(!old) return; const k=keyNo(old.no); if(!k) return; MV.push([t,k,old.no,type,'__del','حذف من القاعدة',mvCut(cellText(old,'center')),'']); n++; });
+  if(n){ mvTrim(); mvSave(); }
+}
+// مرة واحدة: نقل ما في سجل التغييرات والسجلات المثبتة الحالية إلى قاعدة الحركة
+async function mvBackfill(){
+  if(VIEWER) return; try{ if(await dbMeta('mvinit')) return; }catch(e){ return; }
+  const have=new Set(MV.map(x=>x[0]+'|'+x[1]+'|'+x[4])); const add=[];
+  RECS.forEach(r=>{ if(!logIdx().has(r.id) && !(PINLOG[r.id]||[]).length) return; const k=keyNo(r.no); if(!k) return;
+    recChangesLog(r).forEach(h=>h.ch.forEach(([f,a,b])=>{ const id=h.t+'|'+k+'|'+f; if(have.has(id)) return; have.add(id); add.push([h.t,k,r.no,h.type,f,label(f),mvCut(a),mvCut(b)]); })); });
+  if(add.length){ MV=MV.concat(add).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0); mvTrim(); }
+  await mvSave(true); try{ await dbSetMeta('mvinit',true); }catch(e){}
+}
+const mvWhen=t=>{ const d=new Date(t); if(isNaN(d)) return String(t||''); let h=d.getHours(); const pm=h>=12; h=h%12||12; return `${iso(d).replace(/-/g,'/')} ${h}:${String(d.getMinutes()).padStart(2,'0')} ${pm?'م':'ص'}`; };
+const mvType=x=>LOG_TYPES[x]||x||'';
+function mvCenterMap(){ return new Map(RECS.map(r=>[keyNo(r.no),r])); }
+function mvFilter(f){
+  const q=(f.q||'').trim().toUpperCase(), from=f.from||'', to=f.to||'';
+  return MV.filter(x=>{
+    if(!f.addDel && (x[4]==='__new'||x[4]==='__del')) return false;
+    if(q && !String(x[2]).toUpperCase().includes(q)) return false;
+    if(f.fld && x[5]!==f.fld) return false;
+    if(f.ty && x[3]!==f.ty) return false;
+    if(from || to){ const d=iso(new Date(x[0])); if(from && d<from) return false; if(to && d>to) return false; }
+    return true; });
+}
+function moveDialog(){
+  if(VIEWER) return;
+  const F={q:'',fld:'',ty:'',from:'',to:'',addDel:1}; let lim=300;
+  const flds=[...new Set(MV.map(x=>x[5]))].sort((a,b)=>a.localeCompare(b,'ar'));
+  const tys=[...new Set(MV.map(x=>x[3]))];
+  const size=()=>{ const n=MV.length; return n?`${fmt(n)} حركة على ${fmt(mvIdx().size)} بلاغ · من ${esc(mvWhen(MV[0][0]))} إلى ${esc(mvWhen(MV[n-1][0]))}`:'لا توجد حركات بعد'; };
+  const body=()=>{ const L=mvFilter(F), m=mvCenterMap(), rows=L.slice(-lim).reverse();
+    const cut=v=>{ v=String(v??''); return v===''?'<span class="hint">—</span>':esc(v.length>160?v.slice(0,160)+'…':v); };
+    return `<div class="hint" style="margin:6px 0">${fmt(L.length)} حركة مطابقة${L.length>rows.length?` · يُعرض الأحدث ${fmt(rows.length)}`:''}</div>
+    ${rows.length?`<div class="ctbl-wrap" style="max-height:52vh"><table class="ctbl"><thead><tr><th>الوقت</th><th>رقم البلاغ</th><th>المركز</th><th>العملية</th><th>الحقل</th><th>قبل</th><th>بعد</th></tr></thead><tbody>${rows.map(x=>{ const r=m.get(x[1]); const sp=x[4]==='__new'?'color:var(--good)':x[4]==='__del'?'color:var(--bad)':'';
+      return `<tr ${r?`data-mvopen="${esc(r.id)}" style="cursor:pointer"`:''}><td style="white-space:nowrap">${esc(mvWhen(x[0]))}</td><td><b dir="ltr">${esc(x[2])}</b>${r?'':' <span class="hint">(غير موجود)</span>'}</td><td>${esc(r?cellText(r,'center'):'')}</td><td>${esc(mvType(x[3]))}</td><td style="${sp}"><b>${esc(x[5])}</b></td><td style="color:var(--muted)">${cut(x[6])}</td><td>${cut(x[7])}</td></tr>`; }).join('')}</tbody></table></div>
+      ${L.length>rows.length?`<div style="margin-top:8px"><button type="button" class="btn sm" id="mvMore">عرض المزيد</button></div>`:''}`:'<div class="pcard"><p class="hint" style="margin:0">لا توجد حركات مطابقة.</p></div>'}`; };
+  const sel=(id,opts,v)=>`<select class="inp" id="${id}" style="width:auto;max-width:200px">${opts.map(([a,b])=>`<option value="${esc(a)}" ${a===v?'selected':''}>${esc(b)}</option>`).join('')}</select>`;
+  dialog({title:'حركة البلاغات', wide:true, html:`<p class="hint" style="margin-top:0">قاعدة دائمة لكل تغيير على البلاغات: الحقل، والقيمة قبل وبعد، ووقت التغيير. لا تُحذف مع تنظيف سجل التغييرات، ويمكن تصديرها واستيرادها لنقلها بين الأجهزة أو حفظها. <b>${size()}</b></p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <input class="inp" id="mvQ" placeholder="رقم البلاغ" dir="ltr" style="width:150px">
+      ${sel('mvF',[['','كل الحقول'],...flds.map(f=>[f,f])],'')}
+      ${sel('mvT',[['','كل العمليات'],...tys.map(t=>[t,mvType(t)])],'')}
+      <span class="hint">من</span><input type="date" class="inp" id="mvFrom" style="width:auto"><span class="hint">إلى</span><input type="date" class="inp" id="mvTo" style="width:auto">
+      <label class="hint" style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="mvAD" checked> الإضافة والحذف</label>
+    </div>
+    <div id="mvBody">${body()}</div>
+    <div class="pcard" style="margin-top:10px"><h4>تصدير واستيراد</h4>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn primary sm" id="mvXl">تصدير Excel (حسب الفلترة)</button><button type="button" class="btn sm" id="mvJs">تصدير القاعدة كاملة (ملف حركة)</button><button type="button" class="btn sm" id="mvImp">استيراد حركات (Excel أو ملف حركة)</button></div>
+      <p class="hint" style="margin-bottom:0">الاستيراد يدمج الحركات مع الموجودة دون تكرار، ويربطها بالبلاغات برقم البلاغ، فتظهر داخل كل بلاغ في «سجل تحديثات هذا البلاغ».</p></div>
+    <div class="pcard" style="margin-top:10px"><h4>الإعدادات</h4>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="mvOn" ${MVS.on?'checked':''}> تسجيل الحركات</label>
+        <span class="hint">الحد الأقصى</span>${sel('mvMax',[[100000,'100 ألف حركة'],[300000,'300 ألف حركة'],[500000,'500 ألف حركة'],[1000000,'مليون حركة']].map(([a,b])=>[String(a),b]),String(MVS.max))}
+      </div>
+      <p class="hint">عند بلوغ الحد تُحذف أقدم الحركات. الحركة الواحدة = تغيّر حقل واحد في بلاغ واحد.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="hint">حذف الحركات الأقدم من</span>${sel('mvAge',[['90','90 يوماً'],['180','6 أشهر'],['365','سنة']],'365')}<button type="button" class="btn sm" id="mvPrune">حذف</button><button type="button" class="btn sm ghost danger" id="mvClear">مسح القاعدة كلها</button></div>
+      <p class="hint" style="margin-bottom:0">حذف الحركات لا يغيّر أي بلاغ.</p></div>`,
+    actions:[{label:'إغلاق',cls:'primary'}],
+    onOpen:s=>{ const $=id=>s.querySelector('#'+id); let tm=null;
+      const re=()=>{ $('mvBody').innerHTML=body(); };
+      const upd=()=>{ F.q=$('mvQ').value; F.fld=$('mvF').value; F.ty=$('mvT').value; F.from=$('mvFrom').value; F.to=$('mvTo').value; F.addDel=$('mvAD').checked; lim=300; clearTimeout(tm); tm=setTimeout(re,200); };
+      ['mvQ','mvFrom','mvTo'].forEach(id=>$(id).addEventListener('input',upd)); ['mvF','mvT','mvAD'].forEach(id=>$(id).addEventListener('change',upd));
+      $('mvOn').onchange=e=>{ MVS.on=e.target.checked?1:0; saveMVS(); toast(MVS.on?'تسجيل الحركات مفعّل':'أُوقف تسجيل الحركات'); };
+      $('mvMax').onchange=e=>{ MVS.max=+e.target.value; saveMVS(); const b=MV.length; mvTrim(); if(MV.length!==b){ mvSave(); re(); } toast('حُفظ الحد الأقصى'); };
+      $('mvXl').onclick=()=>mvExportXlsx(mvFilter(F));
+      $('mvJs').onclick=()=>mvExportJson();
+      $('mvImp').onclick=()=>{ const i=document.createElement('input'); i.type='file'; i.accept='.xlsx,.xlsm,.json'; i.onchange=async()=>{ const f=i.files[0]; if(!f) return; await mvImport(f); re(); }; i.click(); };
+      $('mvPrune').onclick=()=>{ const d=+$('mvAge').value, lim2=new Date(Date.now()-d*864e5).toISOString(); const n=MV.filter(x=>x[0]<lim2).length; if(!n){ toast('لا توجد حركات أقدم من ذلك'); return; } MV=MV.filter(x=>x[0]>=lim2); mvSave(true); re(); toast(`حُذفت ${fmt(n)} حركة`); };
+      $('mvClear').onclick=()=>{ if($('mvClear').dataset.sure!=='1'){ $('mvClear').dataset.sure='1'; $('mvClear').textContent='اضغط مرة أخرى للتأكيد'; return; } const n=MV.length; MV=[]; mvSave(true); re(); toast(`مُسحت ${fmt(n)} حركة`); };
+      s.addEventListener('click',e=>{ if(e.target.closest('#mvMore')){ lim+=1000; re(); return; } const o=e.target.closest('[data-mvopen]'); if(o){ const r=byId.get(o.dataset.mvopen); if(r){ document.getElementById('layer').innerHTML=''; viewRecord(r); } } });
+    }});
+}
+const MV_HDR=['الوقت','رقم البلاغ','المركز','العملية','الحقل','القيمة السابقة','القيمة الجديدة','الوقت (ISO)','رمز الحقل','رمز العملية'];
+async function mvExportXlsx(L){
+  if(!L.length){ toast('لا توجد حركات للتصدير'); return; }
+  busy('جارٍ تجهيز الملف…');
+  try{ const m=mvCenterMap();
+    let x=`<row r="1" ht="24" customHeight="1">${MV_HDR.map((h,i)=>cellXml(1,i,h,1)).join('')}</row>`;
+    L.slice().reverse().forEach((r,ri)=>{ const rr=ri+2, rec=m.get(r[1]); const v=[mvWhen(r[0]),r[2],rec?cellText(rec,'center'):'',mvType(r[3]),r[5],r[6],r[7],r[0],r[4],r[3]]; x+=`<row r="${rr}">${v.map((c,i)=>cellXml(rr,i,c,2)).join('')}</row>`; });
+    const sh=sheetDoc(x,[20,14,30,18,20,40,40,24,12,12],`<autoFilter ref="A1:J${L.length+1}"/>`);
+    const blob=await buildXlsx([], {sheets:[['حركة البلاغات',sh]]});
+    await saveFile(`حركة-البلاغات-${stamp()}.xlsx`,blob);
+  } finally{ busy(null); }
+}
+async function mvExportJson(){
+  if(!MV.length){ toast('لا توجد حركات للتصدير'); return; }
+  const blob=new Blob([JSON.stringify({kind:'r937-movelog',v:1,at:new Date().toISOString(),rows:MV})],{type:'application/json'});
+  await saveFile(`قاعدة-حركة-البلاغات-${stamp()}.json`,blob);
+}
+async function mvImport(file){
+  busy('جارٍ قراءة الملف…'); let rows=[];
+  try{
+    if(/\.json$/i.test(file.name)){ const o=JSON.parse(await file.text()); if(!o||o.kind!=='r937-movelog'||!Array.isArray(o.rows)) throw new Error('الملف ليس ملف حركة بلاغات'); rows=o.rows.filter(x=>Array.isArray(x)&&x.length>=8).map(x=>x.slice(0,8).map(v=>String(v??''))); }
+    else { const sheets=await readXlsx(await file.arrayBuffer()); const nh=s=>String(s??'').replace(/\s+/g,' ').trim();
+      sheets.forEach(sh=>{ const rn=[...sh.rows.keys()].sort((a,b)=>a-b); let map=null;
+        for(const r of rn){ const row=sh.rows.get(r); if(!map){ const m={}; row.forEach((v,c)=>{ const i=MV_HDR.indexOf(nh(v)); if(i>=0) m[i]=c; }); if(m[1]!=null && m[4]!=null && (m[7]!=null||m[0]!=null)) map=m; continue; }
+          const g=i=>map[i]==null?'':nh(row.get?row.get(map[i]):row[map[i]]); const no=g(1); if(!no) continue;
+          let t=g(7); if(!t||isNaN(new Date(t))){ const s=g(0).replace(/\//g,'-'); const mm=s.match(/(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})\s*([صم])?/); if(!mm) continue; let h=+mm[2]; if(mm[4]==='م'&&h<12) h+=12; if(mm[4]==='ص'&&h===12) h=0; t=new Date(`${mm[1]}T${String(h).padStart(2,'0')}:${mm[3]}:00`).toISOString(); }
+          const lbl=g(4); const fk=g(8)||(SCHEMA.find(c=>c.l===lbl)||{}).k||lbl; const ty=g(9)||(Object.entries(LOG_TYPES).find(([k,v])=>v===g(3))||[g(3)])[0];
+          rows.push([new Date(t).toISOString(),keyNo(no),no,ty,fk,lbl,g(5),g(6)]); } });
+      if(!rows.length) throw new Error('لم أجد أعمدة حركة البلاغات في الملف (رقم البلاغ، الحقل، الوقت)'); }
+  }catch(e){ busy(null); toast(e&&e.message||'تعذرت قراءة الملف'); return; }
+  const id=x=>x[0]+'|'+x[1]+'|'+x[4]+'|'+vNorm(x[7]); const have=new Set(MV.map(id)); let n=0, dup=0;
+  rows.forEach(x=>{ x[1]=x[1]||keyNo(x[2]); const k=id(x); if(have.has(k)){ dup++; return; } have.add(k); MV.push(x); n++; });
+  if(n){ MV.sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0); mvTrim(); await mvSave(true); }
+  busy(null); toast(`استُوردت ${fmt(n)} حركة${dup?` · ${fmt(dup)} موجودة من قبل`:''}`); try{ refresh(true); }catch(e){}
+}
+
 /* ---------- install + offline ---------- */
 let installEvt=null; const standalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
 window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); installEvt=e; document.getElementById('btnInstall').hidden=false; });
@@ -4329,7 +4463,7 @@ try{ navigator.storage && navigator.storage.persist && navigator.storage.persist
   }
   }
   setAll(list);
-  await loadLog(); await loadRead(); await loadVisits(); await loadPinLog(); try{ resolvePendingPins(); }catch(e){}
+  await loadLog(); await loadRead(); await loadVisits(); await loadPinLog(); try{ resolvePendingPins(); }catch(e){} await loadMV(); setTimeout(()=>mvBackfill().catch(e=>console.error(e)),1500);
   setTimeout(()=>recomputeStatus(true),0);
   pageSize=+HOME.pageSize||50;
   if(HOME.defView && HOME.views.some(v=>v[0]===HOME.defView&&v[1])){ view=HOME.defView; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); }
