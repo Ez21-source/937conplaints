@@ -685,7 +685,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '90';
+const APP_VER = '92';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'',
@@ -3485,7 +3485,7 @@ async function buildXlsx(list,o){
   z.file('xl/_rels/workbook.xml.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`);
   z.file('xl/styles.xml',STY.replace(/FF0B6B5D/g,'FF'+brandColors().a.slice(1).toUpperCase()).replace('FFDCEEEA','FF'+brandColors().soft.slice(1).toUpperCase()));
   sheets.forEach((s,i)=>z.file(`xl/worksheets/sheet${i+1}.xml`,s[1]));
-  return z.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',compression:'DEFLATE'});
+  return z.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',compression:'DEFLATE',compressionOptions:{level:3}});
 }
 
 /* ---------- Excel report (same layout as the printed report) ---------- */
@@ -3655,7 +3655,7 @@ async function buildReportXlsx(list,o){
   z.file('xl/_rels/workbook.xml.rels',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`);
   z.file('xl/styles.xml',rptStyles(c));
   sheets.forEach((s,i)=>z.file(`xl/worksheets/sheet${i+1}.xml`,s[1]));
-  return z.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',compression:'DEFLATE'});
+  return z.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',compression:'DEFLATE',compressionOptions:{level:3}});
 }
 
 /* ---------- xlsx reader + import ---------- */
@@ -3764,15 +3764,19 @@ function continueImport(file,res){
   // البلاغات المتأخرة: جديدة وتاريخها قبل آخر يوم موجود في القاعدة
   const lastDay=RECS.reduce((m,r)=>r.date&&r.date.slice(0,10)>m?r.date.slice(0,10):m,'');
   const late=lastDay?fresh.filter(r=>r.date&&r.date.slice(0,10)<lastDay):[];
-  dialog({title:`استيراد «${file.name}»`, wide:true, html:`<div class="stats"><div><b>${fmt(uniq.length)}</b><span>بلاغ في الملف</span></div><div><b>${fmt(fresh.length)}</b><span>جديد</span></div><div><b>${fmt(dups.length)}</b><span>رقمه موجود في القاعدة</span></div></div>
+  // كم بلاغاً موجوداً تتغيّر بياناته فعلاً لو حُدّث (نفس طريقة «فحص تغييرات التذاكر»)
+  const CKp=ALLK().filter(k=>k!=='id'&&k!=='no'); let nChg=0;
+  dups.forEach(r=>{ const o=existing.get(keyNo(r.no)); if(!o) return; const m=mergeFromFile(o,r,fields); if(CKp.some(c=>vNorm(o[c])!==vNorm(m[c]))) nChg++; });
+  const preUpd=!partial && !fresh.length && nChg>0;
+  dialog({title:`استيراد «${file.name}»`, wide:true, html:`<div class="stats"><div><b>${fmt(uniq.length)}</b><span>بلاغ في الملف</span></div><div><b>${fmt(fresh.length)}</b><span>جديد</span></div><div><b>${fmt(dups.length)}</b><span>رقمه موجود في القاعدة</span></div><div><b style="color:${nChg?'#E5484D':'inherit'}">${fmt(nChg)}</b><span>منها تغيّرت بياناتها${nChg?' — تُحدَّث فقط إذا اخترت «تحديث»':''}</span></div></div>
     <p>الأوراق المقروءة: ${esc(used.join('، '))}${dupIn?` · استُبعد ${fmt(dupIn)} صف رقمه مكرر داخل الملف (أُخذ أول ظهور)`:''}${noKey?` · استُبعد ${fmt(noKey)} صف بدون رقم بلاغ`:''}${noDate?` · ${fmt(noDate)} بلاغ بدون تاريخ`:''}</p>
     ${late.length?`<div class="rpt-note"><span><b>${fmt(late.length)} بلاغ متأخر</b>: جديد على القاعدة وتاريخه قبل آخر يوم مسجل (${esc(lastDay)})، مثل ${late.slice(0,3).map(r=>`<span dir="ltr">${esc(r.no)}</span> (${esc(r.date.slice(0,10))})`).join('، ')}. سيُضاف مع الجديدة.</span></div>`:''}
     ${active('sector')&&(secFilled||secDef||secMissing.size)?`<p class="hint">القطاع: عُبّئ تلقائياً في ${fmt(secFilled)} بلاغ حسب المركز${secDef?` · ${fmt(secDef)} بلاغ بدون قطاع أُلحق بـ«${esc(DS)}»`:''}${secMissing.size?` · ${fmt(secMissing.size)} مركز بدون قطاع معروف (اربطها من لوحة التحكم ← القوائم والقطاعات)`:''}.</p>`:''}
     <p class="hint">أعمدة الملف: ${[...fields].map(k=>esc(label(k))).join('، ')}</p>
     ${partial?`<div class="rpt-note"><span>الملف لا يحتوي ${!fields.has('center')&&!fields.has('date')?'«المركز الصحي» و«تاريخ البلاغ»':!fields.has('center')?'«المركز الصحي»':'«تاريخ البلاغ»'}، فيبدو ملف تحديث لأعمدة معينة. الخيار المناسب: «تحديث الموجودة فقط».</span></div>`:''}
-    <label class="opt"><input type="radio" name="im" value="new" ${partial?'':'checked'}><span>إضافة الجديدة فقط<small>تبقى البلاغات الموجودة كما هي</small></span></label>
+    <label class="opt"><input type="radio" name="im" value="new" ${partial||preUpd?'':'checked'}><span>إضافة الجديدة فقط<small>تبقى البلاغات الموجودة كما هي</small></span></label>
     <label class="opt"><input type="radio" name="im" value="onlyupd" ${partial?'checked':''}><span>تحديث الموجودة فقط (${fmt(dups.length)})<small>تُحدّث أعمدة الملف فقط في البلاغات المسجّلة، وتبقى بقية أعمدتها كما هي. لا يُضاف أي بلاغ جديد.</small></span></label>
-    <label class="opt"><input type="radio" name="im" value="upd"><span>إضافة الجديدة وتحديث الموجودة<small>تُضاف الجديدة، وتُحدّث في الموجودة أعمدة الملف فقط</small></span></label>
+    <label class="opt"><input type="radio" name="im" value="upd" ${preUpd?'checked':''}><span>إضافة الجديدة وتحديث الموجودة<small>تُضاف الجديدة، وتُحدّث في الموجودة أعمدة الملف فقط</small></span></label>
     <label class="opt"><input type="radio" name="im" value="all"><span>استبدال كل القاعدة<small>تُحذف البلاغات الحالية (${fmt(RECS.length)}) وتحل محلها بلاغات الملف</small></span></label>`,
     actions:[{label:'استيراد',cls:'primary',run:async s=>{
       const mode=s.querySelector('input[name=im]:checked').value;
