@@ -589,6 +589,7 @@ body.dash-full .actionbar{display:none}
   <main class="wrap">
     <section id="homeTicker" hidden></section>
     <div class="bk-banner" id="bkBanner" role="status" hidden></div>
+    <div class="bk-banner" id="mvBanner" role="status" hidden></div>
     <section class="panel filters" aria-label="البحث والفلترة">
       <button type="button" class="fold-bar" id="fFoldBar" hidden></button>
       <div class="frow">
@@ -691,7 +692,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '98';
+const APP_VER = '101';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -1558,6 +1559,7 @@ function apply(){ _empSet=null; _clSet=null;
     return true;
   });
   const k=sort.k, d=sort.dir;
+  if(k==='__dur'){ const H=new Map(); filtered.forEach(r=>{ const x=durInfo(r); H.set(r.id,x.st==='none'?null:x.h); }); filtered.sort((a,b)=>{ const x=H.get(a.id), y=H.get(b.id); if(x==null&&y==null) return 0; if(x==null) return 1; if(y==null) return -1; return (x-y)*d; }); return; }
   filtered.sort((a,b)=>{ let x=a[k], y=b[k]; if(k==='count') return (x-y)*d; x=String(x||''); y=String(y||''); return x<y?-d:x>y?d:0; });
 }
 function countBy(list,k,fn){ const m=new Map(); list.forEach(r=>{ const v=fn?fn(r):r[k]; m.set(v,(m.get(v)||0)+1); }); return [...m.entries()].sort((a,b)=>b[1]-a[1]); }
@@ -1565,7 +1567,7 @@ const total = list => list.length;
 
 /* ---------- render ---------- */
 function renderAll(){ apply(); renderFilters(); renderAlerts(); renderSummary(); renderView(); setTimeout(applyFolds,0); renderInfo(); }
-function refresh(keepPage){ if(!keepPage) page=0; setTimeout(renderBackupBanner,0); callerIdx=null; staffIdx=null; clinIdx=null; kwIdx=null; apply(); renderFilters(); renderAlerts(); renderSummary(); renderView(); renderInfo(); }
+function refresh(keepPage){ if(!keepPage) page=0; setTimeout(renderBackupBanner,0); setTimeout(()=>{ try{ renderMvBanner(); }catch(e){} },0); callerIdx=null; staffIdx=null; clinIdx=null; kwIdx=null; apply(); renderFilters(); renderAlerts(); renderSummary(); renderView(); renderInfo(); }
 function flagNote(list){ const idx=kwIndex(); const n=list.filter(r=>idx.has(r.id)).length; return n?` · ${fmt(n)} منها فيها كلمات حساسة`:''; }
 function renderInfo(){
   document.getElementById('dbInfo').textContent = `${fmt(RECS.length)} بلاغ في القاعدة` + (persistent?' · محفوظة على هذا الجهاز':' · الحفظ غير متاح هنا، صدّر نسخة احتياطية');
@@ -1650,8 +1652,8 @@ function renderFilters(){
   const AK=activeFilterKeys().filter(k=>active(k));
   filterList().forEach(([k,on])=>{ if((!on||!active(k)) && filt[k]) filt[k]=''; });
   const ex=document.getElementById('fExtra');
-  const want=AK.map(k=>k+':'+short(k)).join('|'); if(ex.dataset.keys!==want){ ex.innerHTML=AK.map(k=>`<div class="field"><label for="fx-${k}">${esc(short(k))}</label><select class="inp" id="fx-${k}" data-f="${k}"></select></div>`).join(''); ex.dataset.keys=want; }
-  ex.hidden=!AK.length;
+  const want=AK.map(k=>k+':'+short(k)).join('|')+(DUR.on?'|dsort':''); if(ex.dataset.keys!==want){ ex.innerHTML=AK.map(k=>`<div class="field"><label for="fx-${k}">${esc(short(k))}</label><select class="inp" id="fx-${k}" data-f="${k}"></select></div>`).join('')+(DUR.on?`<div class="field"><label for="durSort">ترتيب حسب المدة الزمنية</label><select class="inp" id="durSort"><option value="">بدون (حسب التاريخ)</option><option value="-1">الأطول مدة أولاً</option><option value="1">الأقصر مدة أولاً</option></select></div>`:''); ex.dataset.keys=want; }
+  ex.hidden=!AK.length&&!DUR.on; { const ds=document.getElementById('durSort'); if(ds) ds.value=sort.k==='__dur'?String(sort.dir):''; }
   document.querySelectorAll('select[data-f]').forEach(sel=>{
     const k=sel.dataset.f; sel.hidden=true; sel.tabIndex=-1;
     let btn=sel.parentElement.querySelector(`.msel[data-mf="${k}"]`);
@@ -2035,7 +2037,7 @@ function renderView(){
   const allSel = rows.every(r=>selected.has(r.id));
   const COLS=tableCols();
   const DUK=DUR.on?(COLS.some(c=>c.k==='date')?'date':COLS[COLS.length-1]?.k):null;
-  const th=COLS.map(c=>`<th data-sort="${c.k}" scope="col">${esc(short(c.k))}${sort.k===c.k?`<span class="ar">${sort.dir>0?'▲':'▼'}</span>`:''}</th>${c.k===DUK?'<th class="nosort" scope="col">المدة الزمنية للإغلاق</th>':''}`).join('');
+  const th=COLS.map(c=>`<th data-sort="${c.k}" scope="col">${esc(short(c.k))}${sort.k===c.k?`<span class="ar">${sort.dir>0?'▲':'▼'}</span>`:''}</th>${c.k===DUK?`<th data-sort="__dur" scope="col" title="اضغط للترتيب: الأطول أولاً / الأقصر أولاً">المدة الزمنية للإغلاق${sort.k==='__dur'?`<span class="ar">${sort.dir>0?'▲':'▼'}</span>`:''}</th>`:''}`).join('');
   const KWI=kwIndex(); const SK2=slaKey();
   const body=rows.map(r=>{ const fl=KWI.get(r.id); return `<tr data-id="${r.id}" class="${selected.has(r.id)?'sel':''}${fl?' flag':''}${readState(r).st!=='read'?' unread':''}"${fl?` title="كلمات حساسة: ${esc([...new Set(fl.map(x=>x.w))].join('، '))}"`:''}><td class="cb"><input type="checkbox" data-sel="${r.id}" ${selected.has(r.id)?'checked':''} aria-label="تحديد"></td><td class="ms">${envHTML(r)}${revTotal(r)?`<span class="revc" title="عدد مرات تحديث البلاغ من الاستيراد">↻ ${fmt(revTotal(r))}</span>`:''}</td>${COLS.map(c=>{ const raw=c.fmt?c.fmt(r[c.k],r):r[c.k]; const t= c.k==='count'?raw: (c.k===SK2&&raw) ? slaBadge(raw,slaState(r,SK2)) : hl(raw,fl&&c.cls==='desc'); return `<td class="${c.cls||''}">${c.cls==='desc'?`<div title="${esc(r[c.k])}">${t}</div>`:t}</td>${c.k===DUK?`<td>${durBadge(r)}</td>`:''}`; }).join('')}</tr>`; }).join('');
   v.innerHTML=`<div class="panel">${RB}<div class="tbl-wrap"><table class="rec"><thead><tr><th class="cb nosort"><input type="checkbox" id="selPage" ${allSel?'checked':''} aria-label="تحديد الصفحة"></th><th class="ms nosort" title="حالة القراءة">${ENV_O}</th>${th}</tr></thead><tbody>${body}</tbody></table></div>
@@ -2180,6 +2182,7 @@ document.addEventListener('change',e=>{
   if(t.name==='ssrc'){ STAFF_SRC=t.value; try{ localStorage.setItem(SSRC_KEY,STAFF_SRC); }catch(e){} staffIdx=null; _empSet=null; refresh(true); return; }
   if(t.name==='spos'){ STAFF_POS=t.value; try{ localStorage.setItem(SPOS_KEY,STAFF_POS); }catch(e){} refresh(true); return; }
   if(t.name==='rdF'){ filt.unread=t.value; refresh(); return; }
+  if(t.id==='durSort'){ sort=t.value?{k:'__dur',dir:+t.value}:{k:'date',dir:-1}; refresh(); return; }
   if(t.id==='pageSize'){ pageSize=+t.value; page=0; renderView(); }
   if(t.dataset.sel){ if(t.checked) selected.add(t.dataset.sel); else selected.delete(t.dataset.sel); t.closest('tr').classList.toggle('sel',t.checked); renderBulk(); }
   if(t.id==='selPage'){ const rows=filtered.slice(page*pageSize,(page+1)*pageSize); rows.forEach(r=> t.checked?selected.add(r.id):selected.delete(r.id)); renderView(); }
@@ -2234,7 +2237,7 @@ document.addEventListener('click',e=>{
     if(g==='callers'){ view='callers'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); renderView(); }
     return; }
   const rect=t.closest('rect[data-day]'); if(rect){ filt.from=filt.to=rect.dataset.day; refresh(); return; }
-  const th=t.closest('th[data-sort]'); if(th){ const k=th.dataset.sort; if(sort.k===k) sort.dir*=-1; else sort={k,dir:k==='date'?-1:1}; refresh(true); return; }
+  const th=t.closest('th[data-sort]'); if(th){ const k=th.dataset.sort; if(sort.k===k) sort.dir*=-1; else sort={k,dir:(k==='date'||k==='__dur')?-1:1}; refresh(true); return; }
   const ckr=t.closest('tr[data-ck]'); if(ckr){ showCaller(ckr.dataset.ck); return; }
   const pr=t.closest('tr[data-pair]'); if(pr){ const [ck,ek]=pr.dataset.pair.split('§'); filt.ck=ck; showStaff(ek); return; }
   const er=t.closest('tr[data-emp]'); if(er){ showStaff(er.dataset.emp); return; }
@@ -3443,7 +3446,7 @@ let SNAP_FONT=null;
 
 /* ---------- نماذج التقارير ---------- */
 // قيمة العمود كما تظهر (والمدة الزمنية للإغلاق عمود افتراضي)
-const rpv=(r,k)=>k==='__dur'?durCat(r):String(cellText(r,k)??'');
+const rpv=(r,k)=>k==='__dur'?durText(r):String(cellText(r,k)??'');
 const rpCols=()=>[...cols().filter(c=>!['desc'].includes(c.k) && !['datetime','date','long','number'].includes(c.type)),VCOL_DUR];
 const listColsAll=pii=>[...cols().filter(c=>pii||!c.pii),VCOL_DUR];
 const KPI_BASE={total:'عدد البلاغات',avgDay:'متوسط البلاغات اليومي',centers:'المراكز الصحية',sectors:'القطاعات',topCenter:'أعلى مركز',topCat:'أعلى تصنيف',
@@ -3608,7 +3611,7 @@ function panelPerf(){
     <p class="hint" style="margin-bottom:0">في هذا الإصدار صار حفظ سجل التغييرات يكتب العملية الجديدة فقط بدل إعادة كتابة السجل كله بعد كل تعديل، وهذا وحده يخفف التعليق بعد التعديل والاستيراد.</p></div>
     <div class="pcard"><h4>حالة التخزين</h4><div class="ctbl-wrap" style="max-height:none"><table class="ctbl"><tbody>
       ${row('البلاغات',fmt(RECS.length))}${row('عمليات سجل التغييرات',fmt(LOG.length),`الحد ${LOG_MAX} عملية`)}${row('لقطات التراجع',fmt(snaps),`الحد ${fmt(lim)}`)}${row('حركة البلاغات',fmt(MV.length),`الحد ${fmt(+MVS.max||300000)}`)}${row('سجلات مثبتة',fmt(PINL.size))}${row('المساحة المستخدمة','<span id="perfEst">…</span>','')}
-    </tbody></table></div></div>
+    </tbody></table></div><div style="margin-top:10px">${mvBar()}</div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><span class="hint">نبّهني عند</span>${mvWarnSel('perfMvWarn')}<button type="button" class="btn sm" data-mvb="arch">تصدير وأرشفة</button></div></div>
     <div class="pcard"><h4>حد لقطات التراجع</h4>
       ${seg('perfSnap',[[25000,'25 ألف'],[10000,'10 آلاف'],[5000,'5 آلاف (موصى به)'],[2000,'ألفان']],lim)}
       <p class="hint" style="margin-bottom:0">كلما قلّ الحد خفّ التطبيق، لكن يقل عدد العمليات التي يمكن التراجع عنها. تفاصيل التغييرات (قبل/بعد) تبقى محفوظة في «حركة البلاغات» مهما كان الحد. يُطبَّق عند الحفظ أو بزر «تنظيف وضغط الآن».</p></div>
@@ -3824,7 +3827,7 @@ function recordsSheet(list,pii,keysIn){ // header fill follows the brand color
   const keys=rsKeys(pii,keysIn);
   const W={no:13,month:14,date:18,desc:60,sector:18,center:32,sub:40,main:34,caller:28,nid:14,count:8};
   let x=`<row r="1" ht="24" customHeight="1">${keys.map((k,i)=>cellXml(1,i,label(k),1)).join('')}</row>`;
-  list.forEach((r,ri)=>{ const rr=ri+2; x+=`<row r="${rr}">${keys.map((k,i)=>{ const c=col(k); if(k==='__dur') return cellXml(rr,i,durCat(r),2); if(c.type==='datetime') return cellXml(rr,i,serial(r[k]),3); if(c.type==='date') return cellXml(rr,i,r[k]?r[k].slice(0,10):'',2); if(c.type==='number') return cellXml(rr,i,r[k]===''||r[k]==null||isNaN(+r[k])?r[k]:+r[k],4); if(k==='month') return cellXml(rr,i,monthOf(r),2); return cellXml(rr,i,r[k],2); }).join('')}</row>`; });
+  list.forEach((r,ri)=>{ const rr=ri+2; x+=`<row r="${rr}">${keys.map((k,i)=>{ const c=col(k); if(k==='__dur') return cellXml(rr,i,durText(r),2); if(c.type==='datetime') return cellXml(rr,i,serial(r[k]),3); if(c.type==='date') return cellXml(rr,i,r[k]?r[k].slice(0,10):'',2); if(c.type==='number') return cellXml(rr,i,r[k]===''||r[k]==null||isNaN(+r[k])?r[k]:+r[k],4); if(k==='month') return cellXml(rr,i,monthOf(r),2); return cellXml(rr,i,r[k],2); }).join('')}</row>`; });
   const ref=`A1:${colName(keys.length-1)}${list.length+1}`;
   return sheetDoc(x,keys.map(k=>W[k]||(col(k).type==="long"?50:20)),`<autoFilter ref="${ref}"/>`);
 }
@@ -4474,7 +4477,7 @@ function genAction(b){
 
 /* ---------- المدة الزمنية للإغلاق ---------- */
 const DUR_KEY='r937-dur-v1';
-const DEF_DUR={on:1,start:'created',stCol:'حالة التذكرة',stVal:'تحت المعالجة - ضابط الاتصال',endCol:'تاريخ الحل',endCol2:'تاريخ الحل من المنسق',active:'hours',t1:24,t2:48};
+const DEF_DUR={on:1,start:'created',stCol:'حالة التذكرة',stVal:'تحت المعالجة - ضابط الاتصال',endCol:'تاريخ الحل',endCol2:'تاريخ الحل من المنسق',active:'hours',openShow:'hours',t1:24,t2:48};
 let DUR=(()=>{ try{ return {...DEF_DUR,...JSON.parse(localStorage.getItem(DUR_KEY)||'{}')}; }catch(e){ return {...DEF_DUR}; } })();
 const saveDur=()=>{ try{ localStorage.setItem(DUR_KEY,JSON.stringify(DUR)); }catch(e){} };
 const durEndKey=()=>colByLabel(DUR.endCol), durEndKey2=()=>DUR.endCol2?colByLabel(DUR.endCol2):null, durStKey=()=>colByLabel(DUR.stCol);
@@ -4498,9 +4501,11 @@ function durInfo(r){ const ek=durEndKey(), ek2=durEndKey2(); const end=(ek?anyDa
   const h=Math.max(0,(Date.now()-st.getTime())/3600000); return {st:'open',h,lvl:durLvl(h)}; }
 const durLabels=()=>{ const t1=+DUR.t1||24, t2=+DUR.t2||48; return {g:`${t1} ساعة`,o:`${t2} ساعة`,r:`أكثر من ${t2} ساعة`}; };
 function durCat(r){ const d=durInfo(r); if(d.st==='none') return ''; return durLabels()[d.lvl]; }
+// النص الظاهر: المفتوح بالساعات الفعلية (حسب الإعداد) والمحلول بالتصنيف
+function durText(r){ const d=durInfo(r); if(d.st==='none') return ''; return d.st==='open'&&DUR.openShow!=='cat'?hrsTxt(d.h):durLabels()[d.lvl]; }
 function durBadge(r){ const d=durInfo(r);
   if(d.st==='none') return '<span class="ro-empty">—</span>';
-  return `<span class="dur dur-${d.lvl}" title="${d.st==='closed'?'استغرق':'مفتوح منذ'} ${hrsTxt(d.h)}">${durLabels()[d.lvl]}</span>`; }
+  return `<span class="dur dur-${d.lvl}" title="${d.st==='closed'?`محلول · استغرق ${hrsTxt(d.h)}`:`مفتوح منذ ${hrsTxt(d.h)} · ${durLabels()[d.lvl]}`}">${d.st==='open'&&DUR.openShow!=='cat'?hrsTxt(d.h):durLabels()[d.lvl]}</span>`; }
 function hrsTxt(h){ const n=Math.floor(h); if(n<1) return 'أقل من ساعة'; if(n===1) return 'ساعة'; if(n===2) return 'ساعتان'; return fmt(n)+(n<=10?' ساعات':' ساعة'); }
 function panelDur(){
   const sk=durStKey(); const vals=sk?countBy(RECS,sk).map(x=>x[0]).filter(Boolean):[];
@@ -4520,13 +4525,15 @@ function panelDur(){
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px"><span class="hint">حتى</span><input class="inp" type="number" min="1" id="duT1" value="${+DUR.t1||24}" style="width:80px"><span class="hint">ساعة أو أقل =</span><span class="dur dur-g">${durLabels().g}</span></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px"><span class="hint">أكثر من ذلك حتى</span><input class="inp" type="number" min="2" id="duT2" value="${+DUR.t2||48}" style="width:80px"><span class="hint">ساعة =</span><span class="dur dur-o">${durLabels().o}</span></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px"><span class="hint">أكثر من ذلك =</span><span class="dur dur-r">${durLabels().r}</span></div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px"><b>البلاغ المفتوح يُعرض</b><div class="seg"><label><input type="radio" name="duOpen" value="hours" ${DUR.openShow!=='cat'?'checked':''}><span>بالساعات الفعلية <span class="dur dur-o" style="font-size:11px">41 ساعة</span></span></label><label><input type="radio" name="duOpen" value="cat" ${DUR.openShow==='cat'?'checked':''}><span>بالتصنيف <span class="dur dur-o" style="font-size:11px">${durLabels().o}</span></span></label></div></div>
+      <p class="hint" style="margin:4px 0 0">البلاغ المحلول يُعرض دائماً بالتصنيف. الفلتر بالتصنيفات، والترتيب بالساعات الفعلية.</p>
 </div>
   </div>`;
 }
 function durChange(t){
   if(t.id==='duOn') DUR.on=t.checked?1:0; else if(t.name==='duStart') DUR.start=t.value; else if(t.id==='duStCol'){ DUR.stCol=t.value; saveDur(); refresh(true); return 'redraw'; }
   else if(t.id==='duStVal') DUR.stVal=t.value; else if(t.id==='duEnd'){ DUR.endCol=t.value; saveDur(); refresh(true); return 'redraw'; } else if(t.id==='duEnd2'){ DUR.endCol2=t.value; saveDur(); refresh(true); return 'redraw'; }
-  else if(t.id==='duT1'){ DUR.t1=Math.max(1,+t.value||24); saveDur(); refresh(true); return 'redraw'; } else if(t.id==='duT2'){ DUR.t2=Math.max((+DUR.t1||24)+1,+t.value||48); saveDur(); refresh(true); return 'redraw'; } else if(t.name==='duAct') DUR.active=t.value;
+  else if(t.id==='duT1'){ DUR.t1=Math.max(1,+t.value||24); saveDur(); refresh(true); return 'redraw'; } else if(t.id==='duT2'){ DUR.t2=Math.max((+DUR.t1||24)+1,+t.value||48); saveDur(); refresh(true); return 'redraw'; } else if(t.name==='duAct') DUR.active=t.value; else if(t.name==='duOpen'){ DUR.openShow=t.value; saveDur(); refresh(true); return 'redraw'; }
   else return null;
   saveDur(); refresh(true); return true;
 }
@@ -4587,24 +4594,54 @@ async function checkStatusFile(file){
   const ex=new Map(RECS.map(r=>[keyNo(r.no),r])); const CK=ALLK().filter(k=>k!=='id'&&k!=='no');
   const seen=new Set(), hits=[]; let notIn=0, same=0;
   res.recs.forEach(n=>{ const k=keyNo(n.no); if(!k||seen.has(k)) return; seen.add(k); const o=ex.get(k); if(!o){ notIn++; return; }
-    const m=mergeFromFile(o,n,res.fields); const ch=CK.filter(c=>vNorm(o[c])!==vNorm(m[c]));
+    const m=mergeFromFile(o,n,res.fields); const ch=CK.filter(c=>c==='month'?vNorm(o[c]||monthOf(o))!==vNorm(m[c]||monthOf(m)):vNorm(o[c])!==vNorm(m[c]));
     if(ch.length) hits.push({o,m,ch,from:sk?o[sk]||'':'',to:sk?m[sk]||'':'',stCh:!!sk&&ch.includes(sk)}); else same++; });
   hits.sort((a,b)=>String(a.o.date).localeCompare(String(b.o.date)));
-  const L=hits.slice(0,400);
+  // بلاغات الملف غير الموجودة في القاعدة
+  const sn=new Set(), news=[]; res.recs.forEach(n=>{ const k=keyNo(n.no); if(!k||ex.has(k)||sn.has(k)) return; sn.add(k); n.no=String(n.no).trim(); news.push(n); });
+  news.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const CC0=new Set(); hits.forEach(h=>h.ch.forEach(c=>CC0.add(c)));
+  checkDialog({file,sk,hits,news,same,F:{from:'',to:''},tab:hits.length||!news.length?'chg':'new',sel:CC0});
+}
+function checkDialog(S){
+  const {file,sk}=S, F=S.F; const inR=d=>{ d=String(d||'').slice(0,10); return (!F.from||(d&&d>=F.from))&&(!F.to||(d&&d<=F.to)); };
+  const hits=S.hits.filter(h=>inR(h.o.date)), news=S.news.filter(n=>inR(n.date)), tab=S.tab, flt=!!(F.from||F.to);
+  const L=hits.slice(0,400), LN=news.slice(0,400);
   const CC=new Map(); hits.forEach(h=>h.ch.forEach(c=>CC.set(c,(CC.get(c)||0)+1))); const ccl=[...CC.entries()].sort((a,b)=>b[1]-a[1]);
   const nSt=hits.filter(h=>h.stCh).length, nRo=hits.filter(h=>isReopen(h.from,h.to)).length;
-  dialog({title:'فحص تغييرات التذاكر', wide:true, html:`<p class="hint" style="margin-top:0">قورنت كل أعمدة الملف «${esc(file.name)}» بالقاعدة <b>بدون استيراد</b>. لم يتغيّر شيء بعد.</p>
-    <div class="stats" style="margin-bottom:10px"><div><b style="color:${hits.length?'#E5484D':'inherit'}">${fmt(hits.length)}</b><span>تذكرة فيها تغيير${sk?` (منها ${fmt(nSt)} تغيّرت حالتها، و<b style="color:#E5484D">${fmt(nRo)} معاد فتحها</b>)`:''}</span></div><div><b>${fmt(same)}</b><span>بدون أي تغيير</span></div><div><b>${fmt(notIn)}</b><span>غير موجودة في القاعدة</span></div></div>
-    ${hits.length?`<div class="ctbl-wrap" style="max-height:50vh"><table class="ctbl"><thead><tr><th>رقم البلاغ</th><th>تاريخ البلاغ</th><th>المركز</th><th>ما تغيّر</th>${sk?'<th>الحالة</th>':''}</tr></thead><tbody>${L.map(h=>`<tr><td><b dir="ltr">${esc(h.o.no)}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(h.o.date||''))}</td><td>${esc(shortName(h.o.center||''))}</td><td style="font-size:12.5px"><b>${esc(h.ch.map(c=>label(c)).join('، '))}</b></td>${sk?`<td style="font-size:12.5px">${h.stCh?`${isReopen(h.from,h.to)?'<b style="color:#E5484D">↺ معاد فتحها</b><br>':''}<span style="color:var(--muted);text-decoration:line-through">${esc(h.from||'فارغ')}</span> ← <b>${esc(h.to||'فارغ')}</b>`:`<span class="hint">${esc(h.from||'—')}</span>`}</td>`:''}</tr>`).join('')}</tbody></table></div>${hits.length>L.length?`<p class="hint">يظهر أقدم ${fmt(L.length)}.</p>`:''}
-    <div style="margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:10px;display:grid;gap:6px"><b>الأعمدة التي ستُحدَّث عند الاستيراد</b><span class="hint">التذكرة نفسها تُحدَّث برقمها ولا تُكرَّر. كل الأعمدة المتغيّرة محددة؛ ألغِ تحديد أي عمود لا تريد تحديثه ليبقى كما هو.</span>
-      ${ccl.map(([c,n])=>`<label class="opt"><input type="checkbox" data-cc="${esc(c)}" checked><span>${esc(label(c))}<small>يتغيّر في ${fmt(n)} تذكرة</small></span></label>`).join('')}</div>`:'<p class="ro-empty" style="padding:14px;text-align:center">لا توجد أي تغييرات: كل تذاكر الملف مطابقة للقاعدة.</p>'}`,
-    actions:[...(hits.length&&!VIEWER?[{label:`تحديث الأعمدة المحددة فقط (${fmt(hits.length)} تذكرة)`,cls:'primary',run:async(dl)=>{ const at=new Date().toISOString();
-        const sel=[...(dl||document).querySelectorAll('[data-cc]:checked')].map(x=>x.dataset.cc); if(!sel.length){ toast('اختر عموداً واحداً على الأقل'); return false; }
-        const puts=hits.map(h=>{ const n={...h.o}; delete n._s; delete n._m; sel.forEach(c=>{ n[c]=h.m[c]; }); return prep(clean(n)); });
-        busy('جارٍ الحفظ…'); try{ await saveRecords(puts,{type:'reopen',note:file.name+' · '+sel.map(c=>label(c)).join('، ')}); } finally{ busy(null); }
-        const nR=addReopen(hits.map(h=>sel.includes(sk)?h:{...h,to:h.from}),file.name,sel);
-        toast(`حُدّثت ${fmt(hits.length)} تذكرة${nR?` · ${fmt(nR)} في «معاد فتحها»`:''}`); if(nR) setTimeout(()=>reopenDialog('new'),60); }}]:[]),
-      ...(hits.length?[{label:'عرضها في السجلات',run:()=>{ filt={...filt,q:'',from:'',to:'',nos:hits.map(h=>keyNo(h.o.no)).join(' ')}; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); toast('تُعرض بحالتها الحالية في القاعدة — لم تُستورد بعد'); }}]:[]),{label:'إغلاق'}]});
+  const ds=[...S.hits.map(h=>h.o.date),...S.news.map(n=>n.date)].filter(Boolean).map(d=>String(d).slice(0,10)).sort();
+  const of=(a,b)=>flt&&a!==b?` <small class="hint">من ${fmt(b)}</small>`:'';
+  const tb=(k,l,n)=>`<button type="button" class="btn sm ${tab===k?'primary':''}" data-cktab="${k}">${l} (${fmt(n)})</button>`;
+  const html=`<p class="hint" style="margin-top:0">قورنت كل أعمدة الملف «${esc(file.name)}» بالقاعدة <b>بدون استيراد</b>. لم يتغيّر شيء بعد.</p>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px"><b>الفترة (تاريخ البلاغ)</b><span class="hint">من</span><input type="date" class="inp" id="ckFrom" value="${esc(F.from)}" style="width:auto"><span class="hint">إلى</span><input type="date" class="inp" id="ckTo" value="${esc(F.to)}" style="width:auto">${flt?'<button type="button" class="btn sm ghost" id="ckAll">كل الفترات</button>':''}${ds.length?`<span class="hint">تواريخ المتغيّرة والجديدة: ${esc(ds[0].replace(/-/g,'/'))} – ${esc(ds[ds.length-1].replace(/-/g,'/'))}</span>`:''}</div>
+    <div class="stats" style="margin-bottom:10px"><div><b style="color:${hits.length?'#E5484D':'inherit'}">${fmt(hits.length)}${of(hits.length,S.hits.length)}</b><span>تذكرة فيها تغيير${sk?` (منها ${fmt(nSt)} تغيّرت حالتها، و<b style="color:#E5484D">${fmt(nRo)} معاد فتحها</b>)`:''}</span></div><div><b style="color:${news.length?'#2B6CB0':'inherit'}">${fmt(news.length)}${of(news.length,S.news.length)}</b><span>بلاغ جديد غير مسجّل في القاعدة</span></div><div><b>${fmt(S.same)}</b><span>بدون أي تغيير</span></div></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${tb('chg','تذاكر تغيّرت',hits.length)}${tb('new','بلاغات جديدة',news.length)}</div>
+    ${tab==='new'?(news.length?`<div class="ctbl-wrap" style="max-height:46vh"><table class="ctbl"><thead><tr><th>رقم البلاغ</th><th>تاريخ البلاغ</th><th>المركز</th><th>التصنيف</th></tr></thead><tbody>${LN.map(n=>`<tr><td><b dir="ltr">${esc(n.no)}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(n.date||''))}</td><td>${esc(shortName(n.center||''))}</td><td style="font-size:12.5px">${esc(n.sub||n.main||'')}</td></tr>`).join('')}</tbody></table></div>${news.length>LN.length?`<p class="hint">يظهر أقدم ${fmt(LN.length)}.</p>`:''}<p class="hint">تُضاف كبلاغات جديدة كما في الاستيراد العادي: يُعبّأ القطاع تلقائياً، والأقدم من آخر يوم مسجّل يظهر في «البلاغات المتأخرة».</p>`:'<p class="ro-empty" style="padding:14px;text-align:center">لا توجد بلاغات جديدة غير مسجّلة'+(flt?' في هذه الفترة':'')+'.</p>')
+    :(hits.length?`<div class="ctbl-wrap" style="max-height:46vh"><table class="ctbl"><thead><tr><th>رقم البلاغ</th><th>تاريخ البلاغ</th><th>المركز</th><th>ما تغيّر</th>${sk?'<th>الحالة</th>':''}</tr></thead><tbody>${L.map(h=>`<tr><td><b dir="ltr">${esc(h.o.no)}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(h.o.date||''))}</td><td>${esc(shortName(h.o.center||''))}</td><td style="font-size:12.5px"><b>${esc(h.ch.map(c=>label(c)).join('، '))}</b></td>${sk?`<td style="font-size:12.5px">${h.stCh?`${isReopen(h.from,h.to)?'<b style="color:#E5484D">↺ معاد فتحها</b><br>':''}<span style="color:var(--muted);text-decoration:line-through">${esc(h.from||'فارغ')}</span> ← <b>${esc(h.to||'فارغ')}</b>`:`<span class="hint">${esc(h.from||'—')}</span>`}</td>`:''}</tr>`).join('')}</tbody></table></div>${hits.length>L.length?`<p class="hint">يظهر أقدم ${fmt(L.length)}.</p>`:''}
+    <div style="margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:10px;display:grid;gap:6px"><b>الأعمدة التي ستُحدَّث</b><span class="hint">التذكرة نفسها تُحدَّث برقمها ولا تُكرَّر. ألغِ تحديد أي عمود لا تريد تحديثه ليبقى كما هو.</span>
+      ${ccl.map(([c,n])=>`<label class="opt"><input type="checkbox" data-cc="${esc(c)}" ${S.sel.has(c)?'checked':''}><span>${esc(label(c))}<small>يتغيّر في ${fmt(n)} تذكرة</small></span></label>`).join('')}</div>`:'<p class="ro-empty" style="padding:14px;text-align:center">لا توجد تذاكر متغيّرة'+(flt?' في هذه الفترة':': كل تذاكر الملف مطابقة للقاعدة')+'.</p>')}`;
+  const doUpd=async()=>{ const sel=[...S.sel].filter(c=>CC.has(c)); if(!sel.length){ toast('اختر عموداً واحداً على الأقل في تبويب «تذاكر تغيّرت»'); return null; }
+    const puts=hits.map(h=>{ const n={...byId.get(h.o.id)||h.o}; delete n._s; delete n._m; sel.forEach(c=>{ n[c]=h.m[c]; }); return prep(clean(n)); });
+    await saveRecords(puts,{type:'reopen',note:file.name+(flt?` (${F.from||'…'} – ${F.to||'…'})`:'')+' · '+sel.map(c=>label(c)).join('، ')});
+    return {n:hits.length, nR:addReopen(hits.map(h=>sel.includes(sk)?h:{...h,to:h.from}),file.name,sel)}; };
+  const doAdd=async()=>{ const have=new Set(RECS.map(r=>keyNo(r.no))); const list=news.filter(n=>!have.has(keyNo(n.no))); if(!list.length) return 0;
+    const DS=defSec(); if(active('sector')) list.forEach(r=>{ if(String(r.sector||'').trim()) return; const x=r.center?centerToSector(r.center):''; if(x) r.sector=x; else if(DS) r.sector=DS; });
+    const lastDay=RECS.reduce((m,r)=>r.date&&r.date.slice(0,10)>m?r.date.slice(0,10):m,''); const late=lastDay?list.filter(r=>r.date&&r.date.slice(0,10)<lastDay):[];
+    await saveRecords(list.map(prep),{type:'import',note:file.name+' · بلاغات جديدة من الفحص'}); if(late.length) addLate(late,file.name); return list.length; };
+  const run=async(u,a)=>{ busy('جارٍ الحفظ…'); let r=null, n=0; try{ if(u){ r=await doUpd(); if(!r){ busy(null); return false; } } if(a) n=await doAdd(); } finally{ busy(null); }
+    toast([r?`حُدّثت ${fmt(r.n)} تذكرة${r.nR?` · ${fmt(r.nR)} في «معاد فتحها»`:''}`:'',n?`أضيف ${fmt(n)} بلاغ جديد`:''].filter(Boolean).join(' · ')||'لا شيء للحفظ'); if(r&&r.nR) setTimeout(()=>reopenDialog('new'),60); };
+  const W=!VIEWER;
+  dialog({title:'فحص تغييرات التذاكر', wide:true, html, actions:[
+      ...(W&&hits.length?[{label:`تحديث المتغيّرة فقط (${fmt(hits.length)})`,cls:'primary',run:()=>run(true,false)}]:[]),
+      ...(W&&news.length?[{label:`إضافة الجديدة فقط (${fmt(news.length)})`,cls:hits.length?'':'primary',run:()=>run(false,true)}]:[]),
+      ...(W&&hits.length&&news.length?[{label:'تحديث المتغيّرة + إضافة الجديدة',run:()=>run(true,true)}]:[]),
+      ...(hits.length?[{label:'عرض المتغيّرة في السجلات',run:()=>{ filt={...filt,q:'',from:'',to:'',nos:hits.map(h=>keyNo(h.o.no)).join(' ')}; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); toast('تُعرض بحالتها الحالية في القاعدة — لم تُحدَّث بعد'); }}]:[]),{label:'إغلاق'}],
+    onOpen:sc=>{
+      sc.addEventListener('change',e=>{ const t=e.target;
+        if(t.dataset.cc){ t.checked?S.sel.add(t.dataset.cc):S.sel.delete(t.dataset.cc); return; }
+        if(t.id==='ckFrom'||t.id==='ckTo'){ F.from=sc.querySelector('#ckFrom').value; F.to=sc.querySelector('#ckTo').value; checkDialog(S); } });
+      sc.addEventListener('click',e=>{ const b=e.target.closest('[data-cktab],#ckAll'); if(!b) return; if(b.id==='ckAll'){ F.from=''; F.to=''; } else S.tab=b.dataset.cktab; checkDialog(S); });
+    }});
 }
 function panelRoset(){
   const k=roKey(); const vals=k?countBy(RECS,k).filter(x=>x[0]):[]; const cols=SCHEMA.filter(c=>!c.removed).map(c=>c.l);
@@ -4655,13 +4692,45 @@ function pinnedDialog(){
 /* ---------- قاعدة حركة البلاغات: كل تغيير على مستوى الحقل، تُصدَّر وتُستورد بين الأجهزة ---------- */
 // صف الحركة: [الوقت ISO, مفتاح رقم البلاغ, رقم البلاغ, نوع العملية, رمز الحقل, اسم الحقل, قبل, بعد]
 const MVS_KEY='r937-mv-v1';
-let MVS=(()=>{ try{ return {on:1,max:300000,...JSON.parse(localStorage.getItem(MVS_KEY)||'{}')}; }catch(e){ return {on:1,max:300000}; } })();
+let MVS=(()=>{ try{ return {on:1,max:300000,warn:80,...JSON.parse(localStorage.getItem(MVS_KEY)||'{}')}; }catch(e){ return {on:1,max:300000,warn:80}; } })();
 const saveMVS=()=>{ try{ localStorage.setItem(MVS_KEY,JSON.stringify(MVS)); }catch(e){} };
-let MV=[], MV_VER=0, MV_T=null, MVIX=null, MVIX_V=-1;
+let MV=[], MV_VER=0, MV_T=null, MVIX=null, MVIX_V=-1, MV_DIRTY=new Set(), MV_FULL=false; const MV_KEYS=new Set(); const mvMon=t=>String(t).slice(0,7);
 const mvCut=v=>{ v=String(v??''); return v.length>1500?v.slice(0,1500)+'…':v; };
-async function loadMV(){ try{ const v=await dbMeta('movelog'); MV=Array.isArray(v)?v:[]; }catch(e){ MV=[]; } MV_VER++; }
-function mvSave(now){ MV_VER++; LOG_VER++; clearTimeout(MV_T); const go=()=>dbSetMeta('movelog',MV).catch(e=>console.error(e)); if(now) return go(); MV_T=setTimeout(go,1200); }
-function mvTrim(){ const mx=+MVS.max||300000; if(MV.length>mx) MV=MV.slice(MV.length-mx); }
+// تُحفظ الحركات في أجزاء شهرية (mv:YYYY-MM) فيُكتب الشهر الذي تغيّر فقط بدل القاعدة كلها
+async function loadMV(){ try{ const keys=(await dbMetaKeys()).filter(k=>typeof k==='string'&&k.startsWith('mv:')).sort(); let all=[];
+    for(const k of keys){ const v=await dbMeta(k); if(Array.isArray(v)&&v.length){ all=all.concat(v); MV_KEYS.add(k); } }
+    const old=await dbMeta('movelog'); if(Array.isArray(old)&&old.length){ all=all.concat(old); all.sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0); MV_FULL=true; setTimeout(()=>mvSave(true),3000); }
+    MV=all; }catch(e){ console.error(e); MV=[]; } MV_VER++; }
+async function mvFlush(){ const full=MV_FULL, dirty=MV_DIRTY; MV_FULL=false; MV_DIRTY=new Set(); const by=new Map();
+  if(full) MV.forEach(x=>{ const m=mvMon(x[0]); let a=by.get(m); if(!a){ a=[]; by.set(m,a); } a.push(x); });
+  else { if(!dirty.size) return; const mins=[...dirty].sort()[0]; dirty.forEach(m=>by.set(m,[])); for(let i=MV.length-1;i>=0;i--){ const m=mvMon(MV[i][0]); if(m<mins) break; const a=by.get(m); if(a) a.push(MV[i]); } by.forEach(a=>a.reverse()); }
+  const W=[]; by.forEach((a,m)=>{ const k='mv:'+m; if(a.length){ W.push(dbSetMeta(k,a)); MV_KEYS.add(k); } else if(MV_KEYS.has(k)){ W.push(dbDelMeta(k).catch(()=>{})); MV_KEYS.delete(k); } });
+  if(full){ [...MV_KEYS].forEach(k=>{ if(!by.has(k.slice(3))){ W.push(dbDelMeta(k).catch(()=>{})); MV_KEYS.delete(k); } }); W.push(dbDelMeta('movelog').catch(()=>{})); }
+  await Promise.all(W); }
+function mvSave(now){ MV_VER++; LOG_VER++; clearTimeout(MV_T); const go=()=>mvFlush().catch(e=>console.error(e)); if(now) return go(); MV_T=setTimeout(go,1200); }
+// عند تجاوز الحد تُحذف دفعة (5%) من الأقدم مرة واحدة، حتى لا يُعاد حفظ القاعدة كلها مع كل حركة جديدة
+function mvTrim(silent){ const mx=+MVS.max||300000; if(MV.length>mx){ const keep=Math.floor(mx*0.95); const cut=MV.length-keep; MV=MV.slice(MV.length-keep); MV_FULL=true;
+  if(!silent){ MVS.cut={n:((MVS.cut&&MVS.cut.n)||0)+cut,at:new Date().toISOString()}; saveMVS(); setTimeout(()=>{ try{ renderMvBanner(); }catch(e){} },0); } } }
+// تنبيه الاقتراب من حد حركة البلاغات
+const mvMax=()=>+MVS.max||300000, mvPct=()=>Math.round(MV.length/mvMax()*100);
+function mvBar(){ const p=Math.min(100,MV.length/mvMax()*100); const c=p<70?'#22A06B':p<90?'#E8890C':'#E5484D';
+  return `<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>المستخدم من حد حركة البلاغات</b><span>${fmt(MV.length)} / ${fmt(mvMax())} · ${p.toFixed(0)}%</span></div><div style="height:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:99px;overflow:hidden;margin:6px 0"><i style="display:block;height:100%;width:${p}%;background:${c}"></i></div><span class="hint">أخضر حتى 70% · برتقالي 70–90% · أحمر فوق 90%. التنبيه في الصفحة الرئيسية عند ${+MVS.warn?MVS.warn+'%':'(موقف)'}.</span>`; }
+const mvWarnSel=id=>`<select class="inp" id="${id}" style="width:auto">${[[70,'70%'],[80,'80%'],[90,'90%'],[0,'إيقاف التنبيه']].map(([v,l])=>`<option value="${v}" ${+MVS.warn===v?'selected':''}>${l}</option>`).join('')}</select>`;
+function renderMvBanner(){ const el=document.getElementById('mvBanner'); if(!el) return; if(VIEWER){ el.hidden=true; return; }
+  const w=+MVS.warn, p=mvPct(), cut=MVS.cut&&MVS.cut.n; const show=cut||(w&&p>=w&&!(MVS.snooze&&Date.now()<MVS.snooze));
+  if(!show){ el.hidden=true; el.innerHTML=''; return; }
+  el.hidden=false; el.style.cssText=cut?'border-color:#E5484D;background:color-mix(in srgb,#E5484D 10%,var(--surface))':'';
+  el.innerHTML=`<span style="font-size:22px;line-height:1">${cut?'⚠️':'📒'}</span><div class="bk-txt"><b>${cut?`وصلت حركة البلاغات للحد، وحُذفت ${fmt(MVS.cut.n)} حركة قديمة تلقائياً`:`حركة البلاغات اقتربت من الحد: ${fmt(MV.length)} من ${fmt(mvMax())} (${p}%)`}</b><span>${cut?'صدّر الأرشيف لتفادي فقدان المزيد، أو ارفع الحد.':'عند الوصول للحد تُحذف أقدم الحركات تلقائياً. صدّرها للأرشفة أو ارفع الحد.'}</span></div><div class="bk-acts"><button type="button" class="btn sm primary" data-mvb="arch">تصدير وأرشفة</button><button type="button" class="btn sm" data-mvb="max">رفع الحد</button>${cut?'<button type="button" class="btn sm ghost" data-mvb="ok">تم</button>':'<button type="button" class="btn sm ghost" data-mvb="later">لاحقاً</button>'}</div>`; }
+document.addEventListener('click',e=>{ const b=e.target.closest('[data-mvb]'); if(!b) return; const a=b.dataset.mvb;
+  if(a==='arch') mvArchive(); if(a==='max') moveDialog();
+  if(a==='later'){ MVS.snooze=Date.now()+7*864e5; saveMVS(); renderMvBanner(); toast('سيظهر التنبيه مرة أخرى بعد 7 أيام'); }
+  if(a==='ok'){ MVS.cut=null; saveMVS(); renderMvBanner(); } });
+document.addEventListener('change',e=>{ if(e.target.id==='perfMvWarn'){ MVS.warn=+e.target.value; MVS.snooze=0; saveMVS(); renderMvBanner(); } });
+async function mvArchive(){ if(!MV.length){ toast('لا توجد حركات'); return; } await mvExportJson(); MVS.cut=null; MVS.snooze=0; saveMVS(); renderMvBanner();
+  const lim=new Date(Date.now()-182*864e5).toISOString(); const n=MV.filter(x=>x[0]<lim).length;
+  dialog({title:'تم تصدير أرشيف حركة البلاغات', html:`<p style="margin-top:0">حُفظ ملف بكل الحركات (${fmt(MV.length)} حركة). احتفظ به في مكان آمن، ويمكن استيراده لاحقاً من «حركة البلاغات» ← «استيراد حركات».</p>${n?`<p>هل تحذف من التطبيق الحركات الأقدم من 6 أشهر (<b>${fmt(n)}</b> حركة) لتخفيفه؟ البلاغات لا تتغيّر، والحركات محفوظة في الملف.</p>`:'<p class="hint">لا توجد حركات أقدم من 6 أشهر للحذف.</p>'}`,
+    actions:[...(n?[{label:`حذف ${fmt(n)} حركة`,cls:'primary',run:()=>{ MV=MV.filter(x=>x[0]>=lim); MV_FULL=true; mvSave(true); renderMvBanner(); toast(`حُذفت ${fmt(n)} حركة`); }}]:[]),{label:n?'إبقاؤها':'حسناً'}]}); }
+
 function mvIdx(){ if(MVIX && MVIX_V===MV_VER) return MVIX; const m=new Map(); MV.forEach(x=>{ let a=m.get(x[1]); if(!a){ a=[]; m.set(x[1],a); } a.push(x); }); MVIX=m; MVIX_V=MV_VER; return m; }
 function mvRecord(puts,dels,type,t){
   if(VIEWER||!MVS.on) return; t=t||new Date().toISOString();
@@ -4670,7 +4739,7 @@ function mvRecord(puts,dels,type,t){
     if(!old){ MV.push([t,k,r.no,type,'__new','إضافة إلى القاعدة','',mvCut(cellText(r,'center'))]); n++; return; }
     keys.forEach(f=>{ if(vNorm(old[f])!==vNorm(r[f])){ MV.push([t,k,r.no,type,f,label(f),mvCut(cellText(old,f)),mvCut(cellText(r,f))]); n++; } }); });
   dels.forEach(id=>{ const old=byId.get(id); if(!old) return; const k=keyNo(old.no); if(!k) return; MV.push([t,k,old.no,type,'__del','حذف من القاعدة',mvCut(cellText(old,'center')),'']); n++; });
-  if(n){ mvTrim(); mvSave(); }
+  if(n){ MV_DIRTY.add(mvMon(t)); mvTrim(); mvSave(); }
 }
 // مرة واحدة: نقل ما في سجل التغييرات والسجلات المثبتة الحالية إلى قاعدة الحركة
 async function mvBackfill(){
@@ -4679,7 +4748,7 @@ async function mvBackfill(){
   RECS.forEach(r=>{ if(!logIdx().has(r.id) && !(PINLOG[r.id]||[]).length) return; const k=keyNo(r.no); if(!k) return;
     recChangesLog(r).forEach(h=>h.ch.forEach(([f,a,b])=>{ const id=h.t+'|'+k+'|'+f; if(have.has(id)) return; have.add(id); add.push([h.t,k,r.no,h.type,f,label(f),mvCut(a),mvCut(b)]); })); });
   if(add.length){ MV=MV.concat(add).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0); mvTrim(); }
-  await mvSave(true); try{ await dbSetMeta('mvinit',true); }catch(e){}
+  MV_FULL=true; await mvSave(true); try{ await dbSetMeta('mvinit',true); }catch(e){}
 }
 const mvWhen=t=>{ const d=new Date(t); if(isNaN(d)) return String(t||''); let h=d.getHours(); const pm=h>=12; h=h%12||12; return `${iso(d).replace(/-/g,'/')} ${h}:${String(d.getMinutes()).padStart(2,'0')} ${pm?'م':'ص'}`; };
 const mvType=x=>LOG_TYPES[x]||x||'';
@@ -4707,7 +4776,7 @@ function moveDialog(){
       return `<tr ${r?`data-mvopen="${esc(r.id)}" style="cursor:pointer"`:''}><td style="white-space:nowrap">${esc(mvWhen(x[0]))}</td><td><b dir="ltr">${esc(x[2])}</b>${r?'':' <span class="hint">(غير موجود)</span>'}</td><td>${esc(r?cellText(r,'center'):'')}</td><td>${esc(mvType(x[3]))}</td><td style="${sp}"><b>${esc(x[5])}</b></td><td style="color:var(--muted)">${cut(x[6])}</td><td>${cut(x[7])}</td></tr>`; }).join('')}</tbody></table></div>
       ${L.length>rows.length?`<div style="margin-top:8px"><button type="button" class="btn sm" id="mvMore">عرض المزيد</button></div>`:''}`:'<div class="pcard"><p class="hint" style="margin:0">لا توجد حركات مطابقة.</p></div>'}`; };
   const sel=(id,opts,v)=>`<select class="inp" id="${id}" style="width:auto;max-width:200px">${opts.map(([a,b])=>`<option value="${esc(a)}" ${a===v?'selected':''}>${esc(b)}</option>`).join('')}</select>`;
-  dialog({title:'حركة البلاغات', wide:true, html:`<p class="hint" style="margin-top:0">قاعدة دائمة لكل تغيير على البلاغات: الحقل، والقيمة قبل وبعد، ووقت التغيير. لا تُحذف مع تنظيف سجل التغييرات، ويمكن تصديرها واستيرادها لنقلها بين الأجهزة أو حفظها. <b>${size()}</b></p>
+  dialog({title:'حركة البلاغات', wide:true, html:`<p class="hint" style="margin-top:0">قاعدة دائمة لكل تغيير على البلاغات: الحقل، والقيمة قبل وبعد، ووقت التغيير. لا تُحذف مع تنظيف سجل التغييرات، ويمكن تصديرها واستيرادها لنقلها بين الأجهزة أو حفظها. <b>${size()}</b></p><div id="mvBarBox" style="margin:4px 0 10px">${mvBar()}</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
       <input class="inp" id="mvQ" placeholder="رقم البلاغ" dir="ltr" style="width:150px">
       ${sel('mvF',[['','كل الحقول'],...flds.map(f=>[f,f])],'')}
@@ -4722,6 +4791,7 @@ function moveDialog(){
     <div class="pcard" style="margin-top:10px"><h4>الإعدادات</h4>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="mvOn" ${MVS.on?'checked':''}> تسجيل الحركات</label>
+        <span class="hint">التنبيه عند</span>${mvWarnSel('mvWarn')}<button type="button" class="btn sm primary" id="mvArch">تصدير وأرشفة</button>
         <span class="hint">الحد الأقصى</span>${sel('mvMax',[[100000,'100 ألف حركة'],[300000,'300 ألف حركة'],[500000,'500 ألف حركة'],[1000000,'مليون حركة']].map(([a,b])=>[String(a),b]),String(MVS.max))}
       </div>
       <p class="hint">عند بلوغ الحد تُحذف أقدم الحركات. الحركة الواحدة = تغيّر حقل واحد في بلاغ واحد.</p>
@@ -4733,12 +4803,14 @@ function moveDialog(){
       const upd=()=>{ F.q=$('mvQ').value; F.fld=$('mvF').value; F.ty=$('mvT').value; F.from=$('mvFrom').value; F.to=$('mvTo').value; F.addDel=$('mvAD').checked; lim=300; clearTimeout(tm); tm=setTimeout(re,200); };
       ['mvQ','mvFrom','mvTo'].forEach(id=>$(id).addEventListener('input',upd)); ['mvF','mvT','mvAD'].forEach(id=>$(id).addEventListener('change',upd));
       $('mvOn').onchange=e=>{ MVS.on=e.target.checked?1:0; saveMVS(); toast(MVS.on?'تسجيل الحركات مفعّل':'أُوقف تسجيل الحركات'); };
-      $('mvMax').onchange=e=>{ MVS.max=+e.target.value; saveMVS(); const b=MV.length; mvTrim(); if(MV.length!==b){ mvSave(); re(); } toast('حُفظ الحد الأقصى'); };
+      $('mvMax').onchange=e=>{ MVS.max=+e.target.value; MVS.snooze=0; if(MVS.cut&&MV.length<+MVS.max) MVS.cut=null; saveMVS(); const b=MV.length; mvTrim(true); if(MV.length!==b){ mvSave(); } re(); s.querySelector('#mvBarBox').innerHTML=mvBar(); renderMvBanner(); toast('حُفظ الحد الأقصى'); };
+      $('mvWarn').onchange=e=>{ MVS.warn=+e.target.value; MVS.snooze=0; saveMVS(); s.querySelector('#mvBarBox').innerHTML=mvBar(); renderMvBanner(); toast('حُفظ'); };
+      $('mvArch').onclick=()=>mvArchive();
       $('mvXl').onclick=()=>mvExportXlsx(mvFilter(F));
       $('mvJs').onclick=()=>mvExportJson();
       $('mvImp').onclick=()=>{ const i=document.createElement('input'); i.type='file'; i.accept='.xlsx,.xlsm,.json'; i.onchange=async()=>{ const f=i.files[0]; if(!f) return; await mvImport(f); re(); }; i.click(); };
-      $('mvPrune').onclick=()=>{ const d=+$('mvAge').value, lim2=new Date(Date.now()-d*864e5).toISOString(); const n=MV.filter(x=>x[0]<lim2).length; if(!n){ toast('لا توجد حركات أقدم من ذلك'); return; } MV=MV.filter(x=>x[0]>=lim2); mvSave(true); re(); toast(`حُذفت ${fmt(n)} حركة`); };
-      $('mvClear').onclick=()=>{ if($('mvClear').dataset.sure!=='1'){ $('mvClear').dataset.sure='1'; $('mvClear').textContent='اضغط مرة أخرى للتأكيد'; return; } const n=MV.length; MV=[]; mvSave(true); re(); toast(`مُسحت ${fmt(n)} حركة`); };
+      $('mvPrune').onclick=()=>{ const d=+$('mvAge').value, lim2=new Date(Date.now()-d*864e5).toISOString(); const n=MV.filter(x=>x[0]<lim2).length; if(!n){ toast('لا توجد حركات أقدم من ذلك'); return; } MV=MV.filter(x=>x[0]>=lim2); MV_FULL=true; mvSave(true); re(); toast(`حُذفت ${fmt(n)} حركة`); };
+      $('mvClear').onclick=()=>{ if($('mvClear').dataset.sure!=='1'){ $('mvClear').dataset.sure='1'; $('mvClear').textContent='اضغط مرة أخرى للتأكيد'; return; } const n=MV.length; MV=[]; MV_FULL=true; mvSave(true); re(); toast(`مُسحت ${fmt(n)} حركة`); };
       s.addEventListener('click',e=>{ if(e.target.closest('#mvMore')){ lim+=1000; re(); return; } const o=e.target.closest('[data-mvopen]'); if(o){ const r=byId.get(o.dataset.mvopen); if(r){ document.getElementById('layer').innerHTML=''; viewRecord(r); } } });
     }});
 }
@@ -4774,7 +4846,7 @@ async function mvImport(file){
   }catch(e){ busy(null); toast(e&&e.message||'تعذرت قراءة الملف'); return; }
   const id=x=>x[0]+'|'+x[1]+'|'+x[4]+'|'+vNorm(x[7]); const have=new Set(MV.map(id)); let n=0, dup=0;
   rows.forEach(x=>{ x[1]=x[1]||keyNo(x[2]); const k=id(x); if(have.has(k)){ dup++; return; } have.add(k); MV.push(x); n++; });
-  if(n){ MV.sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0); mvTrim(); await mvSave(true); }
+  if(n){ MV.sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0); mvTrim(); MV_FULL=true; await mvSave(true); }
   busy(null); toast(`استُوردت ${fmt(n)} حركة${dup?` · ${fmt(dup)} موجودة من قبل`:''}`); try{ refresh(true); }catch(e){}
 }
 
@@ -4812,7 +4884,7 @@ try{ navigator.storage && navigator.storage.persist && navigator.storage.persist
   }
   }
   setAll(list);
-  await loadLog(); await loadRead(); await loadVisits(); await loadPinLog(); try{ resolvePendingPins(); }catch(e){} await loadMV(); setTimeout(()=>mvBackfill().catch(e=>console.error(e)),1500);
+  await loadLog(); await loadRead(); await loadVisits(); await loadPinLog(); try{ resolvePendingPins(); }catch(e){} await loadMV(); setTimeout(()=>mvBackfill().catch(e=>console.error(e)),1500); setTimeout(()=>{ try{ renderMvBanner(); }catch(e){} },800);
   setTimeout(()=>recomputeStatus(true),0);
   pageSize=+HOME.pageSize||50;
   if(HOME.defView && HOME.views.some(v=>v[0]===HOME.defView&&v[1])){ view=HOME.defView; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); }
