@@ -132,6 +132,21 @@ select.inp{padding-inline-end:6px}
 .kpis:empty,.insights:empty{display:none}
 .kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:grid;gap:2px;min-width:0}
 .kpi .lbl{font-size:12px;color:var(--muted);font-weight:500}
+#kpis[data-kh="a"] .kpi .lbl,#kpis[data-kh="b"] .kpi .lbl,#kpis[data-kh="c"] .kpi .lbl{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--ink);margin-bottom:6px}
+#kpis[data-kh="b"] .kpi .lbl{padding-bottom:7px;border-bottom:2px solid var(--kcc,var(--accent))}
+#kpis[data-kh="a"] .kpi .lbl{border:1px solid var(--line);background:var(--surface-2);border-radius:9px;padding:5px 9px}
+#kpis[data-kh="c"] .kpi .lbl{border:1px solid var(--line);border-radius:9px;padding:4px 8px;position:relative;margin-bottom:13px}
+#kpis[data-kh="c"] .kpi .lbl::after{content:"";position:absolute;inset-inline:0;bottom:-9px;height:2px;background:linear-gradient(90deg,transparent,var(--kcc,var(--accent)),transparent)}
+.kpi .kiw{display:inline-grid;place-items:center;flex:none;color:var(--kcc,var(--accent))}
+#kpis[data-kh="c"] .kpi .kiw{width:26px;height:26px;border-radius:7px;background:color-mix(in srgb,var(--kcc,var(--accent)) 16%,transparent)}
+#kpis[data-kh="none"] .kpi .kiw{display:none}
+.kpi .kic{width:17px;height:17px}
+#kpis{grid-auto-flow:row dense}
+.kpi[data-kk="dur"]{grid-column:span 2}
+.kpi .kdur{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:4px 0;font-size:13px;border-bottom:1px dashed var(--line);cursor:pointer;white-space:nowrap}
+.kpi .kdur .kd{white-space:nowrap}
+.kpi .kdur:nth-last-child(2),.kpi .kdur:last-child{border-bottom:0}
+.kpi .kdur .dur{font-size:11.5px}
 .kpi .val{font-family:var(--f-display);font-size:24px;font-weight:600;line-height:1.3}
 .kpi .sub{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kpi .val.txt{font-size:15px;font-family:var(--f-body);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal}
@@ -692,7 +707,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '102';
+const APP_VER = '105';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -1098,11 +1113,11 @@ const HOME_KEY='r937-home-v1';
 const DASH_TILES=[['day','آخر يوم مسجل'],['wk','آخر 7 أيام'],['mo','الشهر الحالي'],['tot','إجمالي الفترة'],['alerts','التنبيهات'],['upd','تحديثات البلاغات'],['late','البلاغات المتأخرة'],['reopen','معاد فتحها'],['sla','خارج مستوى الخدمة'],['slaIn','داخل مستوى الخدمة'],['kw','بلاغات بكلمات حساسة'],['callers','متصلون متكررون'],['topDay','أعلى مركز في آخر يوم']];
 const DEF_DASH={tiles:{},ticker:1,speed:70,home:1,cats:[],items:{alerts:1,stats:1,latest:1,kw:1,rise:1,value:1,up:1,down:1,sla:1},fields:{day:1,date:1,time:1,center:1,cat:1,no:0},latestN:10};
 const TK_FIELDS=[['day','اليوم'],['date','التاريخ'],['time','الساعة'],['center','المركز'],['cat','التصنيف'],['no','رقم البلاغ']];
-const KPI_DEF={alerts:'التنبيهات',updates:'تحديثات البلاغات',reopen:'معاد فتحها',late:'البلاغات المتأخرة',sla:'خارج مستوى الخدمة',slaIn:'داخل مستوى الخدمة',total:'عدد البلاغات',centers:'المراكز الصحية',topCenter:'أعلى مركز',topCat:'أعلى تصنيف',lastDay:'آخر يوم مسجل',callers:'متصلون متكررون',flagged:'بلاغات بكلمات حساسة',sectors:'أعلى قطاع'};
+const KPI_DEF={alerts:'التنبيهات',updates:'تحديثات البلاغات',reopen:'معاد فتحها',d48:'أكثر من 48 ساعة',dur:'المدة الزمنية للإغلاق',late:'البلاغات المتأخرة',sla:'خارج مستوى الخدمة',slaIn:'داخل مستوى الخدمة',total:'عدد البلاغات',centers:'المراكز الصحية',topCenter:'أعلى مركز',topCat:'أعلى تصنيف',lastDay:'آخر يوم مسجل',callers:'متصلون متكررون',flagged:'بلاغات بكلمات حساسة',sectors:'أعلى قطاع'};
 const CARD_DEF={daily:'البلاغات اليومية',centers:'أعلى المراكز',cats:'أعلى التصنيفات',sectors:'البلاغات حسب القطاع',weekday:'البلاغات حسب أيام الأسبوع',hours:'البلاغات حسب ساعة الاتصال'};
 const VIEW_DEF={table:'السجلات',dash:'لوحة المؤشرات',callers:'المتصلون المتكررون',staff:'الموظفون المذكورون',clinics:'العيادات المذكورة',visits:'المستفيدون والمعدل',report:'معاينة التقرير'};
-const DEF_HOME={side:'pin',theme:'system',zoom:100,bars:6,pageSize:50,alerts:0,presets:1,defView:'table',
-  kpis:[['alerts',1],['updates',1],['reopen',1],['late',1],['total',1],['centers',1],['topCenter',1],['topCat',1],['lastDay',0],['callers',0],['flagged',0],['sectors',0],['slaIn',0],['sla',0]],
+const DEF_HOME={khead:'b',side:'pin',theme:'system',zoom:100,bars:6,pageSize:50,alerts:0,presets:1,defView:'table',
+  kpis:[['alerts',1],['updates',1],['reopen',1],['d48',1],['dur',1],['late',0],['total',1],['centers',1],['topCenter',1],['topCat',1],['lastDay',0],['callers',0],['flagged',0],['sectors',0],['slaIn',0],['sla',0]],
   cards:[['daily',1],['centers',1],['cats',1],['sectors',0],['weekday',0],['hours',0]],
   views:[['table',1],['dash',1],['callers',1],['staff',1],['clinics',1],['visits',1],['report',1]]};
 function mergeOrder(saved,def){ const out=[]; const seen=new Set(); (Array.isArray(saved)?saved:[]).forEach(x=>{ if(Array.isArray(x) && def.some(d=>d[0]===x[0]) && !seen.has(x[0])){ out.push([x[0],x[1]?1:0]); seen.add(x[0]); } }); def.forEach(d=>{ if(!seen.has(d[0])) out.push([...d]); }); return out; }
@@ -1115,6 +1130,8 @@ try{ if(!localStorage.getItem('r937-slatiles-v1')){ HOME.kpis.forEach(x=>{ if(x[
 // مرة واحدة: إظهار الشريط أعلى الصفحة الرئيسية لمن ثبّت التطبيق قبل هذا التحديث
 try{ if(!localStorage.getItem('r937-tkhome-v1')){ HOME.dash.home=1; localStorage.setItem(HOME_KEY,JSON.stringify(HOME)); localStorage.setItem('r937-tkhome-v1','1'); } }catch(e){}
 const saveHome=()=>{ try{ localStorage.setItem(HOME_KEY,JSON.stringify(HOME)); }catch(e){} };
+// مرة واحدة: «أكثر من 48 ساعة» و«المدة الزمنية للإغلاق» مكان «البلاغات المتأخرة» (التي تبقى متاحة من الإعدادات)
+try{ if(!localStorage.getItem('r937-durtiles-v1')){ const K=HOME.kpis.filter(x=>x[0]!=='d48'&&x[0]!=='dur'); const i=K.findIndex(x=>x[0]==='late'); if(i>=0) K[i][1]=0; K.splice(i>=0?i:3,0,['d48',1],['dur',1]); HOME.kpis=K; if(!HOME.khead) HOME.khead='b'; saveHome(); localStorage.setItem('r937-durtiles-v1','1'); } }catch(e){}
 function applyHome(){
   const de=document.documentElement;
   if(HOME.theme==='light'||HOME.theme==='dark') de.dataset.theme=HOME.theme; else delete de.dataset.theme;
@@ -1762,6 +1779,49 @@ function alertGroups(al){
   ['kw','value','caller','other'].forEach(k=>m.get(k).sort((x,y)=>(y[0].n||0)-(x[0].n||0)));
   return G.map(([k,l,c])=>({k,l,c,items:m.get(k)})).filter(g=>g.items.length);
 }
+/* ---------- أيقونات وعناوين البطاقات ---------- */
+const KIC={bell:'<path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>',
+  refresh:'<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
+  reopen:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 8v4l3 2"/>',
+  hourglass:'<path d="M6 2h12M6 22h12M7 2c0 5 10 5 10 10S7 17 7 22M17 2c0 5-10 5-10 10s10 5 10 10"/>',
+  stopwatch:'<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6M12 2v3"/>',
+  phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/>',
+  buildings:'<path d="M3 21h18M5 21V8l5-3v16M10 21V5l9 4v12"/><path d="M14 12h2M14 16h2M7 12h1M7 16h1"/>',
+  hospital:'<path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M12 9v6M9 12h6"/>',
+  tag:'<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
+  map:'<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/>',
+  calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
+  warn:'<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+  shield:'<path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/><path d="M12 8v5M12 16h.01"/>',
+  shieldok:'<path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5z"/><path d="m9 12 2 2 4-4"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'};
+const KICON={alerts:['bell','#D69E2E'],updates:['refresh','#3182CE'],reopen:['reopen','#E5484D'],d48:['hourglass','#E5484D'],dur:['stopwatch','#22A06B'],late:['clock','#D69E2E'],
+  total:['phone','#0E8A7A'],centers:['buildings','#0E8A7A'],topCenter:['buildings','#0E8A7A'],topCat:['tag','#805AD5'],sectors:['buildings','#2B6CB0'],lastDay:['calendar','#718096'],
+  callers:['users','#3182CE'],flagged:['warn','#E5484D'],sla:['shield','#E5484D'],slaIn:['shieldok','#22A06B']};
+function kpiDecorate(kel){ kel.dataset.kh=HOME.khead||'b';
+  kel.querySelectorAll('[data-kk]').forEach(el=>{ const m=KICON[el.dataset.kk]; if(!m) return; el.style.setProperty('--kcc',m[1]); const l=el.querySelector('.lbl'); if(l&&!l.querySelector('.kiw')) l.insertAdjacentHTML('afterbegin',`<span class="kiw"><svg class="kic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${KIC[m[0]]}</svg></span>`); }); }
+function panelKHead(){ const v=HOME.khead||'b'; return `<div class="pcard"><h4>شكل عنوان البطاقات</h4><div class="seg" style="flex-wrap:wrap">${[['b','خط تحت العنوان (الافتراضي)'],['a','العنوان داخل إطار'],['c','إطار + أيقونة في مربع'],['none','بدون (الشكل القديم)']].map(([k,l])=>`<label><input type="radio" name="khead" value="${k}" ${v===k?'checked':''}><span>${l}</span></label>`).join('')}</div><div style="margin-top:8px"><button type="button" class="btn sm ghost" id="kheadDef">رجوع للافتراضي</button></div></div>`; }
+document.addEventListener('change',e=>{ if(e.target.name==='khead'){ HOME.khead=e.target.value; saveHome(); renderSummary(); } });
+document.addEventListener('click',e=>{ if(e.target.closest('#kheadDef')){ HOME.khead='b'; saveHome(); renderSummary(); const pb=document.getElementById('pbody'); if(pb&&pb.dataset.tab==='home') pb.innerHTML=panelHome()+panelKHead(); toast('أُعيد الشكل الافتراضي'); } });
+/* ---------- بطاقتا المدة الزمنية ---------- */
+let DURC=null; const durI=r=>{ if(!DURC) return durInfo(r); let x=DURC.get(r.id); if(!x){ x=durInfo(r); DURC.set(r.id,x); } return x; };
+function durPeriods(){ const ds=filtered.map(r=>r.date).filter(Boolean).sort(); if(!ds.length) return null; const last=ds[ds.length-1].slice(0,10), firstF=ds[0].slice(0,10); let a,b,lbl;
+  if(filt.from||filt.to){ a=filt.from||firstF; b=filt.to||last; lbl='الفترة المحددة'; } else { b=last; a=addDays(b,-6); lbl='آخر 7 أيام'; }
+  const len=Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000)+1, pa=addDays(a,-len), pb=addDays(a,-1);
+  const base=baseNoDates(); const C=[], P=[]; base.forEach(r=>{ if(!r.date) return; const d=r.date.slice(0,10); if(d>=a&&d<=b) C.push(r); else if(d>=pa&&d<=pb) P.push(r); });
+  return {C,P,lbl,hasPrev:base.some(r=>r.date&&r.date.slice(0,10)<a)}; }
+function d48Tile(){ const L=durLabels(); let o=0,c=0; filtered.forEach(r=>{ const d=durI(r); if(d.st!=='none'&&d.lvl==='r'){ if(d.st==='open') o++; else c++; } });
+  return `<div role="button" tabindex="0" class="kpi" data-dgo="d48" style="cursor:pointer;${o?'border-color:color-mix(in srgb,#E5484D 55%,var(--line))':''}"><span class="lbl">${esc(L.r)}</span><span class="val" style="${o?'color:#E5484D':''}">${fmt(o)}</span><span class="sub">مفتوح تجاوز ${+DUR.t2||48} ساعة</span>${c?`<span class="sub">+ ${fmt(c)} محلول تجاوزها</span>`:''}</div>`; }
+function durTile(){ const L=durLabels(), P=durPeriods(); const cnt=a=>{ const o={g:0,o:0,r:0,n:0}; a.forEach(r=>{ const d=durI(r); if(d.st!=='none'){ o[d.lvl]++; o.n++; } }); return o; };
+  const F=cnt(filtered), Cc=P?cnt(P.C):null, Pc=P?cnt(P.P):null;
+  const arr=k=>{ if(!P||!P.hasPrev||!Pc[k]) return ''; const c=Cc[k], p=Pc[k]; if(c===p) return `<span class="kd" title="لم يتغيّر عن الفترة السابقة">=</span>`; const up=c>p, pc=Math.abs((c-p)/p*100).toFixed(0); const cls=k==='g'?(up?'g':'b'):k==='r'?(up?'b':'g'):'';
+    return `<span class="kd ${cls}" title="${esc(P.lbl)}: ${fmt(c)} · الفترة السابقة: ${fmt(p)}">${up?'▲':'▼'} ${pc}%</span>`; };
+  const row=k=>`<div class="kdur" data-durf="${k}" title="اضغط لعرض البلاغات"><span><span class="dur dur-${k}">${esc(L[k])}</span> <b>${fmt(F[k])}</b> <span class="kp">${pct(F[k],F.n)}</span></span>${arr(k)}</div>`;
+  return `<div class="kpi"><span class="lbl">المدة الزمنية للإغلاق</span>${F.n?row('g')+row('o')+row('r'):'<span class="sub">لا توجد بلاغات معروفة المدة</span>'}${F.n&&P&&P.hasPrev?`<span class="kp" style="color:var(--muted)">المقارنة: ${esc(P.lbl)} مع السابقة (${fmt(Pc.g)} · ${fmt(Pc.o)} · ${fmt(Pc.r)})</span>`:''}</div>`; }
+function showDurList(lv,title){ const list=filtered.filter(r=>{ const d=durInfo(r); return d.st!=='none'&&d.lvl===lv; }); if(!list.length){ toast('لا توجد بلاغات'); return; }
+  filt={...filt,nos:list.map(r=>keyNo(r.no)).join(' ')}; sort={k:'__dur',dir:-1}; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); toast(`${title}: ${fmt(list.length)} بلاغ، مرتبة من الأطول مدة`); }
+document.addEventListener('click',e=>{ const r=e.target.closest('[data-durf]'); if(r){ const L=durLabels(); showDurList(r.dataset.durf,L[r.dataset.durf]); } });
 function alertsTile(){
   const al=evalRules(filtered); const gs=alertGroups(al);
   const parts=gs.slice(0,4).map(g=>`<span class="kg"><span class="kd ${g.c==='u'||g.c==='b'?'b':g.c==='d'?'g':''}">${fmt(g.items.length)}</span> ${esc(g.l)}</span>`).join('');
@@ -1824,16 +1884,19 @@ function renderSummary(){
     alerts:()=>alertsTile(),
     updates:()=>updTile(),
     late:()=>lateTile(),
+    d48:()=>DUR.on?d48Tile():'',
+    dur:()=>DUR.on?durTile():'',
     reopen:()=>reopenTile(),
     sla:()=>slaTile('out',CMP),
     slaIn:()=>slaTile('in',CMP),
     sectors:()=>{ const sc=countBy(filtered,'sector').filter(x=>x[0]); return kpi('أعلى قطاع',esc(sc[0]?shortName(sc[0][0]):'—'),sc[0]?`${fmt(sc[0][1])} بلاغ · ${pct(sc[0][1],tot)}`:'لا توجد قطاعات مسجلة',1,sc[0]?CMP(r=>r.sector===sc[0][0]):'',sc[0]?.[0]); }
   };
   if(!active('sector')) delete K.sectors;
-  const ks=HOME.kpis.filter(([k,on])=>on&&K[k]).map(([k])=>k);
+  DURC=new Map();
+  const ks=HOME.kpis.filter(([k,on])=>on&&K[k]&&!((k==='d48'||k==='dur')&&!DUR.on)).map(([k])=>k);
   const kel=document.getElementById('kpis');
-  kel.style.setProperty('--kc', String(ks.length<=5?Math.max(1,ks.length):Math.ceil(ks.length/2)));
-  kel.innerHTML=ks.map(k=>K[k]()).join('');
+  const ku=ks.length+(ks.includes('dur')?1:0); kel.style.setProperty('--kc', String(ku<=5?Math.max(1,ku):Math.ceil(ku/2)));
+  kel.innerHTML=ks.map(k=>K[k]().replace('class="kpi"',`class="kpi" data-kk="${k}"`)).join(''); kpiDecorate(kel); DURC=null;
   const C={
     daily:()=>`<div class="panel ins" data-card="daily"><h3>البلاغات اليومية<small>اضغط يوماً للفلترة</small></h3>${dayChartSVG(filtered)}</div>`,
     centers:()=>`<div class="panel ins"><h3>أعلى المراكز<small>${fmt(centers.length)} مركز</small></h3>${barsHTML(centers,'center',B,tot)}</div>`,
@@ -2231,6 +2294,7 @@ document.addEventListener('click',e=>{
     if(g==='alertsdlg'){ alertsDialog(); return; }
     if(g==='upddlg'){ updatesDialog(); return; }
     if(g==='latedlg'){ lateDialog(); return; }
+    if(g==='d48'){ showDurList('r',durLabels().r); return; }
     if(g==='reopendlg'){ reopenDialog(); return; }
     if(g==='slacol'){ guard(()=>controlPanel('cols')); return; }
     if(g==='sla'||g==='slain'){ filt.sla=g==='sla'?'out':'in'; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); }
@@ -2672,7 +2736,7 @@ function controlPanel(tab){
     <div class="acts"><button type="button" class="btn primary" data-cpsave>حفظ</button><button type="button" class="btn" data-cpcancel>إلغاء</button><span class="hint" id="cpHint" style="align-self:center">تظهر التغييرات مباشرة للمعاينة، ولا تُحفظ إلا بعد الضغط على «حفظ».</span></div></div></div>`;
   cpBegin();
   const scrim=layer.firstChild, body=scrim.querySelector('#pbody');
-  const draw=()=>{ scrim.querySelectorAll('[data-ptab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.ptab===tab)); body.dataset.tab=tab; body.innerHTML=({home:panelHome,general:()=>panelGeneral()+panelExit(),filters:panelFilters,alerts:panelAlerts,log:panelLog,perf:panelPerf,cols:()=>panelDur()+panelRoset()+panelCols(),lists:panelLists,lock:panelLock,brand:panelBrand,data:panelData})[tab](); };
+  const draw=()=>{ scrim.querySelectorAll('[data-ptab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.ptab===tab)); body.dataset.tab=tab; body.innerHTML=({home:()=>panelHome()+panelKHead(),general:()=>panelGeneral()+panelExit(),filters:panelFilters,alerts:panelAlerts,log:panelLog,perf:panelPerf,cols:()=>panelDur()+panelRoset()+panelCols(),lists:panelLists,lock:panelLock,brand:panelBrand,data:panelData})[tab](); };
   scrim.addEventListener('click',async e=>{
     if(e.target===scrim||e.target.closest('[data-close]')){ cpTryClose(); return; }
     if(e.target.closest('[data-cpsave]')){ cpSave(); return; }
@@ -4624,7 +4688,7 @@ function checkDialog(S){
     <div class="stats" style="margin-bottom:10px"><div><b style="color:${hits.length?'#E5484D':'inherit'}">${fmt(hits.length)}${of(hits.length,S.hits.length)}</b><span>تذكرة فيها تغيير${sk?` (منها ${fmt(nSt)} تغيّرت حالتها، و<b style="color:#E5484D">${fmt(nRo)} معاد فتحها</b>)`:''}</span></div><div><b style="color:${news.length?'#2B6CB0':'inherit'}">${fmt(news.length)}${of(news.length,S.news.length)}</b><span>بلاغ جديد غير مسجّل في القاعدة</span></div><div><b>${fmt(S.same)}</b><span>بدون أي تغيير</span></div></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${tb('chg','تذاكر تغيّرت',hits.length)}${tb('new','بلاغات جديدة',news.length)}</div>
     ${tab==='new'?(news.length?`<div class="ctbl-wrap" style="max-height:46vh"><table class="ctbl"><thead><tr><th>رقم البلاغ</th><th>تاريخ البلاغ</th><th>المركز</th><th>التصنيف</th></tr></thead><tbody>${LN.map(n=>`<tr><td><b dir="ltr">${esc(n.no)}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(n.date||''))}</td><td>${esc(shortName(n.center||''))}</td><td style="font-size:12.5px">${esc(n.sub||n.main||'')}</td></tr>`).join('')}</tbody></table></div>${news.length>LN.length?`<p class="hint">يظهر أقدم ${fmt(LN.length)}.</p>`:''}<p class="hint">تُضاف كبلاغات جديدة كما في الاستيراد العادي: يُعبّأ القطاع تلقائياً، والأقدم من آخر يوم مسجّل يظهر في «البلاغات المتأخرة».</p>`:'<p class="ro-empty" style="padding:14px;text-align:center">لا توجد بلاغات جديدة غير مسجّلة'+(flt?' في هذه الفترة':'')+'.</p>')
-    :(hits.length?`<div class="ctbl-wrap" style="max-height:46vh"><table class="ctbl"><thead><tr><th>رقم البلاغ</th><th>تاريخ البلاغ</th><th>المركز</th><th>ما تغيّر</th>${sk?'<th>الحالة</th>':''}</tr></thead><tbody>${L.map(h=>`<tr><td><b dir="ltr">${esc(h.o.no)}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(h.o.date||''))}</td><td>${esc(shortName(h.o.center||''))}</td><td style="font-size:12.5px">${h.ch.slice(0,3).map(c=>{ const ct=v=>{ v=String(v??''); return v===''?'<i class="hint">فارغ</i>':esc(v.length>40?v.slice(0,40)+'…':v); }; return `<div><b>${esc(label(c))}</b>: <span style="color:var(--muted);text-decoration:line-through">${ct(cellText(h.o,c))}</span> ← ${ct(cellText(h.m,c))}</div>`; }).join('')}${h.ch.length>3?`<div class="hint">+${h.ch.length-3} أعمدة أخرى</div>`:''}</td>${sk?`<td style="font-size:12.5px">${h.stCh?`${isReopen(h.from,h.to)?'<b style="color:#E5484D">↺ معاد فتحها</b><br>':''}<span style="color:var(--muted);text-decoration:line-through">${esc(h.from||'فارغ')}</span> ← <b>${esc(h.to||'فارغ')}</b>`:`<span class="hint">${esc(h.from||'—')}</span>`}</td>`:''}</tr>`).join('')}</tbody></table></div>${hits.length>L.length?`<p class="hint">يظهر أقدم ${fmt(L.length)}.</p>`:''}
+    :(hits.length?`<div class="ctbl-wrap" style="max-height:46vh"><table class="ctbl"><thead><tr><th>رقم البلاغ</th><th>تاريخ البلاغ</th><th>المركز</th><th>ما تغيّر</th></tr></thead><tbody>${L.map(h=>`<tr><td><b dir="ltr">${esc(h.o.no)}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(h.o.date||''))}</td><td>${esc(shortName(h.o.center||''))}</td><td style="font-size:12.5px">${isReopen(h.from,h.to)?'<div><b style="color:#E5484D">↺ معاد فتحها</b></div>':''}${h.ch.slice(0,3).map(c=>{ const ct=v=>{ v=String(v??''); return v===''?'<i class="hint">فارغ</i>':esc(v.length>40?v.slice(0,40)+'…':v); }; return `<div><b>${esc(label(c))}</b>: <span style="color:var(--muted);text-decoration:line-through">${ct(cellText(h.o,c))}</span> ← ${ct(cellText(h.m,c))}</div>`; }).join('')}${h.ch.length>3?`<div class="hint">+${h.ch.length-3} أعمدة أخرى</div>`:''}</td></tr>`).join('')}</tbody></table></div>${hits.length>L.length?`<p class="hint">يظهر أقدم ${fmt(L.length)}.</p>`:''}
     <div style="margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:10px;display:grid;gap:6px"><b>الأعمدة التي ستُحدَّث</b><span class="hint">التذكرة نفسها تُحدَّث برقمها ولا تُكرَّر. ألغِ تحديد أي عمود لا تريد تحديثه ليبقى كما هو.</span>
       ${ccl.map(([c,n])=>`<label class="opt"><input type="checkbox" data-cc="${esc(c)}" ${S.sel.has(c)?'checked':''}><span>${esc(label(c))}<small>يتغيّر في ${fmt(n)} تذكرة</small></span></label>`).join('')}</div>`:'<p class="ro-empty" style="padding:14px;text-align:center">لا توجد تذاكر متغيّرة'+(flt?' في هذه الفترة':': كل تذاكر الملف مطابقة للقاعدة')+'.</p>')}`;
   const doUpd=async()=>{ const sel=[...S.sel].filter(c=>CC.has(c)); if(!sel.length){ toast('اختر عموداً واحداً على الأقل في تبويب «تذاكر تغيّرت»'); return null; }
