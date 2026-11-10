@@ -710,7 +710,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '112';
+const APP_VER = '114';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -1826,12 +1826,12 @@ function durPeriods(){ const ds=filtered.map(r=>r.date).filter(Boolean).sort(); 
   return {C,P,lbl,hasPrev:base.some(r=>r.date&&r.date.slice(0,10)<a)}; }
 function d48Tile(){ const L=durLabels(); let o=0,c=0; filtered.forEach(r=>{ const d=durI(r); if(d.st!=='none'&&d.lvl==='r'){ if(d.st==='open') o++; else c++; } });
   return `<div role="button" tabindex="0" class="kpi" data-dgo="d48" style="cursor:pointer;${o?'border-color:color-mix(in srgb,#E5484D 55%,var(--line))':''}"><span class="lbl">${esc(L.r)}</span><span class="val" style="${o?'color:#E5484D':''}">${fmt(o)}</span><span class="sub">مفتوح تجاوز ${+DUR.t2||48} ساعة</span>${c?`<span class="sub">+ ${fmt(c)} محلول تجاوزها</span>`:''}</div>`; }
-function durTile(){ const L=durLabels(), P=durPeriods(); const cnt=a=>{ const o={g:0,o:0,r:0,n:0}; a.forEach(r=>{ const d=durI(r); if(d.st!=='none'){ o[d.lvl]++; o.n++; } }); return o; };
+function durTile(){ const L=durLabels(), P=durPeriods(); const cnt=a=>{ const o={g:0,o:0,r:0,n:0,ro:0}; a.forEach(r=>{ const d=durI(r); if(d.st!=='none'){ o[d.lvl]++; o.n++; if(d.ro) o.ro++; } }); return o; };
   const F=cnt(filtered), Cc=P?cnt(P.C):null, Pc=P?cnt(P.P):null;
   const arr=k=>{ if(!P||!P.hasPrev||!Pc[k]) return ''; const c=Cc[k], p=Pc[k]; if(c===p) return `<span class="kd" title="لم يتغيّر عن الفترة السابقة">=</span>`; const up=c>p, pc=Math.abs((c-p)/p*100).toFixed(0); const cls=k==='g'?(up?'g':'b'):(up?'b':'g');
     return `<span class="kd ${cls}" title="${esc(P.lbl)}: ${fmt(c)} · الفترة السابقة: ${fmt(p)}">${up?'▲':'▼'} ${pc}%</span>`; };
   const row=k=>`<div class="kdur" data-durf="${k}" title="اضغط لعرض البلاغات"><span><span class="dur dur-${k}">${esc(L[k])}</span> <b>${fmt(F[k])}</b> <span class="kp">${pct(F[k],F.n)}</span></span>${arr(k)}</div>`;
-  return `<div class="kpi"><span class="lbl">المدة الزمنية للإغلاق</span>${F.n?row('g')+row('o')+row('r'):'<span class="sub">لا توجد بلاغات معروفة المدة</span>'}${F.n&&P&&P.hasPrev?(()=>{ const t=o=>`${esc(L.g)} <b>${fmt(o.g)}</b> · ${esc(L.o)} <b>${fmt(o.o)}</b> · ${esc(L.r)} <b>${fmt(o.r)}</b>`; return `<span class="kp" style="color:var(--muted);display:block;margin-top:4px;line-height:1.7">الأسهم تقارن ${esc(P.lbl)}: ${t(Cc)}<br>بالفترة السابقة: ${t(Pc)}</span>`; })():''}</div>`; }
+  return `<div class="kpi"><span class="lbl">المدة الزمنية للإغلاق</span>${F.n?row('g')+row('o')+row('r'):'<span class="sub">لا توجد بلاغات معروفة المدة</span>'}${F.n&&P&&P.hasPrev?`<span class="kp" style="color:var(--muted);display:block;margin-top:4px" title="${esc(P.lbl)}: ${fmt(Cc.g)} · ${fmt(Cc.o)} · ${fmt(Cc.r)} — الفترة السابقة: ${fmt(Pc.g)} · ${fmt(Pc.o)} · ${fmt(Pc.r)} (24 · 48 · أكثر من 48)">السابقة: ${fmt(Pc.g)} · ${fmt(Pc.o)} · ${fmt(Pc.r)}</span>`:''}${F.ro?`<span class="kp" data-dgo="reopendlg" style="color:#E5484D;display:block;margin-top:2px;cursor:pointer">↺ منها ${fmt(F.ro)} ${F.ro===1?'بلاغ معاد فتحه تُحسب مدته':'بلاغاً معاد فتحه تُحسب مدتها'} من إعادة الفتح</span>`:''}</div>`; }
 function showDurList(lv,title){ const list=filtered.filter(r=>{ const d=durInfo(r); return d.st!=='none'&&d.lvl===lv; }); if(!list.length){ toast('لا توجد بلاغات'); return; }
   filt={...filt,nos:list.map(r=>keyNo(r.no)).join(' ')}; sort={k:'__dur',dir:-1}; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); toast(`${title}: ${fmt(list.length)} بلاغ، مرتبة من الأطول مدة`); }
 document.addEventListener('click',e=>{ const r=e.target.closest('[data-durf]'); if(r){ const L=durLabels(); showDurList(r.dataset.durf,L[r.dataset.durf]); } });
@@ -2538,14 +2538,16 @@ const LATE_KEY='r937-late-v1';
 let LATE=(()=>{ try{ return JSON.parse(localStorage.getItem(LATE_KEY)||'[]')||[]; }catch(e){ return []; } })();
 const saveLate=()=>{ try{ localStorage.setItem(LATE_KEY,JSON.stringify(LATE.slice(-1000))); }catch(e){} };
 function addLate(list,file){ const at=new Date().toISOString(), have=new Set(LATE.map(x=>x.k)); list.forEach(r=>{ const k=keyNo(r.no); if(k&&!have.has(k)) LATE.push({k,at,file}); }); saveLate(); }
-function lateRecs(){ const m=new Map(RECS.map(r=>[keyNo(r.no),r])); return LATE.map(x=>({...x,r:m.get(x.k)})).filter(x=>x.r).reverse(); }
+// البطاقات تتبع الفلاتر الحالية (المركز، القطاع، التصنيف، الفترة…)
+const fltNote=()=>filtered.length<RECS.length?`<p class="hint" style="margin:0 0 8px">⚑ حسب الفلاتر الحالية (${fmt(filtered.length)} من ${fmt(RECS.length)} بلاغ).</p>`:'';
+function lateRecs(){ const m=new Map(filtered.map(r=>[keyNo(r.no),r])); return LATE.map(x=>({...x,r:m.get(x.k)})).filter(x=>x.r).reverse(); }
 function lateStats(){ const L=lateRecs(); return {all:L.length,nNew:L.filter(x=>readState(x.r).st!=='read').length}; }
 function lateTile(){ const u=lateStats();
   return `<div role="button" tabindex="0" class="kpi" data-dgo="latedlg" style="cursor:pointer;${u.nNew?'border-color:color-mix(in srgb,#D69E2E 60%,var(--line))':''}"><span class="lbl">البلاغات المتأخرة</span><span class="val" style="${u.nNew?'color:#B7791F':''}">${fmt(u.nNew)}</span><span class="sub">${u.all?`لم تُفتح · من ${fmt(u.all)} بلاغ متأخر`:'لا توجد بلاغات متأخرة'}</span></div>`; }
 function lateDialog(tab){
   const L=lateRecs(), nw=L.filter(x=>readState(x.r).st!=='read'); tab=tab||(nw.length?'new':'all'); const list=tab==='new'?nw:L;
   const tb=(k,l,n)=>`<button type="button" class="btn sm ${tab===k?'primary':''}" data-ltab="${k}">${l} (${fmt(n)})</button>`;
-  dialog({title:'البلاغات المتأخرة', wide:true, html:`<p class="hint" style="margin-top:0">بلاغات جديدة أُضيفت بالاستيراد وتاريخها أقدم من آخر يوم كان مسجلاً، فتظهر في السجلات بين بلاغات يومها لا في الأعلى. الأحدث استيراداً أولاً.</p>
+  dialog({title:'البلاغات المتأخرة', wide:true, html:`${fltNote()}<p class="hint" style="margin-top:0">بلاغات جديدة أُضيفت بالاستيراد وتاريخها أقدم من آخر يوم كان مسجلاً، فتظهر في السجلات بين بلاغات يومها لا في الأعلى. الأحدث استيراداً أولاً.</p>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${tb('new','لم تُفتح',nw.length)}${tb('all','الكل',L.length)}</div>
     ${list.length?`<div class="ctbl-wrap" style="max-height:58vh"><table class="ctbl"><thead><tr><th style="width:44px"></th><th>رقم البلاغ</th><th>تاريخ البلاغ</th><th>المركز</th><th>أُضيف في</th></tr></thead><tbody>${list.slice(0,500).map(x=>`<tr data-openrec="${esc(x.r.id)}" style="cursor:pointer"><td style="text-align:center">${envHTML(x.r)}</td><td><b dir="ltr">${esc(x.r.no||'')}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(x.r.date||''))}</td><td>${esc(shortName(x.r.center||''))}</td><td dir="ltr" style="text-align:right;font-size:12px">${esc(fmtLocal(x.at))}</td></tr>`).join('')}</tbody></table></div>`:`<p class="ro-empty" style="padding:20px;text-align:center">${tab==='new'?'كل البلاغات المتأخرة تم فتحها.':'لا توجد بلاغات متأخرة.'}</p>`}`,
     actions:[...(L.length?[{label:'عرضها في السجلات',run:()=>{ filt.q=''; filt.from=''; filt.to=''; filt.late=1; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); toast('تُعرض البلاغات المتأخرة فقط — أزل الفلتر من شريط الفلاتر'); }}]:[]),
@@ -2580,7 +2582,7 @@ function updatesDialog(tab){
     ? `<div style="border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:58vh">${sl.map((x,i)=>{ const f=chg(x); return `<div data-openrec="${esc(x.r.id)}" style="cursor:pointer;display:flex;gap:10px;align-items:center;padding:9px 12px;${i?'border-top:1px solid var(--line)':''}">${envOf(x)}<div style="flex:1;min-width:0"><div style="display:flex;gap:6px;align-items:baseline;min-width:0"><b dir="ltr">${esc(x.r.no||'')}</b><span style="font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">· ${esc(shortName(x.r.center||''))}</span></div><div style="font-size:12px;color:var(--muted)">${tm(x)}${f?' · '+esc(f):''}</div></div><span class="badge" title="عدد التحديثات">↻ ${fmt(cnt(x))}</span></div>`; }).join('')}</div>`
     : `<div class="ctbl-wrap" style="max-height:58vh"><table class="ctbl"><thead><tr><th style="width:44px"></th><th>رقم البلاغ</th><th>المركز</th><th>آخر تحديث</th></tr></thead><tbody>${sl.map(x=>`<tr data-openrec="${esc(x.r.id)}" style="cursor:pointer"><td style="text-align:center">${envOf(x)}<span class="revc">↻ ${fmt(cnt(x))}</span></td><td><b dir="ltr">${esc(x.r.no||'')}</b></td><td>${esc(shortName(x.r.center||''))}</td><td dir="ltr" style="text-align:right;font-size:12px">${tm(x)}</td></tr>`).join('')}</tbody></table></div>`;
   const tb=(k,l,n)=>`<button type="button" class="btn sm ${tab===k?'primary':''}" data-utab="${k}">${l} (${fmt(n)})</button>`;
-  dialog({title:'تحديثات البلاغات', wide:true, html:`<p class="hint" style="margin-top:0">البلاغات التي تغيّرت بياناتها عند الاستيراد${filtered.length!==RECS.length?' (حسب الفلاتر الحالية)':''}. اضغط أي بلاغ لعرض ما تغيّر فيه.</p>
+  dialog({title:'تحديثات البلاغات', wide:true, html:`${fltNote()}<p class="hint" style="margin-top:0">البلاغات التي تغيّرت بياناتها عند الاستيراد${filtered.length!==RECS.length?' (حسب الفلاتر الحالية)':''}. اضغط أي بلاغ لعرض ما تغيّر فيه.</p>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${tb('new','جديدة لم تُفتح',nw.length)}${tb('old','سابقة تم فتحها',old.length)}${tb('all','الكل',all.length)}</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><span class="hint">الترتيب</span><select class="inp" id="uSort" style="width:auto">${[['recent','الأحدث تحديثاً'],['most','الأكثر تحديثات ↓'],['least','الأقل تحديثات ↑'],['unseen','الأكثر تحديثات لم تُفتح'],['date','تاريخ البلاغ (الأحدث)'],['center','المركز (أ–ي)']].map(([v,l])=>`<option value="${v}" ${US===v?'selected':''}>${l}</option>`).join('')}</select>
       <button type="button" class="btn sm" id="uSum">ملخص آخر استيراد</button></div>
@@ -4638,9 +4640,10 @@ function durStart(r){
 // المدة = من البداية حتى «تاريخ الحل» (أو «تاريخ الحل من المنسق» إن كان الأول فارغاً)، وللمفتوح حتى الآن
 function durLvl(h){ return h<=(+DUR.t1||24)?'g':h<=(+DUR.t2||48)?'o':'r'; }
 let DIC=new WeakMap(), DIC_SIG='';
-function durInfo(r){ const sig=LOG_VER+'|'+RECS.length+'|'+Math.floor(Date.now()/60000)+'|'+DUR.start+'|'+DUR.stVal+'|'+DUR.stCol+'|'+DUR.endCol+'|'+DUR.endCol2+'|'+DUR.t1+'|'+DUR.t2;
+function durInfo(r){ const sig=LOG_VER+'|'+MV_VER+'|'+REOPEN.length+'|'+RECS.length+'|'+Math.floor(Date.now()/60000)+'|'+DUR.start+'|'+DUR.stVal+'|'+DUR.stCol+'|'+DUR.endCol+'|'+DUR.endCol2+'|'+DUR.t1+'|'+DUR.t2;
   if(sig!==DIC_SIG){ DIC=new WeakMap(); DIC_SIG=sig; } let x=DIC.get(r); if(!x){ x=durInfo0(r); DIC.set(r,x); } return x; }
-function durInfo0(r){ const ek=durEndKey(), ek2=durEndKey2(); const end=(ek?anyDate(r[ek]):null)||(ek2?anyDate(r[ek2]):null);
+function durInfo0(r){ const ci=roCycles(r); if(ci){ const L=ci.cyc[ci.cyc.length-1]; if(L&&L.h!=null) return {st:L.open?'open':'closed',h:L.h,lvl:durLvl(L.h),ro:ci.n,roAt:ci.ro[ci.ro.length-1]}; }
+  const ek=durEndKey(), ek2=durEndKey2(); const end=(ek?anyDate(r[ek]):null)||(ek2?anyDate(r[ek2]):null);
   if(end){ const st=durStart(r)||anyDate(r.date); if(!st) return {st:'none'}; const h=Math.max(0,(end.getTime()-st.getTime())/3600000); return {st:'closed',h,lvl:durLvl(h)}; }
   // بلاغ لم يأتِ من ملف فيه «تاريخ الحل» ولا «حالة التذكرة» (من ملف قديم): لا نعرف حالته
   const sk=durStKey(); if((!ek || r[ek]===undefined) && (!ek2 || r[ek2]===undefined) && !(sk && String(r[sk]??'').trim())) return {st:'none'};
@@ -4652,7 +4655,8 @@ function durCat(r){ const d=durInfo(r); if(d.st==='none') return ''; return durL
 function durText(r){ const d=durInfo(r); if(d.st==='none') return ''; return d.st==='open'&&DUR.openShow!=='cat'?hrsTxt(d.h):durLabels()[d.lvl]; }
 function durBadge(r){ const d=durInfo(r);
   if(d.st==='none') return '<span class="ro-empty">—</span>';
-  return `<span class="dur dur-${d.lvl}" title="${d.st==='closed'?`محلول · استغرق ${hrsTxt(d.h)}`:`مفتوح منذ ${hrsTxt(d.h)} · ${durLabels()[d.lvl]}`}">${d.st==='open'&&DUR.openShow!=='cat'?hrsTxt(d.h):durLabels()[d.lvl]}</span>`; }
+  const roT=d.ro?`أُعيد فتحه ${d.ro===1?'مرة':d.ro===2?'مرتين':d.ro+' مرات'} · آخرها ${fmtLocal(new Date(d.roAt).toISOString())} · `:'';
+  return `<span class="dur dur-${d.lvl}" title="${roT}${d.st==='closed'?`محلول · استغرق ${hrsTxt(d.h)}`:`مفتوح منذ ${hrsTxt(d.h)} · ${durLabels()[d.lvl]}`}">${d.ro?'↺ ':''}${d.st==='open'&&DUR.openShow!=='cat'?hrsTxt(d.h):durLabels()[d.lvl]}</span>`; }
 function hrsTxt(h){ const n=Math.floor(h); if(n<1) return 'أقل من ساعة'; if(n===1) return 'ساعة'; if(n===2) return 'ساعتان'; return fmt(n)+(n<=10?' ساعات':' ساعة'); }
 function panelDur(){
   const sk=durStKey(); const vals=sk?countBy(RECS,sk).map(x=>x[0]).filter(Boolean):[];
@@ -4720,8 +4724,23 @@ const roKey=()=>colByLabel(ROSET.col);
 // القيمة «مغلقة» إذا احتوت أياً من القيم المحددة (مثل «قياس رضا المستفيد - شكوى أفراد»)
 const isClosedVal=v=>{ const n=nrm(String(v||'')); return !!n && ROSET.closed.some(c=>{ const x=nrm(c); return x && n.includes(x); }); };
 const isReopen=(from,to)=>isClosedVal(from) && String(to||'').trim()!=='' && !isClosedVal(to);
+// دورات البلاغ المعاد فتحه: أوقات إعادة الفتح (من حركة البلاغات وقائمة «معاد فتحها») وتواريخ الحل
+let ROK={sig:'',keys:null};
+function roKeys(){ const sig=MV_VER+'|'+REOPEN.length+'|'+ROSET.col+'|'+JSON.stringify(ROSET.closed); if(ROK.sig===sig&&ROK.keys) return ROK.keys; const sk=roKey(), K=new Set();
+  if(sk) MV.forEach(x=>{ if(x[4]===sk&&isReopen(x[6],x[7])) K.add(x[1]); }); REOPEN.forEach(x=>{ if((x.ats&&x.ats.length)||isReopen(x.from,x.to)) K.add(x.k); }); ROK={sig,keys:K}; return K; }
+function roCycles(r){ const k=keyNo(r.no); if(!roKeys().has(k)) return null; const sk=roKey(), eks=[durEndKey(),durEndKey2()].filter(Boolean);
+  const rows=(MV.length&&mvIdx().get(k))||[]; const ro=[];
+  rows.forEach(x=>{ if(sk&&x[4]===sk&&isReopen(x[6],x[7])) ro.push(new Date(x[0]).getTime()); });
+  REOPEN.filter(x=>x.k===k).forEach(x=>(x.ats||(isReopen(x.from,x.to)?[x.at]:[])).forEach(t=>{ const v=new Date(t).getTime(); if(!isNaN(v)&&!ro.some(y=>Math.abs(y-v)<180000)) ro.push(v); }));
+  ro.sort((a,b)=>a-b); if(!ro.length) return null;
+  const R=new Set(); rows.forEach(x=>{ if(eks.includes(x[4])) [x[6],x[7]].forEach(v=>{ const d=anyDate(v); if(d) R.add(d.getTime()); }); }); eks.forEach(ek=>{ const d=anyDate(r[ek]); if(d) R.add(d.getTime()); });
+  const RS=[...R].sort((a,b)=>a-b), c0=anyDate(r.date), starts=[c0?c0.getTime():null,...ro];
+  const cyc=starts.map((st,i)=>{ const nx=i+1<starts.length?starts[i+1]:Infinity, last=i===starts.length-1; if(st==null) return {s:null,e:null,h:null,open:false};
+    const e=RS.find(x=>x>=st&&x<=nx); const h=e!=null?(e-st)/36e5:(last?(Date.now()-st)/36e5:null); return {s:st,e:e??null,h:h==null?null:Math.max(0,h),open:last&&e==null}; });
+  return {n:ro.length,ro,cyc}; }
 function addReopen(list,file,sel){ const at=new Date().toISOString(); let n=0;
-  list.forEach(h=>{ if(ROSET.mode!=='all' && !isReopen(h.from,h.to)) return; const k=keyNo(h.o.no); REOPEN=REOPEN.filter(x=>x.k!==k); REOPEN.push({k,at,file,from:h.from,to:h.to,st:h.from!==h.to?1:0,cols:(h.ch||[]).filter(c=>!sel||sel.includes(c)).map(c=>label(c))}); n++; });
+  list.forEach(h=>{ if(ROSET.mode!=='all' && !isReopen(h.from,h.to)) return; const k=keyNo(h.o.no); const prev=REOPEN.find(x=>x.k===k); const ats=[...(prev?(prev.ats||(isReopen(prev.from,prev.to)?[prev.at]:[])):[]),...(isReopen(h.from,h.to)?[at]:[])];
+    REOPEN=REOPEN.filter(x=>x.k!==k); REOPEN.push({k,at,file,from:h.from,to:h.to,ats,st:h.from!==h.to?1:0,cols:(h.ch||[]).filter(c=>!sel||sel.includes(c)).map(c=>label(c))}); n++; });
   saveReopen(); return n; }
 let REOPEN=(()=>{ try{ return JSON.parse(localStorage.getItem(REOPEN_KEY)||'[]')||[]; }catch(e){ return []; } })();
 const saveReopen=()=>{ try{ localStorage.setItem(REOPEN_KEY,JSON.stringify(REOPEN.slice(-2000))); }catch(e){} };
@@ -4736,7 +4755,7 @@ function sameVal(k,a,b){ const x=vNorm(a), y=vNorm(b); if(x===y) return true; if
   if(/^-?\d+(\.\d+)?$/.test(x) && /^-?\d+(\.\d+)?$/.test(y) && +x===+y) return true; return false; }
 function mergeFromFile(o,r,fields){ const base={...o}; delete base._s; delete base._m; const CL=new Set(clearableKeys());
   fields.forEach(k=>{ if(k==='no') return; const v=r[k]; if(v!==undefined && v!==null && String(v).trim()!==''){ if(!sameVal(k,base[k],v)) base[k]=v; } else if(CL.has(k)) base[k]=''; }); return prep(clean(base)); }
-function reopenRecs(){ const m=new Map(RECS.map(r=>[keyNo(r.no),r])); return REOPEN.filter(x=>ROSET.mode==='all'||isReopen(x.from,x.to)).map(x=>({...x,r:m.get(x.k)})).filter(x=>x.r).reverse(); }
+function reopenRecs(){ const m=new Map(filtered.map(r=>[keyNo(r.no),r])); return REOPEN.filter(x=>ROSET.mode==='all'||isReopen(x.from,x.to)).map(x=>({...x,r:m.get(x.k)})).filter(x=>x.r).reverse(); }
 function reopenStats(){ const L=reopenRecs(); return {all:L.length,nNew:L.filter(x=>readState(x.r).st!=='read').length}; }
 function reopenTile(){ const u=reopenStats();
   return `<div role="button" tabindex="0" class="kpi" data-dgo="reopendlg" style="cursor:pointer;${u.nNew?'border-color:color-mix(in srgb,#E5484D 55%,var(--line))':''}"><span class="lbl">معاد فتحها</span><span class="val" style="${u.nNew?'color:#E5484D':''}">${fmt(u.nNew)}</span><span class="sub">${u.all?`لم تُفتح · من ${fmt(u.all)} تذكرة`:'اضغط لفحص ملف التذاكر'}</span></div>`; }
@@ -4807,18 +4826,30 @@ function panelRoset(){
       ${vals.length?`<details><summary class="hint" style="cursor:pointer">قيم العمود الموجودة في القاعدة (${fmt(vals.length)})</summary><div style="display:grid;gap:3px;margin-top:6px;font-size:12.5px">${vals.map(([v,n])=>`<div>${isClosedVal(v)?'<b style="color:#8A9693">● مغلقة</b>':'<b style="color:#1F9D62">● مفتوحة</b>'} ${esc(v)} <span class="hint">(${fmt(n)})</span></div>`).join('')}</div></details>`:''}</div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px"><span class="hint">تظهر في البطاقة</span><div class="seg"><label><input type="radio" name="roMode" value="reopen" ${ROSET.mode!=='all'?'checked':''}><span>المعاد فتحها فقط</span></label><label><input type="radio" name="roMode" value="all"  ${ROSET.mode==='all'?'checked':''}><span>كل التذاكر المتغيّرة من الفحص</span></label></div></div></div>`;
 }
-function reopenDialog(tab){
-  const L=reopenRecs(), nw=L.filter(x=>readState(x.r).st!=='read'); tab=tab||(nw.length?'new':'all'); const list=tab==='new'?nw:L;
-  const tb=(k,l,n)=>`<button type="button" class="btn sm ${tab===k?'primary':''}" data-rtab="${k}">${l} (${fmt(n)})</button>`;
-  dialog({title:'معاد فتحها', wide:true, html:`<p class="hint" style="margin-top:0">${ROSET.mode==='all'?'كل التذاكر التي حُدّثت من «فحص تغييرات التذاكر» أو الاستيراد.':`تذاكر تغيّرت «${esc(ROSET.col)}» فيها من حالة مغلقة (${esc(ROSET.closed.join('، '))}) إلى حالة أخرى — من الفحص أو الاستيراد.`} اضغط أي تذكرة لعرض «قبل / بعد». <span style="opacity:.8">(تُضبط من لوحة التحكم ← الأعمدة)</span></p>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${tb('new','لم تُفتح',nw.length)}${tb('all','الكل',L.length)}<button type="button" class="btn sm" id="rCheck">فحص ملف التذاكر</button></div>
-    ${list.length?`<div class="ctbl-wrap" style="max-height:56vh"><table class="ctbl"><thead><tr><th style="width:44px"></th><th>رقم البلاغ</th><th>تاريخ البلاغ</th><th>المركز</th><th>الحالة / ما تغيّر</th><th>وقت الفحص</th></tr></thead><tbody>${list.slice(0,500).map(x=>`<tr data-openrec="${esc(x.r.id)}" style="cursor:pointer"><td style="text-align:center">${envHTML(x.r)}</td><td><b dir="ltr">${esc(x.r.no||'')}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(x.r.date||''))}</td><td>${esc(shortName(x.r.center||''))}</td><td style="font-size:12.5px">${x.st===0?`<span class="hint">تغيّر:</span> <b>${esc((x.cols||[]).join('، ')||'—')}</b>`:`<span style="color:var(--muted);text-decoration:line-through">${esc(x.from||'فارغ')}</span> ← <b>${esc(x.to||'فارغ')}</b>`}</td><td dir="ltr" style="text-align:right;font-size:12px">${esc(fmtLocal(x.at))}</td></tr>`).join('')}</tbody></table></div>`:`<p class="ro-empty" style="padding:20px;text-align:center">${L.length?'كل التذاكر المعاد فتحها تم فتحها.':'لا توجد تذاكر بعد. اضغط «فحص ملف التذاكر» واختر ملف Care.'}</p>`}`,
-    actions:[...(L.length?[{label:'عرضها في السجلات',run:()=>{ filt={...filt,q:'',from:'',to:'',nos:L.map(x=>x.k).join(' ')}; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); }}]:[]),
-      ...(L.length&&!VIEWER?[{label:'مسح القائمة',run:()=>{ REOPEN=[]; saveReopen(); toast('مُسحت القائمة — البلاغات لم تتغيّر'); refresh(true); }}]:[]),{label:'إغلاق',cls:'primary'}],
+function reopenDialog(tab,openK){
+  const L0=reopenRecs().map(x=>({...x,ci:roCycles(x.r)}));
+  const isOpen=x=>x.ci?x.ci.cyc[x.ci.cyc.length-1].open:false;
+  const T={new:L0.filter(x=>readState(x.r).st!=='read'),all:L0,open:L0.filter(isOpen),done:L0.filter(x=>x.ci&&!isOpen(x)),multi:L0.filter(x=>x.ci&&x.ci.n>1)};
+  tab=tab||(T.new.length?'new':'all'); const list=T[tab]||L0;
+  const tb=(k,l)=>`<button type="button" class="btn sm ${tab===k?'primary':''}" data-rtab="${k}">${l} (${fmt(T[k].length)})</button>`;
+  const L=durLabels(); const day=t=>{ const d=new Date(t); return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`; };
+  const bd=(c,ro)=>{ if(!c||c.h==null) return '<span class="hint">—</span>'; const lv=durLvl(c.h); return `<span class="dur dur-${lv}" title="${c.open?'مفتوح منذ':'استغرق'} ${hrsTxt(c.h)}">${ro?'↺ ':''}${c.open&&DUR.openShow!=='cat'?hrsTxt(c.h):L[lv]}</span>`; };
+  const cycHTML=x=>{ const c=x.ci.cyc; return `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12.5px"><b>سجل الدورات:</b>${c.map((y,i)=>`${i?'<span class="hint">←</span>':''}<span>${'①②③④⑤⑥⑦⑧⑨⑩'[i]||(i+1)}${i?` أُعيد فتحه ${day(y.s)}`:''}</span>${bd(y,false)}${y.open?'<span class="hint">مفتوح الآن</span>':y.e?`<span class="hint">(حُلّ ${day(y.e)})</span>`:''}`).join('')}</div>`; };
+  const row=x=>{ const c=x.ci; if(!c) return `<tr data-openrec="${esc(x.r.id)}" style="cursor:pointer"><td style="text-align:center">${envHTML(x.r)}</td><td><b dir="ltr">${esc(x.r.no||'')}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(x.r.date||'').slice(0,10))}</td><td>${esc(shortName(x.r.center||''))}</td><td colspan="4" class="hint">${esc((x.cols||[]).join('، ')||'—')}</td></tr>`;
+    const cur=c.cyc[c.cyc.length-1], prev=c.cyc[c.cyc.length-2], multi=c.n>1, k=keyNo(x.r.no);
+    return `<tr data-openrec="${esc(x.r.id)}" style="cursor:pointer"><td style="text-align:center">${envHTML(x.r)}</td><td><b dir="ltr">${esc(x.r.no||'')}</b>${multi?` <button type="button" class="btn sm ghost" data-cyc="${esc(k)}" title="سجل الدورات" style="padding:0 6px">${openK===k?'▴':'▾'}</button>`:''}</td><td dir="ltr" style="text-align:right">${esc(fmtDate(x.r.date||'').slice(0,10))}</td><td>${esc(shortName(x.r.center||''))}</td>
+      <td style="text-align:center"><span style="display:inline-block;background:#E5484D;color:#fff;border-radius:99px;padding:0 8px;font-size:12px;font-weight:700">↺ ${fmt(c.n)}</span></td><td>${bd(prev,false)}</td><td style="font-size:12px;white-space:nowrap">${esc(fmtLocal(new Date(c.ro[c.ro.length-1]).toISOString()))}</td><td>${bd(cur,true)}${!cur.open&&cur.h!=null?' <span class="hint">(حُلّ ثانية)</span>':''}</td></tr>${multi&&openK===k?`<tr><td colspan="8" style="background:var(--surface-2)">${cycHTML(x)}</td></tr>`:''}`; };
+  dialog({title:'معاد فتحها', wide:true, html:`${fltNote()}<p class="hint" style="margin-top:0">${ROSET.mode==='all'?'كل التذاكر التي حُدّثت من «فحص تغييرات التذاكر» أو الاستيراد.':`تذاكر تغيّرت «${esc(ROSET.col)}» فيها من حالة مغلقة (${esc(ROSET.closed.join('، '))}) إلى حالة أخرى.`} <span style="opacity:.8">(تُضبط من لوحة التحكم ← الأعمدة)</span></p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${tb('new','لم تُفتح')}${tb('all','الكل')}${tb('open','مفتوحة الآن')}${tb('done','حُلّت ثانية')}${tb('multi','فُتحت أكثر من مرة')}<button type="button" class="btn sm" id="rCheck">فحص ملف التذاكر</button></div>
+    ${list.length?`<div class="ctbl-wrap" style="max-height:56vh"><table class="ctbl"><thead><tr><th style="width:44px"></th><th>رقم البلاغ</th><th>تاريخ البلاغ</th><th>المركز</th><th>مرات إعادة الفتح</th><th>المدة السابقة</th><th>أُعيد فتحه</th><th>المدة الحالية</th></tr></thead><tbody>${list.slice(0,500).map(row).join('')}</tbody></table></div>`:`<p class="ro-empty" style="padding:20px;text-align:center">${L0.length?'لا توجد تذاكر في هذا التبويب.':'لا توجد تذاكر بعد. اضغط «فحص ملف التذاكر» واختر ملف Care.'}</p>`}`,
+    actions:[...(L0.length?[{label:'عرضها في السجلات',run:()=>{ filt={...filt,q:'',from:'',to:'',nos:list.map(x=>x.k).join(' ')}; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); }}]:[]),
+      ...(L0.length&&!VIEWER?[{label:'مسح القائمة',run:()=>{ REOPEN=[]; saveReopen(); toast('مُسحت القائمة — البلاغات لم تتغيّر'); refresh(true); }}]:[]),{label:'إغلاق',cls:'primary'}],
     onOpen:s=>s.addEventListener('click',e=>{ if(e.target.closest('#rCheck')){ document.getElementById('layer').innerHTML=''; pickStatusFile(); return; }
-      const t=e.target.closest('[data-rtab]'); if(t){ document.getElementById('layer').innerHTML=''; reopenDialog(t.dataset.rtab); return; }
+      const cy=e.target.closest('[data-cyc]'); if(cy){ e.stopPropagation(); reopenDialog(tab,openK===cy.dataset.cyc?null:cy.dataset.cyc); return; }
+      const t=e.target.closest('[data-rtab]'); if(t){ reopenDialog(t.dataset.rtab); return; }
       const o=e.target.closest('[data-openrec]'); if(o){ const r=byId.get(o.dataset.openrec); if(r){ document.getElementById('layer').innerHTML=''; viewRecord(r); } } })});
 }
+
 /* ---------- تثبيت سجل تغييرات بلاغ (لا يُحذف مع تنظيف السجل) ---------- */
 const PINL_KEY='r937-pinlog-ids-v1';
 let PINL=(()=>{ try{ return new Set(JSON.parse(localStorage.getItem(PINL_KEY)||'[]')); }catch(e){ return new Set(); } })();
