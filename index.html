@@ -132,6 +132,8 @@ select.inp{padding-inline-end:6px}
 .kpis:empty,.insights:empty{display:none}
 .kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:grid;gap:2px;min-width:0}
 .kpi .lbl{font-size:12px;color:var(--muted);font-weight:500}
+.hdr-upd{font-size:12px;color:var(--good,#22A06B);cursor:pointer;margin-top:2px;line-height:1.5}.hdr-upd b{font-weight:700}.hdr-upd-src{color:var(--muted)}
+@media (max-width:640px){.hdr-upd-src{display:none}}
 .bk-banner[hidden],.alerts[hidden],#mvBanner[hidden]{display:none!important}
 #kpis[data-kh="a"] .kpi .lbl,#kpis[data-kh="b"] .kpi .lbl,#kpis[data-kh="c"] .kpi .lbl{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--ink);margin-bottom:6px}
 #kpis[data-kh="b"] .kpi .lbl{padding-bottom:7px;border-bottom:2px solid var(--kcc,var(--accent))}
@@ -708,7 +710,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '107';
+const APP_VER = '110';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -2712,7 +2714,9 @@ function openLockWait(){
 let unlocked=false;
 const pinHash=()=>{ try{ return localStorage.getItem(PIN_KEY)||''; }catch(e){ return ''; } };
 async function hashPin(p){ const data=new TextEncoder().encode('r937:'+p); if(crypto&&crypto.subtle){ const h=await crypto.subtle.digest('SHA-256',data); return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join(''); } let x=0; for(const b of data) x=(x*31+b)>>>0; return 'f'+x.toString(16); }
-function renderLock(){ const b=document.getElementById('btnLock'); b.hidden=!(pinHash()&&unlocked); }
+const LOCKBTN_KEY='r937-lockbtn-v1'; const lockBtnOn=()=>{ try{ return localStorage.getItem(LOCKBTN_KEY)==='1'; }catch(e){ return false; } };
+function renderLock(){ const b=document.getElementById('btnLock'); b.hidden=!(pinHash()&&unlocked&&lockBtnOn()); }
+document.addEventListener('change',e=>{ if(e.target.id==='lockBtnShow'){ try{ localStorage.setItem(LOCKBTN_KEY,e.target.checked?'1':'0'); }catch(x){} renderLock(); } });
 function guard(fn){
   if(VIEWER){ toast('هذه نسخة للعرض فقط، لا يمكن التعديل أو الاستيراد أو تغيير الإعدادات'); return; }
   if(!pinHash()||unlocked){ fn(); return; }
@@ -3002,7 +3006,10 @@ function panelLock(){
       <div class="field"><label for="pin2">تأكيد الرمز</label><input class="inp pin" id="pin2" type="password" inputmode="numeric" autocomplete="new-password"></div></div>
       <div class="err" id="pinMsg"></div>
       ${has?`<label class="opt" style="margin:8px 0"><input type="checkbox" id="pinOpen" ${pinOpen()?'checked':''}><span>طلب الرمز عند فتح التطبيق<small>لا تظهر أي بيانات قبل إدخال الرمز. يُطلب مرة في كل فتح للتطبيق. احتفظ بالرمز؛ إن نُسي لا يمكن فتح التطبيق إلا بحذف بيانات الموقع من المتصفح (وتضيع البلاغات غير المحفوظة في نسخة احتياطية).</small></span></label>`:''}
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" id="pinSet">${has?'تغيير الرمز':'تفعيل الرمز'}</button>${has?'<button type="button" class="btn danger" id="pinOff">إلغاء الرمز</button>':''}</div></div>`;
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" id="pinSet">${has?'تغيير الرمز':'تفعيل الرمز'}</button>${has?'<button type="button" class="btn danger" id="pinOff">إلغاء الرمز</button>':''}</div></div>
+    ${has?`<div class="pcard"><h4>قفل التعديل</h4><p class="hint" style="margin-top:0">${unlocked?'التعديل مفتوح الآن في هذه الجلسة.':'التعديل مقفل الآن، ويُطلب الرمز قبل أي تعديل.'} القفل يمنع الإضافة والتعديل والحذف والاستيراد ولوحة التحكم حتى يُدخل الرمز من جديد، ويبقى العرض والتصدير متاحين.</p>
+      ${unlocked?'<button type="button" class="btn" id="pinLockNow">🔒 قفل التعديل الآن</button>':''}
+      <label class="opt" style="margin-top:8px"><input type="checkbox" id="lockBtnShow" ${lockBtnOn()?'checked':''}><span>إظهار زر «قفل» في أعلى الشاشة<small>موقف افتراضياً — القفل من هنا فقط</small></span></label></div>`:''}`;
 }
 function panelBrand(){
   const b=brand();
@@ -3088,6 +3095,7 @@ async function panelAction(b,body){
   }
   { const gr=genAction(b); if(gr!==null) return gr; }
   if(b.id==='hUnfold'){ HOME.folded=[]; saveHome(); renderSummary(); toast('ظهرت كل البطاقات'); return 'redraw'; }
+  if(b.id==='pinLockNow'){ unlocked=false; renderLock(); document.getElementById('layer').innerHTML=''; toast('قُفل التعديل — يُطلب الرمز قبل أي تعديل'); return; }
   if(b.id==='pinOff'){ try{ localStorage.removeItem(PIN_KEY); localStorage.removeItem(PINOPEN_KEY); }catch(e){} unlocked=false; renderLock(); toast('أُلغي رمز التعديل'); return 'redraw'; }
   if(b.id==='openRStyle'){ document.getElementById('layer').innerHTML=''; setTimeout(reportStyleDialog,0); return; }
   if(b.id==='openBrand'){ document.getElementById('layer').innerHTML=''; setTimeout(brandDialog,0); return; }
@@ -3774,7 +3782,7 @@ document.addEventListener('change',e=>{ if(e.target.id==='exitOn'){ EXIT.on=e.ta
 ['pointerdown','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,()=>exitArm(),{once:true,capture:true}));
 
 /* ---------- print & export ---------- */
-const DEF_PRINT={kind:'full',sChart:'line',sTop:10,fmt:'pdf',paper:'A4',orient:'landscape',margin:'normal',top:20,list:true,pii:false,kpis:['total','centers','topCenter','topCat'],cols:[],listCols:null,showFilters:0,sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1}};
+const DEF_PRINT={pngQ:3,kind:'full',sChart:'line',sTop:10,fmt:'pdf',paper:'A4',orient:'landscape',margin:'normal',top:20,list:true,pii:false,kpis:['total','centers','topCenter','topCat'],cols:[],listCols:null,showFilters:0,sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1}};
 let PRINT=(()=>{ try{ const o=JSON.parse(localStorage.getItem(PRINT_KEY)||'{}'); return {...DEF_PRINT,...o,sec:{...DEF_PRINT.sec,...(o.sec||{})}}; }catch(e){ return JSON.parse(JSON.stringify(DEF_PRINT)); } })();
 const printOpts=()=>PRINT;
 const PAPER={A4:[595.28,841.89],A3:[841.89,1190.55],Letter:[612,792]};
@@ -3791,6 +3799,7 @@ function exportDialog(kind,tplId){
       <span class="hint" style="margin-inline-start:8px">${UPD_LBL}:</span><input type="datetime-local" class="inp" id="pUpd" value="${esc(updOf().v)}" style="width:auto"><button type="button" class="btn sm" id="pUpdNow">الآن</button></div>${(P.cond||[]).length&&condText(P.cond)?`<div class="hint" style="margin-top:6px">يشمل: <b>${esc(condText(P.cond))}</b> · ${fmt(n)} من ${fmt(list.length)} بلاغ</div>`:''}</div><div class="stats"><div><b>${fmt(n)}</b><span>بلاغ في النتائج</span></div><div><b>${fmt(countBy(list,'center').length)}</b><span>مركز</span></div><div><b>${filterDesc().length||'—'}</b><span>فلتر مطبّق</span></div></div>
     <div class="pgrid">
       <span class="l">الصيغة</span>${seg('pf',[['pdf','PDF'],['png','صورة PNG'],['html','HTML'],['xlsx','Excel']],P.fmt)}
+      <span class="l">جودة الصورة</span>${seg('pQ',[[2,'عادية'],[3,'عالية'],[4,'عالية جداً']],+PRINT.pngQ||3)}
       <span class="l lay">عنوان التقرير</span><input class="inp lay" id="pTitle" value="${esc(P.title||BRAND.title||'تقرير البلاغات')}">
       <span class="l lay pdfhtml">حجم الورق</span><div class="lay pdfhtml">${seg('pp',[['A4','A4'],['A3','A3'],['Letter','Letter']],P.paper)}</div>
       <span class="l lay">الاتجاه</span><div class="lay">${seg('po',[['landscape','أفقي'],['portrait','عمودي']],P.orient)}</div>
@@ -3815,7 +3824,7 @@ function exportDialog(kind,tplId){
       const v=name=>s.querySelector(`input[name=${name}]:checked`)?.value;
       const ui={kind:s.querySelector('input[name=pKind]:checked')?.value||'full',paper:v('pp'),orient:v('po'),margin:v('pm'),top:+v('pt'),list:s.querySelector('#pList').checked,pii:s.querySelector('#pPii').checked,sec:{...P.sec}};
       s.querySelectorAll('[data-sec]').forEach(c=>ui.sec[c.dataset.sec]=c.checked?1:0);
-      const fm=v('pf'); const t=tid&&RTPL.find(x=>x.id===tid);
+      const fm=v('pf'); const t=tid&&RTPL.find(x=>x.id===tid); PRINT.pngQ=+v('pQ')||3;
       if(t){ Object.assign(t,ui); saveRTPL(); PRINT.fmt=fm; } else PRINT={...PRINT,...ui,fmt:fm};
       try{ localStorage.setItem(PRINT_KEY,JSON.stringify(PRINT)); }catch(e){}
       setRtSel(tid);
@@ -3844,7 +3853,11 @@ async function runExport(kind,list,o){
     if(kind==='xlsx'){ busy('جارٍ تجهيز ملف Excel…'); const b=await buildReportXlsx(list,o); busy(null); await saveFile(nm+'.xlsx',b); }
     if(kind==='backup'){ busy('جارٍ تجهيز النسخة الاحتياطية…'); const b=await buildXlsx(list,{pii:true,summary:false,visits:true}); busy(null); const ok=await saveFile(`نسخة-احتياطية-بلاغات-937-${stamp()}.xlsx`,b); if(ok!==false) markBackup(list.length); }
     if(kind==='html'){ const b=buildHtml(list,o); await saveFile(nm+'.html',b); }
-    if(kind==='png'){ busy('جارٍ رسم الصورة…'); const b=await withReport(list,o,async el=>canvasBlob(await snap(el))); busy(null); await saveFile(nm+'.png',b); }
+    if(kind==='png'){ busy('جارٍ رسم الصورة بجودة عالية…'); const b=await withReport(list,o,async el=>{ const q=+((o&&o.pngQ)||PRINT.pngQ||3);
+        // أعلى دقة يسمح بها الجهاز: الآيفون يحدّ مساحة الرسم بنحو 16 مليون نقطة
+        const ios=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1); const maxA=ios?16e6:((navigator.deviceMemory||4)>=8?48e6:32e6);
+        const area=el.offsetWidth*el.offsetHeight; if(area>maxA) throw new Error('التقرير أطول من أن يُحفظ صورة واحدة. أخفِ «قائمة البلاغات» أو صدّره PDF.');
+        const r=Math.max(1,Math.min(q,Math.sqrt(maxA/Math.max(1,area)))); return canvasBlob(await snap(el,r)); }); busy(null); await saveFile(nm+'.png',b); }
     if(kind==='pdf'){ const b=await buildPdf(list,o); busy(null); await saveFile(nm+'.pdf',b); }
   }catch(e){ console.error(e); busy(null); toast(e&&e.message?e.message:'تعذر التصدير'); }
   SNAP_FONT=null;
@@ -3880,12 +3893,12 @@ async function buildPdf(list,o){
   await withReport(list,{...o,chunk:o.orient==='portrait'?30:22},async el=>{
     const blocks=[...el.querySelectorAll('.blk')];
     const footEl=blocks.find(b=>b.dataset.foot); const flow=blocks.filter(b=>!b.dataset.foot);
-    const fc=await snap(footEl,1.6); const footImg=await pdf.embedPng(new Uint8Array(await (await canvasBlob(fc)).arrayBuffer()));
+    const fc=await snap(footEl,2); const footImg=await pdf.embedPng(new Uint8Array(await (await canvasBlob(fc)).arrayBuffer()));
     const fs=(W-2*M)/fc.width, fh=fc.height*fs, bottom=M+fh+6;
     let page=pdf.addPage([W,H]), y=H-M; const pages=[page]; let coverPage=null;
     for(let i=0;i<flow.length;i++){
       busy(`جارٍ تجهيز PDF… ${Math.round(i/flow.length*100)}%`);
-      const c=await snap(flow[i],1.6);
+      const c=await snap(flow[i],2);
       const img=await pdf.embedJpg(new Uint8Array(await (await canvasBlob(c,'image/jpeg',0.86)).arrayBuffer()));
       if(flow[i].dataset.cover){ // الغلاف يملأ الصفحة الأولى وحده
         let s=Math.min((W-2*M)/c.width,(H-2*M)/c.height); const w=c.width*s, h=c.height*s; page.drawImage(img,{x:(W-w)/2,y:(H-h)/2,width:w,height:h}); coverPage=page;
@@ -4269,7 +4282,7 @@ function continueImport(file,res){
     <label class="opt"><input type="radio" name="im" value="all"><span>استبدال كل القاعدة<small>تُحذف البلاغات الحالية (${fmt(RECS.length)}) وتحل محلها بلاغات الملف</small></span></label>`,
     actions:[{label:'استيراد',cls:'primary',run:async s=>{
       const mode=s.querySelector('input[name=im]:checked').value;
-      if(mode==='all'){ await replaceAll(uniq,{type:'replace',note:file.name}); toast(`استُورد ${fmt(uniq.length)} بلاغ${flagNote(RECS)}`); return; }
+      if(mode==='all'){ await replaceAll(uniq,{type:'replace',note:file.name}); setLastUpd('استبدال',file.name,uniq.length,0); toast(`استُورد ${fmt(uniq.length)} بلاغ${flagNote(RECS)}`); return; }
       const add= mode==='onlyupd' ? [] : fresh.map(prep);
       // التحديث يدمج: يغيّر فقط الأعمدة الموجودة في الملف وقيمها غير فارغة
       const upd= (mode==='upd'||mode==='onlyupd') ? dups.map(r=>mergeFromFile(existing.get(keyNo(r.no)),r,fields)) : [];
@@ -4277,7 +4290,7 @@ function continueImport(file,res){
       const updAll=upd.length, CK=ALLK().filter(k=>k!=='id');
       const updCh=upd.filter(n=>{ const o=byId.get(n.id); return !o || CK.some(k=>vNorm(o[k])!==vNorm(n[k])); });
       upd.length=0; updCh.forEach(x=>upd.push(x));
-      busy('جارٍ الحفظ…'); try{ if(add.length||upd.length) await saveRecords(add.concat(upd),{type:mode==='onlyupd'?'update':'import',note:file.name}); else logChange(mode==='onlyupd'?'update':'import',{n:0,note:file.name}); } finally{ busy(null); }
+      busy('جارٍ الحفظ…'); try{ if(add.length||upd.length){ await saveRecords(add.concat(upd),{type:mode==='onlyupd'?'update':'import',note:file.name}); setLastUpd('استيراد',file.name,add.length,upd.length); } else logChange(mode==='onlyupd'?'update':'import',{n:0,note:file.name}); } finally{ busy(null); }
       if(mode!=='onlyupd' && late.length) addLate(late,file.name);
       try{ resolvePendingPins(); }catch(e){}
       { const rk=roKey(); if(rk && upd.length){ const rl=upd.map(n=>{ const o=existing.get(keyNo(n.no)); return o&&isReopen(o[rk],n[rk])?{o,from:o[rk]||'',to:n[rk]||'',ch:CK.filter(c=>vNorm(o[c])!==vNorm(n[c]))}:null; }).filter(Boolean); if(rl.length){ const sv=ROSET.mode; ROSET.mode='reopen'; addReopen(rl,file.name); ROSET.mode=sv; } } }
@@ -4483,6 +4496,14 @@ function dtParts(d=new Date()){ const n='-nu-'+(GEN.hdr.digits==='arab'?'arab':'
   const f=(loc,o)=>{ try{ return new Intl.DateTimeFormat(loc+n,o).format(d); }catch(e){ return ''; } };
   return {wday:f('ar-u',{weekday:'long'}), hijri:f('ar-SA-u-ca-islamic-umalqura',{day:'numeric',month:'long',year:'numeric'}).replace(/\s*هـ$/,'')+'هـ',
     greg:f('ar-u-ca-gregory',{day:'numeric',month:'long',year:'numeric'})+'م', time:f('ar-u',{hour:'numeric',minute:'2-digit',hour12:true})}; }
+// آخر تحديث للبيانات: يُسجَّل تلقائياً عند استيراد أو فحص فيه تغييرات فعلية
+const LUPD_KEY='r937-lastupd-v1';
+function setLastUpd(src,file,nAdd,nUpd){ try{ localStorage.setItem(LUPD_KEY,JSON.stringify({t:new Date().toISOString(),src,file:String(file||''),a:+nAdd||0,u:+nUpd||0})); }catch(e){} try{ renderHeader(); }catch(e){} }
+function lastUpdLine(){ let L=null; try{ L=JSON.parse(localStorage.getItem(LUPD_KEY)||'null'); }catch(e){} if(!L||!L.t) return '';
+  const d=new Date(L.t); const z=n=>String(n).padStart(2,'0'); let h=d.getHours(); const pm=h>=12; h=h%12||12;
+  const when=`${d.getFullYear()}/${z(d.getMonth()+1)}/${z(d.getDate())} · ${h}:${z(d.getMinutes())} ${pm?'م':'ص'}`;
+  const ch=[L.a?`${fmt(L.a)} جديد`:'',L.u?`${fmt(L.u)} تغيير`:''].filter(Boolean).join(' · ');
+  return `<span>↻ آخر تحديث للبيانات: <b>${esc(when)}</b></span><span class="hdr-upd-src"> — ${esc(L.src)}${L.file?` «${esc(L.file.replace(/\.(xlsx|xls|csv)$/i,''))}»`:''}${ch?` · ${ch}`:''}</span>`; }
 function renderHeader(){
   const H=GEN.hdr, top=document.querySelector('.topbar'); if(!top) return;
   top.classList.remove('hs-n','hs-l','hs-xl'); top.classList.add('hs-'+(H.size||'n'));
@@ -4493,11 +4514,12 @@ function renderHeader(){
   im.hidden=!showImg; im.innerHTML=showImg?`<img src="${src}" alt="الشعار" style="height:${+H.logoH||44}px">`:'';
   top.classList.toggle('hdr-hasimg',showImg);
   // التاريخ والوقت
-  document.querySelectorAll('.hdr-dt').forEach(x=>x.remove());
+  document.querySelectorAll('.hdr-dt,.hdr-upd').forEach(x=>x.remove());
+  { const lu=VIEWER?'':lastUpdLine(); if(lu){ const el=document.createElement('div'); el.className='hdr-upd'; el.title='اضغط لعرض ملخص آخر استيراد'; el.innerHTML=lu; el.addEventListener('click',()=>{ try{ importSummary(); }catch(e){} }); top.querySelector('.brand-txt').appendChild(el); } }
   if(H.style==='off') return;
   const p=dtParts(), parts=[H.wday&&p.wday,H.hijri&&p.hijri,H.greg&&p.greg].filter(Boolean);
   if(!parts.length && !H.time) return;
-  if(H.style==='a'){ const el=document.createElement('div'); el.className='hdr-dt hdr-a'; el.innerHTML=`<span>${esc(parts.join(' · '))}</span>${H.time?`<b>${esc(p.time)}</b>`:''}`; top.querySelector('.brand-txt').appendChild(el); }
+  if(H.style==='a'){ const el=document.createElement('div'); el.className='hdr-dt hdr-a'; el.innerHTML=`<span>${esc(parts.join(' · '))}</span>${H.time?`<b>${esc(p.time)}</b>`:''}`; top.querySelector('.brand-txt').appendChild(el); const u=top.querySelector('.hdr-upd'); if(u) top.querySelector('.brand-txt').appendChild(u); }
   else if(H.style==='b'){ const el=document.createElement('div'); el.className='hdr-dt hdr-b'; el.innerHTML=`${H.time?`<b>${esc(p.time)}</b>`:''}${H.wday?`<span>${esc(p.wday)}</span>`:''}${H.hijri?`<span>${esc(p.hijri)}</span>`:''}${H.greg?`<span>${esc(p.greg)}</span>`:''}`; brandEl.after(el); }
   else { const el=document.createElement('div'); el.className='hdr-dt hdr-c'; el.innerHTML=`<div class="wrap"><span>${esc(parts.join('  ·  '))}</span>${H.time?`<b>${esc(p.time)}</b>`:''}</div>`; top.prepend(el); }
 }
@@ -4747,7 +4769,7 @@ function checkDialog(S){
     const DS=defSec(); if(active('sector')) list.forEach(r=>{ if(String(r.sector||'').trim()) return; const x=r.center?centerToSector(r.center):''; if(x) r.sector=x; else if(DS) r.sector=DS; });
     const lastDay=RECS.reduce((m,r)=>r.date&&r.date.slice(0,10)>m?r.date.slice(0,10):m,''); const late=lastDay?list.filter(r=>r.date&&r.date.slice(0,10)<lastDay):[];
     await saveRecords(list.map(prep),{type:'import',note:file.name+' · بلاغات جديدة من الفحص'}); if(late.length) addLate(late,file.name); return list.length; };
-  const run=async(u,a)=>{ busy('جارٍ الحفظ…'); let r=null, n=0; try{ if(u){ r=await doUpd(); if(!r){ busy(null); return false; } } if(a) n=await doAdd(); } finally{ busy(null); }
+  const run=async(u,a)=>{ busy('جارٍ الحفظ…'); let r=null, n=0; try{ if(u){ r=await doUpd(); if(!r){ busy(null); return false; } } if(a) n=await doAdd(); } finally{ busy(null); } if((r&&r.n)||n) setLastUpd('فحص التغييرات',file.name,n,r?r.n:0);
     toast([r?`حُدّثت ${fmt(r.n)} تذكرة${r.nR?` · ${fmt(r.nR)} في «معاد فتحها»`:''}`:'',n?`أضيف ${fmt(n)} بلاغ جديد`:''].filter(Boolean).join(' · ')||'لا شيء للحفظ'); if(r&&r.nR) setTimeout(()=>reopenDialog('new'),60); };
   const W=!VIEWER;
   dialog({title:'فحص تغييرات التذاكر', wide:true, html, actions:[
