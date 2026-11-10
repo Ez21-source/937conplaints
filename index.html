@@ -710,7 +710,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '110';
+const APP_VER = '112';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -1347,7 +1347,7 @@ function applyAlert(a){
 
 /* ---------- dashboard (لوحة المؤشرات) ---------- */
 const dashCfg=()=>({...DEF_DASH,...(HOME.dash||{}),items:{...DEF_DASH.items,...((HOME.dash||{}).items||{})},fields:{...DEF_DASH.fields,...((HOME.dash||{}).fields||{})},tiles:{...((HOME.dash||{}).tiles||{})}});
-function baseNoDates(){ const f=filt.from, t=filt.to; if(!f&&!t) return filtered; filt.from=''; filt.to=''; apply(); const base=filtered; filt.from=f; filt.to=t; apply(); return base; }
+function baseNoDates(){ if(!filt.from&&!filt.to) return filtered; if(BND.v===APPLY_VER&&BND.list) return BND.list; BND={v:APPLY_VER,list:filterRecs(true)}; return BND.list; }
 const addDays=(d,n)=>{ const x=new Date(d+'T00:00:00'); x.setDate(x.getDate()+n); return iso(x); };
 function countRange(list,a,b){ let n=0; for(const r of list){ if(!r.date) continue; const d=r.date.slice(0,10); if(d>=a&&d<=b) n++; } return n; }
 function deltaHTML(cur,prev,lbl){
@@ -1554,30 +1554,40 @@ let _clSet=null,_clKey=null;
 function clSet(){ if(_clKey!==filt.cl||!_clSet){ _clSet=new Set((clinicIndex().get(filt.cl)||[]).map(r=>r.id)); _clKey=filt.cl; } return _clSet; }
 let _empSet=null,_empKey=null;
 function empSet(){ if(_empKey!==filt.emp+'|'+STAFF_POS||!_empSet){ const g=staffIndex().get(filt.emp); _empSet=new Set(g?(filt.empc?complaintsOnly(g.recs):g.recs).filter(r=>posOk(g,r)).map(r=>r.id):[]); _empKey=filt.emp+'|'+STAFF_POS; } return _empSet; }
-function apply(){ _empSet=null; _clSet=null;
+// الفلترة: قيم الفلاتر تُجهَّز مرة واحدة خارج الحلقة، والفلاتر الفارغة لا تُحسب
+let APPLY_VER=0, BND={v:-1,list:null};
+function filterRecs(noDates){
   const words=nrm(filt.q).split(' ').filter(Boolean);
   const LS=filt.late?new Set(LATE.map(x=>x.k)):null; const IS=filt.impk?impSet(filt.impk):null; const NS=filt.nos?new Set(String(filt.nos).split(' ')):null;
-  filtered=RECS.filter(r=>{
+  const fs=k=>{ const vs=fVals(k); if(!vs.length) return null; return {none:vs.includes('__none'),set:new Set(vs.filter(x=>x!=='__none'))}; };
+  const ok=(F,val)=>!F||(F.none&&!val)||F.set.has(val);
+  const Fm=fs('month'), Fs=fs('sector'), Fc=fs('center'), Fma=fs('main'), Fsu=fs('sub');
+  const EX=extraFilterCols().map(c=>[c.k,fs(c.k)]).filter(x=>x[1]);
+  const from=noDates?'':filt.from, to=noDates?'':filt.to;
+  return RECS.filter(r=>{
     if(NS && !NS.has(keyNo(r.no))) return false;
     if(IS && !IS.has(r.id)) return false;
     if(LS && !LS.has(keyNo(r.no))) return false;
-    if(filt.from && (!r.date || r.date.slice(0,10)<filt.from)) return false;
-    if(filt.to && (!r.date || r.date.slice(0,10)>filt.to)) return false;
-    if(!fOk('month',r._m)) return false;
-    if(!fOk('sector',r.sector)) return false;
-    if(!fOk('center',r.center)) return false;
-    if(!fOk('main',r.main)) return false;
-    if(!fOk('sub',r.sub)) return false;
+    if(from && (!r.date || r.date.slice(0,10)<from)) return false;
+    if(to && (!r.date || r.date.slice(0,10)>to)) return false;
+    if(Fm && !ok(Fm,r._m)) return false;
+    if(Fs && !ok(Fs,r.sector)) return false;
+    if(Fc && !ok(Fc,r.center)) return false;
+    if(Fma && !ok(Fma,r.main)) return false;
+    if(Fsu && !ok(Fsu,r.sub)) return false;
     if(filt.ck && callerKey(r)!==filt.ck) return false;
     if(filt.emp && !empSet().has(r.id)) return false;
     if(filt.cl && !clSet().has(r.id)) return false;
     if(filt.kw && !kwMatch(r,filt.kw)) return false;
     if(filt.sla && slaState(r)!==filt.sla) return false;
     if(filt.unread){ const st=readState(r).st; if(filt.unread==='1'?st==='read':st!==filt.unread) return false; }
-    for(const c of extraFilterCols()) if(!fOk(c.k,rv(r,c.k))) return false;
+    for(const [k,F] of EX) if(!ok(F,rv(r,k))) return false;
     for(const w of words) if(!r._s.includes(w)) return false;
     return true;
   });
+}
+function apply(){ _empSet=null; _clSet=null; APPLY_VER++;
+  filtered=filterRecs(false);
   const k=sort.k, d=sort.dir;
   if(k==='__dur'){ const H=new Map(); filtered.forEach(r=>{ const x=durInfo(r); H.set(r.id,x.st==='none'?null:x.h); }); filtered.sort((a,b)=>{ const x=H.get(a.id), y=H.get(b.id); if(x==null&&y==null) return 0; if(x==null) return 1; if(y==null) return -1; return (x-y)*d; }); return; }
   filtered.sort((a,b)=>{ let x=a[k], y=b[k]; if(k==='count') return (x-y)*d; x=String(x||''); y=String(y||''); return x<y?-d:x>y?d:0; });
@@ -1818,10 +1828,10 @@ function d48Tile(){ const L=durLabels(); let o=0,c=0; filtered.forEach(r=>{ cons
   return `<div role="button" tabindex="0" class="kpi" data-dgo="d48" style="cursor:pointer;${o?'border-color:color-mix(in srgb,#E5484D 55%,var(--line))':''}"><span class="lbl">${esc(L.r)}</span><span class="val" style="${o?'color:#E5484D':''}">${fmt(o)}</span><span class="sub">مفتوح تجاوز ${+DUR.t2||48} ساعة</span>${c?`<span class="sub">+ ${fmt(c)} محلول تجاوزها</span>`:''}</div>`; }
 function durTile(){ const L=durLabels(), P=durPeriods(); const cnt=a=>{ const o={g:0,o:0,r:0,n:0}; a.forEach(r=>{ const d=durI(r); if(d.st!=='none'){ o[d.lvl]++; o.n++; } }); return o; };
   const F=cnt(filtered), Cc=P?cnt(P.C):null, Pc=P?cnt(P.P):null;
-  const arr=k=>{ if(!P||!P.hasPrev||!Pc[k]) return ''; const c=Cc[k], p=Pc[k]; if(c===p) return `<span class="kd" title="لم يتغيّر عن الفترة السابقة">=</span>`; const up=c>p, pc=Math.abs((c-p)/p*100).toFixed(0); const cls=k==='g'?(up?'g':'b'):k==='r'?(up?'b':'g'):'';
+  const arr=k=>{ if(!P||!P.hasPrev||!Pc[k]) return ''; const c=Cc[k], p=Pc[k]; if(c===p) return `<span class="kd" title="لم يتغيّر عن الفترة السابقة">=</span>`; const up=c>p, pc=Math.abs((c-p)/p*100).toFixed(0); const cls=k==='g'?(up?'g':'b'):(up?'b':'g');
     return `<span class="kd ${cls}" title="${esc(P.lbl)}: ${fmt(c)} · الفترة السابقة: ${fmt(p)}">${up?'▲':'▼'} ${pc}%</span>`; };
   const row=k=>`<div class="kdur" data-durf="${k}" title="اضغط لعرض البلاغات"><span><span class="dur dur-${k}">${esc(L[k])}</span> <b>${fmt(F[k])}</b> <span class="kp">${pct(F[k],F.n)}</span></span>${arr(k)}</div>`;
-  return `<div class="kpi"><span class="lbl">المدة الزمنية للإغلاق</span>${F.n?row('g')+row('o')+row('r'):'<span class="sub">لا توجد بلاغات معروفة المدة</span>'}${F.n&&P&&P.hasPrev?`<span class="kp" style="color:var(--muted)">المقارنة: ${esc(P.lbl)} مع السابقة (${fmt(Pc.g)} · ${fmt(Pc.o)} · ${fmt(Pc.r)})</span>`:''}</div>`; }
+  return `<div class="kpi"><span class="lbl">المدة الزمنية للإغلاق</span>${F.n?row('g')+row('o')+row('r'):'<span class="sub">لا توجد بلاغات معروفة المدة</span>'}${F.n&&P&&P.hasPrev?(()=>{ const t=o=>`${esc(L.g)} <b>${fmt(o.g)}</b> · ${esc(L.o)} <b>${fmt(o.o)}</b> · ${esc(L.r)} <b>${fmt(o.r)}</b>`; return `<span class="kp" style="color:var(--muted);display:block;margin-top:4px;line-height:1.7">الأسهم تقارن ${esc(P.lbl)}: ${t(Cc)}<br>بالفترة السابقة: ${t(Pc)}</span>`; })():''}</div>`; }
 function showDurList(lv,title){ const list=filtered.filter(r=>{ const d=durInfo(r); return d.st!=='none'&&d.lvl===lv; }); if(!list.length){ toast('لا توجد بلاغات'); return; }
   filt={...filt,nos:list.map(r=>keyNo(r.no)).join(' ')}; sort={k:'__dur',dir:-1}; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); toast(`${title}: ${fmt(list.length)} بلاغ، مرتبة من الأطول مدة`); }
 document.addEventListener('click',e=>{ const r=e.target.closest('[data-durf]'); if(r){ const L=durLabels(); showDurList(r.dataset.durf,L[r.dataset.durf]); } });
@@ -4627,7 +4637,10 @@ function durStart(r){
 }
 // المدة = من البداية حتى «تاريخ الحل» (أو «تاريخ الحل من المنسق» إن كان الأول فارغاً)، وللمفتوح حتى الآن
 function durLvl(h){ return h<=(+DUR.t1||24)?'g':h<=(+DUR.t2||48)?'o':'r'; }
-function durInfo(r){ const ek=durEndKey(), ek2=durEndKey2(); const end=(ek?anyDate(r[ek]):null)||(ek2?anyDate(r[ek2]):null);
+let DIC=new WeakMap(), DIC_SIG='';
+function durInfo(r){ const sig=LOG_VER+'|'+RECS.length+'|'+Math.floor(Date.now()/60000)+'|'+DUR.start+'|'+DUR.stVal+'|'+DUR.stCol+'|'+DUR.endCol+'|'+DUR.endCol2+'|'+DUR.t1+'|'+DUR.t2;
+  if(sig!==DIC_SIG){ DIC=new WeakMap(); DIC_SIG=sig; } let x=DIC.get(r); if(!x){ x=durInfo0(r); DIC.set(r,x); } return x; }
+function durInfo0(r){ const ek=durEndKey(), ek2=durEndKey2(); const end=(ek?anyDate(r[ek]):null)||(ek2?anyDate(r[ek2]):null);
   if(end){ const st=durStart(r)||anyDate(r.date); if(!st) return {st:'none'}; const h=Math.max(0,(end.getTime()-st.getTime())/3600000); return {st:'closed',h,lvl:durLvl(h)}; }
   // بلاغ لم يأتِ من ملف فيه «تاريخ الحل» ولا «حالة التذكرة» (من ملف قديم): لا نعرف حالته
   const sk=durStKey(); if((!ek || r[ek]===undefined) && (!ek2 || r[ek2]===undefined) && !(sk && String(r[sk]??'').trim())) return {st:'none'};
