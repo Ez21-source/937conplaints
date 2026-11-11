@@ -710,7 +710,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '116';
+const APP_VER = '117';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -3613,6 +3613,7 @@ function kpiValues(list,ids){ const tot=list.length; const cache={}; const cb=(k
     if(id==='slaOut'||id==='slaIn'){ const k=slaKey(); const n=k?list.filter(r=>slaState(r,k)===(id==='slaOut'?'out':'in')).length:0; return [KPI_BASE[id],n,pct(n,tot)+' من البلاغات']; }
     if(id==='callers'){ const g=(active('caller')||active('nid'))?repeatGroups(list,RPT.min):[]; return ['متصلون متكررون',g.length,`${RPT.min}+ بلاغ لكل متصل`]; }
     const [t,k,v]=id.split('|'); if(!col(k)) return null; const arr=cb(k);
+    if(t==='top'&&k==='__dur') return arr[0]?[`الأعلى في مدة الإغلاق: ${arr[0][0]}`,arr[0][1],pct(arr[0][1],tot)+' من البلاغات']:['الأعلى في مدة الإغلاق','—',''];
     if(t==='top') return topOf(`أعلى ${label(k)}`,arr);
     if(t==='n') return [`عدد ${label(k)} المختلفة`,arr.length,`في ${fmt(tot)} بلاغ`];
     if(t==='v'){ const val=decodeURIComponent(v||''); const n=(arr.find(x=>x[0]===val)||[0,0])[1]; return [val,n,`${label(k)} · ${pct(n,tot)}`]; }
