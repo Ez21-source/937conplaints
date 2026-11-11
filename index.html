@@ -710,7 +710,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '122';
+const APP_VER = '124';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -796,7 +796,11 @@ const monthOf = r => r.month || (r.date ? `${MONTHS[+r.date.slice(5,7)-1]} ${r.d
 const monthKey = r => r.date ? r.date.slice(0,7) : '';
 const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const NF_EN=new Intl.NumberFormat('en-US'); const fmt = n => NF_EN.format(Math.round(n));
-const pct = (a,b) => b ? (a/b*100).toFixed(1).replace(/\.0$/,'')+'%' : '—';
+// النسب: منزلتان عشريتان بفاصلة (87,05%) أو كما كانت (87.1%) — من لوحة التحكم ← الشاشة
+const PCT_KEY='r937-pct-v1'; let PCT_D=(()=>{ try{ return localStorage.getItem(PCT_KEY)==='1'?1:2; }catch(e){ return 2; } })();
+const pctF=(p,d0)=>PCT_D===2?(+p).toFixed(2).replace('.',','):(+p).toFixed(d0).replace(/\.0$/,'');
+const pct = (a,b) => b ? pctF(a/b*100,1)+'%' : '—';
+const pct2 = pct;
 const fmtDate = d => d ? d.replace('T',' ').slice(0,16).replace(/-/g,'/') : '';
 function nrm(v){ return String(v??'').toLowerCase().replace(/ـ/g,'').replace(/[ً-ْ]/g,'').replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').replace(/ؤ/g,'و').replace(/ئ/g,'ي').replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-0x660)).replace(/\s+/g,' ').trim(); }
 const uid = ()=> Date.now().toString(36)+Math.random().toString(36).slice(2,8);
@@ -1260,9 +1264,9 @@ function evalRules0(list){
       cur.forEach((c,v)=>{ const pv=prev.get(v)||0; if(c<minN||c<=pv) return; const pc=pv?(c-pv)/pv*100:Infinity; if(pc>=P) hits.push({v,c,pv,pc}); });
       const nm=k==='sector'?'القطاع':'المركز';
       hits.sort((x,y)=>(y.c-y.pv)-(x.c-x.pv)).forEach(h=>out.push({rule,sev:h.pc>=P*2?2:1,n:h.c,
-        title:`${h.v}: ${fmt(h.c)} بلاغ مقابل ${fmt(h.pv)} ${h.pv?`(+${h.pc.toFixed(0)}%)`:'(جديد)'}`,
+        title:`${h.v}: ${fmt(h.c)} بلاغ مقابل ${fmt(h.pv)} ${h.pv?`(+${pctF(h.pc,0)}%)`:'(جديد)'}`,
         sub:`زيادة في ${nm} · ${w.a.slice(5).replace('-','/')}–${w.b.slice(5).replace('-','/')} مقارنة بـ ${dWord(w.len)} قبلها`,
-        act:{[k]:h.v,from:w.a,to:w.b}, tick:`${k==='sector'?'قطاع ':''}${h.v}: ${fmt(h.c)} بلاغ مقابل ${fmt(h.pv)} في الفترة السابقة ${h.pv?`↑ ${h.pc.toFixed(0)}%`:'(لم يكن فيه بلاغات)'}`}));
+        act:{[k]:h.v,from:w.a,to:w.b}, tick:`${k==='sector'?'قطاع ':''}${h.v}: ${fmt(h.c)} بلاغ مقابل ${fmt(h.pv)} في الفترة السابقة ${h.pv?`↑ ${pctF(h.pc,0)}%`:'(لم يكن فيه بلاغات)'}`}));
       return;
     }
     if(rule.type==='value'){
@@ -1307,7 +1311,7 @@ function evalRules0(list){
         sub: rule.auto ? `${g.b.l} · ${prevL} ${nB(th)} · ${up?'زيادة':'انخفاض'} ${chg}${isP?` (الحد ${+rule.pct||30}%)`:''}` : `${g.b.l} · الحد ${nB(th)}`,
         act:{...(k?{[k]:g.v}:{}),from:g.b.from,to:g.b.to,...(isS?{sla:'out'}:{})},
         // صيغة مختصرة للشريط: «المعابدة: 53 ↑40 (السابق 13)»
-        tick: `${k==='sector'?'قطاع ':''}${k?String(g.v).replace(/^مركز\s+صحي\s+/,'')+': ':''}${fmt(g.n)}${isS?' خارج المستوى':''} ${rule.auto?`${up?'↑':'↓'}${isP?(isFinite(g.pc)?g.pc.toFixed(0)+'%':'جديد'):fmt(Math.abs(g.n-th))} (السابق ${fmt(th)})`:`(الحد ${fmt(th)})`}`}); });
+        tick: `${k==='sector'?'قطاع ':''}${k?String(g.v).replace(/^مركز\s+صحي\s+/,'')+': ':''}${fmt(g.n)}${isS?' خارج المستوى':''} ${rule.auto?`${up?'↑':'↓'}${isP?(isFinite(g.pc)?pctF(g.pc,0)+'%':'جديد'):fmt(Math.abs(g.n-th))} (السابق ${fmt(th)})`:`(الحد ${fmt(th)})`}`}); });
     }
     if(rule.type==='caller'){
       const days=Math.max(1,+rule.days||30); const m=new Map();
@@ -1353,7 +1357,7 @@ function countRange(list,a,b){ let n=0; for(const r of list){ if(!r.date) contin
 function deltaHTML(cur,prev,lbl){
   if(!prev) return `<span class="dl"><span>لا توجد بيانات ${lbl} للمقارنة</span></span>`;
   const p=(cur-prev)/prev*100; const up=p>0.5, dn=p<-0.5;
-  return `<span class="dl ${up?'up':dn?'dn':''}">${up?'▲':dn?'▼':'■'} ${Math.abs(p).toFixed(0)}% <span>${lbl} ${fmt(prev)}</span></span>`;
+  return `<span class="dl ${up?'up':dn?'dn':''}">${up?'▲':dn?'▼':'■'} ${pctF(Math.abs(p),0)}% <span>${lbl} ${fmt(prev)}</span></span>`;
 }
 function dashStats(){
   const base=baseNoDates();
@@ -1379,7 +1383,7 @@ function tickerItems(st,al){
     out.push([st.prevDay&&st.day!==st.prevDay?(st.day>st.prevDay?'u':'d'):'s',`آخر يوم مسجل ${st.d.replace(/-/g,'/')}: ${fmt(st.day)} بلاغ${st.prevDay?` (${st.day>st.prevDay?'↑':st.day<st.prevDay?'↓':''} ${fmt(Math.abs(st.day-st.prevDay))} عن اليوم السابق)`:''}`]);
     if(st.topDay) out.push(['s',`أعلى مركز في آخر يوم: ${st.topDay[0]} بـ ${fmt(st.topDay[1])} بلاغ`]);
     if(st.sla&&c.sla) out.push([st.sla.prev&&st.sla.wk!==st.sla.prev?(st.sla.wk>st.sla.prev?'u':'d'):'k',`خارج مستوى الخدمة آخر 7 أيام: ${nB(st.sla.wk)} من ${fmt(st.sla.tot)} (${pct(st.sla.wk,st.sla.tot)})${st.sla.prev?` · الأسبوع السابق ${fmt(st.sla.prev)} ${st.sla.wk>st.sla.prev?'↑':st.sla.wk<st.sla.prev?'↓':''}`:''}`]);
-    out.push([st.prevWk&&st.wk!==st.prevWk?(st.wk>st.prevWk?'u':'d'):'s',`آخر 7 أيام: ${fmt(st.wk)} بلاغ${st.prevWk?` (${st.wk>st.prevWk?'↑':st.wk<st.prevWk?'↓':''} ${Math.abs((st.wk-st.prevWk)/st.prevWk*100).toFixed(0)}% عن الأسبوع السابق)`:''}`]);
+    out.push([st.prevWk&&st.wk!==st.prevWk?(st.wk>st.prevWk?'u':'d'):'s',`آخر 7 أيام: ${fmt(st.wk)} بلاغ${st.prevWk?` (${st.wk>st.prevWk?'↑':st.wk<st.prevWk?'↓':''} ${pctF(Math.abs((st.wk-st.prevWk)/st.prevWk*100),0)}% عن الأسبوع السابق)`:''}`]);
     const cats=countBy(st.dayRecs,active('sub')?'sub':'main').filter(x=>x[0]); if(cats[0]) out.push(['s',`أكثر تصنيف في آخر يوم: ${cats[0][0]} (${fmt(cats[0][1])})`]);
   }
   if(c.rise) al.filter(a=>a.rule.type==='rise').slice(0,12).forEach(a=>out.push(['u',a.tick]));
@@ -1449,8 +1453,8 @@ function renderDash(v){
       reopen:()=>{ const u=reopenStats(); return tile('معاد فتحها',fmt(u.nNew),u.all?`لم تُفتح · من ${fmt(u.all)}`:'اضغط للفحص',(u.nNew?'warn ':'')+'click" data-dgo="reopendlg'); },
       late:()=>{ const u=lateStats(); return tile('البلاغات المتأخرة',fmt(u.nNew),u.all?`لم تُفتح · من ${fmt(u.all)}`:'لا توجد',u.all?(u.nNew?'warn ':'')+'click" data-dgo="latedlg':''); },
       upd:()=>{ const u=updStats(); return tile('تحديثات البلاغات',fmt(u.nNew),u.all?`جديدة · من ${fmt(u.all)} بلاغ محدّث`:'لا توجد تحديثات',u.all?(u.nNew?'warn ':'')+'click" data-dgo="upddlg':''); },
-      sla:()=>st.sla?tile('خارج مستوى الخدمة',fmt(st.sla.all),`${pct(st.sla.all,st.sla.all+st.sla.allIn)} من الفترة`,'bad click" data-dgo="sla'):'',
-      slaIn:()=>st.sla?tile('داخل مستوى الخدمة',fmt(st.sla.allIn),pct(st.sla.allIn,st.sla.all+st.sla.allIn)+' من الفترة','good click" data-dgo="slain'):'',
+      sla:()=>st.sla?tile('خارج مستوى الخدمة',fmt(st.sla.all),`${pct2(st.sla.all,st.sla.all+st.sla.allIn)} من الفترة`,'bad click" data-dgo="sla'):'',
+      slaIn:()=>st.sla?tile('داخل مستوى الخدمة',fmt(st.sla.allIn),pct2(st.sla.allIn,st.sla.all+st.sla.allIn)+' من الفترة','good click" data-dgo="slain'):'',
       kw:()=>tile('بلاغات بكلمات حساسة',fmt(flagged),flagged?pct(flagged,tot)+' من الفترة':'—',flagged?'bad click" data-dgo="kw':''),
       callers:()=>tile('متصلون متكررون',fmt(rep),`${RPT.min}+ بلاغ لكل متصل`,rep?'click" data-dgo="callers':''),
       topDay:()=>tile('أعلى مركز في آخر يوم',st.topDay?esc(shortName(st.topDay[0])):'—',st.topDay?`${fmt(st.topDay[1])} بلاغ`:'','txt') };
@@ -1876,7 +1880,7 @@ function slaTile(w,CMP){
   const out=w==='out', col=out?'--bad':'--good', lbl=out?'خارج مستوى الخدمة':'داخل مستوى الخدمة', k=slaKey();
   if(!k) return `<div role="button" tabindex="0" class="kpi" data-dgo="slacol" style="text-align:start;cursor:pointer;border-color:color-mix(in srgb,var(${col}) 45%,var(--line));font:inherit;color:inherit"><span class="lbl">${lbl}</span><span class="val" style="color:var(--muted)">—</span><span class="sub">اضغط لإضافة العمود</span></div>`;
   const o=filtered.filter(r=>slaState(r,k)==='out').length, i=filtered.filter(r=>slaState(r,k)==='in').length, n=out?o:i;
-  return `<div role="button" tabindex="0" class="kpi" data-dgo="${out?'sla':'slain'}" style="text-align:start;cursor:pointer;border-color:color-mix(in srgb,var(${col}) 45%,var(--line));font:inherit;color:inherit"><span class="lbl">${lbl}</span><span class="val" style="color:var(${col})">${fmt(n)}</span><span class="sub">${o+i?`${pct(n,o+i)} من البلاغات`:'لا توجد قيم بعد'}</span>${CMP&&o+i?CMP(r=>slaState(r,k)===w,'',!out):''}</div>`;
+  return `<div role="button" tabindex="0" class="kpi" data-dgo="${out?'sla':'slain'}" style="text-align:start;cursor:pointer;border-color:color-mix(in srgb,var(${col}) 45%,var(--line));font:inherit;color:inherit"><span class="lbl">${lbl}</span><span class="val" style="color:var(${col})">${fmt(n)}</span><span class="sub">${o+i?`${pct2(n,o+i)} من البلاغات`:'لا توجد قيم بعد'}</span>${CMP&&o+i?CMP(r=>slaState(r,k)===w,'',!out):''}</div>`;
 }
 const WEEKDAYS=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
 function renderSummary(){
@@ -2901,6 +2905,8 @@ function panelHome(){
           const mains=countBy(RECS,'main').filter(x=>x[0]); return mains.map(([m,n])=>{ const subs=countBy(RECS.filter(r=>r.main===m),'sub').filter(x=>x[0]); return box('m:'+m,m,n,0)+subs.map(([s2,c2])=>box('s:'+s2,s2,c2,1)).join(''); }).join(''); })()}</div></details></div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint">عدد أحدث البلاغات في الشريط</span>${seg('dLatestN',[[3,'3'],[5,'5'],[10,'10'],[20,'20']],dashCfg().latestN)}</div>
       <div style="display:flex;gap:14px;flex-wrap:wrap"><span class="hint">محتوى الشريط الإخباري:</span>${[['stats','الأرقام والمقارنات'],['up','الزيادة عن الحد'],['down','الانخفاض عن الحد'],['sla','خارج مستوى الخدمة'],['value','التصنيفات والحالات المتابَعة'],['alerts','المتصلون المتكررون'],['kw','الكلمات الحساسة'],['latest','آخر البلاغات'],['rise','قاعدة النسبة القديمة']].map(([k,l])=>`<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" data-ditem="${k}" ${dashCfg().items[k]?'checked':''}><span>${l}</span></label>`).join('')}</div></div>
+    <div class="pcard"><h4>النسب المئوية</h4><div class="seg"><label><input type="radio" name="pctD" value="2" ${PCT_D===2?'checked':''}><span>منزلتان عشريتان (87,05%)</span></label><label><input type="radio" name="pctD" value="1" ${PCT_D===1?'checked':''}><span>كما كانت (87.1%)</span></label></div>
+      <p class="hint" style="margin:6px 0 0">تُطبَّق على كل النسب في الشاشة والتقارير وملفات التصدير (Excel) وملخص الاستيراد والفحص.</p></div>
     <div class="pcard"><h4>القائمة الجانبية</h4>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="hint">على الكمبيوتر</span>${seg('hSide',[['pin','ثابتة بجانب الصفحة'],['float','منبثقة بزر ☰']],HOME.side||'pin')}</div>
       <span class="hint">على الجوال تُفتح بزر ☰ أعلى الصفحة، أو بالسحب من حافة الشاشة اليمنى.</span></div>
@@ -2925,7 +2931,7 @@ function panelAlerts(){
              <span class="hint">مثال: مركز جاءه ${{day:'اليوم السابق',week:'الأسبوع السابق',month:'الشهر السابق'}[r.per||'day']} 20 بلاغاً، ومع 30% يظهر التنبيه إذا وصل إلى 26 أو أكثر (20 + 30% = 26). النسبة تناسب المراكز الكبيرة والصغيرة معاً.</span>`
           : `<div class="rf">الحد = عدد بلاغات كل ${nm} في ${{day:'اليوم السابق',week:'الأسبوع السابق',month:'الشهر السابق'}[r.per||'day']}. نبّهني إذا ${(r.dir||'up')==='down'?'نقص عنه':(r.dir||'up')==='both'?'زاد عليه أو نقص عنه':'زاد عليه'} بـ ${num(r,'margin',r.margin||1)} بلاغ أو أكثر، ولا تنبّه إذا كان عدد البلاغات أقل من ${num(r,'floor',r.floor||5)}</div>
            <span class="hint">مثال: مركز جاءه في ${{day:'اليوم السابق',week:'الأسبوع السابق',month:'الشهر السابق'}[r.per||'day']} 20 بلاغاً، فحده الآن <b>20 بلاغاً</b>؛ إذا جاءه ${(r.per||'day')==='day'?'اليوم':'في هذه الفترة'} 21 أو أكثر يظهر التنبيه. لكل ${nm} حد مختلف بالعدد.${(r.per||'day')==='day'?' تنبيه: المقارنة اليومية تتأثر بأيام الإجازة (الجمعة عادةً أقل)، فالأسبوعية أدق.':''}</span>`)+`
-           <details class="lims"><summary>عرض حد كل ${nm} بالعدد</summary>${(()=>{ const L=autoLimits(r); if(!L.length) return '<p class="hint">لا توجد بيانات كافية.</p>'; return `<div class="ctbl-wrap secmap"><table class="ctbl"><thead><tr><th>${nm}</th><th>الحد = ${{day:'اليوم السابق',week:'الأسبوع السابق',month:'الشهر السابق'}[r.per||'day']}</th><th>${esc(L[0].b.l)}</th><th>الفرق</th><th>النسبة</th></tr></thead><tbody>${L.map(g=>`<tr${g.hit?` style="background:color-mix(in srgb,var(--${g.hit==='up'?'bad':'good'}) 10%,transparent)"`:''}><td>${esc(g.v)}</td><td class="ck"><b>${fmt(g.th)}</b></td><td class="ck">${fmt(g.cur)}${g.hit==='up'?' ▲':g.hit==='down'?' ▼':''}</td><td class="ck" dir="ltr">${g.cur-g.th>0?'+':''}${fmt(g.cur-g.th)}</td><td class="ck" dir="ltr">${g.th?((g.cur-g.th)/g.th*100>0?'+':'')+((g.cur-g.th)/g.th*100).toFixed(0)+'%':'—'}</td></tr>`).join('')}</tbody></table></div>`; })()}</details>`
+           <details class="lims"><summary>عرض حد كل ${nm} بالعدد</summary>${(()=>{ const L=autoLimits(r); if(!L.length) return '<p class="hint">لا توجد بيانات كافية.</p>'; return `<div class="ctbl-wrap secmap"><table class="ctbl"><thead><tr><th>${nm}</th><th>الحد = ${{day:'اليوم السابق',week:'الأسبوع السابق',month:'الشهر السابق'}[r.per||'day']}</th><th>${esc(L[0].b.l)}</th><th>الفرق</th><th>النسبة</th></tr></thead><tbody>${L.map(g=>`<tr${g.hit?` style="background:color-mix(in srgb,var(--${g.hit==='up'?'bad':'good'}) 10%,transparent)"`:''}><td>${esc(g.v)}</td><td class="ck"><b>${fmt(g.th)}</b></td><td class="ck">${fmt(g.cur)}${g.hit==='up'?' ▲':g.hit==='down'?' ▼':''}</td><td class="ck" dir="ltr">${g.cur-g.th>0?'+':''}${fmt(g.cur-g.th)}</td><td class="ck" dir="ltr">${g.th?((g.cur-g.th)/g.th*100>0?'+':'')+pctF((g.cur-g.th)/g.th*100,0)+'%':'—'}</td></tr>`).join('')}</tbody></table></div>`; })()}</details>`
         : `<div class="rf">نبّهني إذا وصل أي ${nm} إلى ${num(r,'n',r.n)} بلاغ</div>`)
         + (r.subset==='sla'&&!slaKey()?`<span class="hint">بانتظار عمود «${esc(SLA.label)}». أضفه أو اختره من «الأعمدة» ← «اتفاقية مستوى الخدمة».</span>`:'')
         + (r.type==='sector'&&!RECS.some(x=>x.sector)?'<span class="hint">لا توجد قطاعات مسجلة في البلاغات بعد. اربط المراكز بالقطاعات من «القوائم والقطاعات».</span>':'');
@@ -3214,7 +3220,7 @@ function panelChange(t){
 const SETTINGS_APP='r937-db-settings';
 function settingsSnapshot(){
   return {app:SETTINGS_APP, version:1, exported:nowLocal(), brand:BRAND, schema:schemaSerial(), secmap:SECMAP, clinics:CLINICS,
-    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE, rtpl:RTPL, filters:FCFG, staffOvr:SOVR, staffSrc:STAFF_SRC, staffPos:STAFF_POS, closerNames:CLOSER_NAMES, periods:SPER, ctype:CTYPE, visitsSet:VSET, general:GEN, dur:DUR, fixes:FIX, reopenSet:ROSET};
+    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE, rtpl:RTPL, filters:FCFG, staffOvr:SOVR, staffSrc:STAFF_SRC, staffPos:STAFF_POS, closerNames:CLOSER_NAMES, periods:SPER, ctype:CTYPE, visitsSet:VSET, general:GEN, dur:DUR, fixes:FIX, reopenSet:ROSET, pctD:PCT_D};
 }
 function pinnedExport(){ try{ keepPinned(LOG); }catch(e){} return [...PINL].map(id=>{ const r=byId.get(id); return r?{no:r.no,items:PINLOG[id]||[]}:null; }).filter(Boolean); }
 async function exportSettings(){
@@ -3236,6 +3242,7 @@ async function importSettings(file){
         if(Array.isArray(s.clinics)){ CLINICS=s.clinics.filter(x=>Array.isArray(x)&&x[0]).map(x=>[String(x[0]),String(x[1]||'')]); saveClinics(); }
         if(Array.isArray(s.staffHide)){ STAFF_HIDE=new Set(s.staffHide); saveStaffHide(); }
         if(s.staffMin){ STAFF_MIN=+s.staffMin||1; localStorage.setItem('r937-staffmin-v1',String(STAFF_MIN)); }
+        if(s.pctD){ PCT_D=+s.pctD===1?1:2; try{ localStorage.setItem(PCT_KEY,String(PCT_D)); }catch(x){} }
         if(s.repeat){ RPT={min:2,short:false,...s.repeat}; saveRpt(); }
         if(Array.isArray(s.periods)){ SPER=s.periods; savePeriods(); }
         if(Array.isArray(s.pinned) && s.pinned.length){ const m=new Map(RECS.map(r=>[keyNo(r.no),r])); let nP=0;
@@ -3633,7 +3640,7 @@ function kpiValues(list,ids){ const tot=list.length; const cache={}; const cb=(k
     if(id==='d24'||id==='d48'||id==='dOver'){ const lv={d24:'g',d48:'o',dOver:'r'}[id]; const n=list.filter(r=>{ const d=durInfo(r); return d.st!=='none'&&d.lvl===lv; }).length; return [durLabels()[lv],n,pct(n,tot)+' من البلاغات']; }
     if(id==='durOpen'||id==='durClosed'||id==='durLate'){ let o=0,c=0,l=0; list.forEach(r=>{ const d=durInfo(r); if(d.st==='closed') c++; else if(d.st==='open'){ o++; if(d.lvl==='r') l++; } });
       if(id==='durOpen') return ['البلاغات المفتوحة',o,pct(o,tot)+' من البلاغات']; if(id==='durClosed') return ['البلاغات المغلقة',c,pct(c,tot)+' من البلاغات']; return ['مفتوحة متأخرة',l,`أكثر من ${+DUR.t2||48} ساعة`]; }
-    if(id==='slaOut'||id==='slaIn'){ const k=slaKey(); const n=k?list.filter(r=>slaState(r,k)===(id==='slaOut'?'out':'in')).length:0; return [KPI_BASE[id],n,pct(n,tot)+' من البلاغات']; }
+    if(id==='slaOut'||id==='slaIn'){ const k=slaKey(); const n=k?list.filter(r=>slaState(r,k)===(id==='slaOut'?'out':'in')).length:0; return [KPI_BASE[id],n,pct2(n,tot)+' من البلاغات']; }
     if(id==='callers'){ const g=(active('caller')||active('nid'))?repeatGroups(list,RPT.min):[]; return ['متصلون متكررون',g.length,`${RPT.min}+ بلاغ لكل متصل`]; }
     const [t,k,v]=id.split('|'); if(!col(k)) return null; const arr=cb(k);
     if(t==='top'&&k==='__dur') return arr[0]?[`الأعلى في مدة الإغلاق: ${arr[0][0]}`,arr[0][1],pct(arr[0][1],tot)+' من البلاغات']:['الأعلى في مدة الإغلاق','—',''];
@@ -3974,7 +3981,7 @@ function colName(c){ let s=''; c++; while(c>0){ const m=(c-1)%26; s=String.fromC
 const xe=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'');
 function serial(d){ const m=/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?/.exec(d||''); if(!m) return null; const t=Date.UTC(+m[1],+m[2]-1,+m[3],+(m[4]||0),+(m[5]||0),+(m[6]||0)); return t/86400000+25569; }
 const STY=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="2"><numFmt numFmtId="164" formatCode="yyyy/mm/dd hh:mm"/><numFmt numFmtId="165" formatCode="0.0%"/></numFmts>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="2"><numFmt numFmtId="164" formatCode="yyyy/mm/dd hh:mm"/><numFmt numFmtId="165" formatCode="${PCT_D===2?'0.00%':'0.0%'}"/></numFmts>
 <fonts count="4"><font><sz val="11"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="11"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="14"/><color rgb="FF0B6B5D"/><name val="Calibri"/><family val="2"/></font></fonts>
 <fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF0B6B5D"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFDCEEEA"/><bgColor indexed="64"/></patternFill></fill></fills>
 <borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFD3DEDB"/></left><right style="thin"><color rgb="FFD3DEDB"/></right><top style="thin"><color rgb="FFD3DEDB"/></top><bottom style="thin"><color rgb="FFD3DEDB"/></bottom><diagonal/></border></borders>
@@ -4070,7 +4077,7 @@ function rptStyles0(c){
     xf(0,5,4,2,'horizontal="left" vertical="center" shrinkToFit="1"')  // 23 section note
   ];
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="3"><numFmt numFmtId="164" formatCode="yyyy/mm/dd hh:mm"/><numFmt numFmtId="165" formatCode="0.0%"/><numFmt numFmtId="166" formatCode=";;;"/></numFmts>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="3"><numFmt numFmtId="164" formatCode="yyyy/mm/dd hh:mm"/><numFmt numFmtId="165" formatCode="${PCT_D===2?'0.00%':'0.0%'}"/><numFmt numFmtId="166" formatCode=";;;"/></numFmts>
 <fonts count="8"><font><sz val="11"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="11"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="20"/><color rgb="FF16211F"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="11"/><color rgb="FF${A}"/><name val="Calibri"/><family val="2"/></font><font><sz val="10"/><color rgb="FF5E6E6B"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="12"/><color rgb="FF16211F"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="18"/><color rgb="FF${A}"/><name val="Calibri"/><family val="2"/></font></fonts>
 <fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF${A}"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FF${S}"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FF${B}"/><bgColor indexed="64"/></patternFill></fill></fills>
 <borders count="4"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFD3DEDB"/></left><right style="thin"><color rgb="FFD3DEDB"/></right><top style="thin"><color rgb="FFD3DEDB"/></top><bottom style="thin"><color rgb="FFD3DEDB"/></bottom><diagonal/></border><border><left style="thin"><color rgb="FFD3DEDB"/></left><right style="thick"><color rgb="FF${A}"/></right><top style="thin"><color rgb="FFD3DEDB"/></top><bottom style="thin"><color rgb="FFD3DEDB"/></bottom><diagonal/></border><border><left style="thin"><color rgb="FFD3DEDB"/></left><right style="thin"><color rgb="FFD3DEDB"/></right><top style="medium"><color rgb="FF${A}"/></top><bottom style="thin"><color rgb="FFD3DEDB"/></bottom><diagonal/></border></borders>
@@ -4950,6 +4957,7 @@ document.addEventListener('click',e=>{ const b=e.target.closest('[data-mvb]'); i
   if(a==='arch') mvArchive(); if(a==='max') moveDialog();
   if(a==='later'){ MVS.snooze=Date.now()+7*864e5; saveMVS(); renderMvBanner(); toast('سيظهر التنبيه مرة أخرى بعد 7 أيام'); }
   if(a==='ok'){ MVS.cut=null; saveMVS(); renderMvBanner(); } });
+document.addEventListener('change',e=>{ if(e.target.name!=='pctD') return; PCT_D=+e.target.value===1?1:2; try{ localStorage.setItem(PCT_KEY,String(PCT_D)); }catch(x){} try{ refresh(true); }catch(x){} toast(PCT_D===2?'النسب بمنزلتين عشريتين':'النسب كما كانت'); });
 document.addEventListener('change',e=>{ if(e.target.id==='perfMvWarn'){ MVS.warn=+e.target.value; MVS.snooze=0; saveMVS(); renderMvBanner(); } });
 async function mvArchive(){ if(!MV.length){ toast('لا توجد حركات'); return; } await mvExportJson(); MVS.cut=null; MVS.snooze=0; saveMVS(); renderMvBanner();
   const lim=new Date(Date.now()-182*864e5).toISOString(); const n=MV.filter(x=>x[0]<lim).length;
