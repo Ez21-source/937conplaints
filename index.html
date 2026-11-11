@@ -710,7 +710,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '117';
+const APP_VER = '119';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -2098,7 +2098,7 @@ function renderView(){
     const tid=rtSel(), sp=specOf(tid), pins=RTPL.filter(t=>t.pin); ensureFont(rFont(sp).fam); const nC=condFilter(filtered,sp.cond).length;
     v.innerHTML=`<div class="pcard" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><span class="hint">التقارير:</span><button type="button" class="btn sm ${!tid?'primary':''}" data-rtsel="">الافتراضي</button>${pins.map(t=>`<button type="button" class="btn sm ${tid===t.id?'primary':''}" data-rtsel="${t.id}">📌 ${esc(t.name)}</button>`).join('')}${tid&&!pins.some(t=>t.id===tid)?`<button type="button" class="btn sm primary" data-rtsel="${tid}">${esc(sp.tplName||'')}</button>`:''}<button type="button" class="btn sm ghost" data-rtgo="edit">✎ تعديل</button><button type="button" class="btn sm ghost" data-rtgo="all">📚 النماذج</button></div>
     <div class="pcard" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><span class="hint">نوع التقرير:</span><div class="seg"><label><input type="radio" name="rkind" value="full" ${sp.kind!=='simple'?'checked':''}><span>شامل</span></label><label><input type="radio" name="rkind" value="simple" ${sp.kind==='simple'?'checked':''}><span>بسيط (صفحة واحدة)</span></label></div>
-      ${sp.kind==='simple'||(sp.sec||{}).daily?`<span class="hint" style="margin-inline-start:8px">الرسم:</span><div class="seg"><label><input type="radio" name="rsChart" value="line" ${sp.sChart!=='bar'?'checked':''}><span>خطي</span></label><label><input type="radio" name="rsChart" value="bar" ${sp.sChart==='bar'?'checked':''}><span>أعمدة</span></label></div><span class="hint">الخط الزمني:</span><div class="seg">${TIME_OPTS.map(([v,l])=>`<label><input type="radio" name="rsTime" value="${v}" ${(sp.sTime||'auto')===v?'checked':''}><span>${l}</span></label>`).join('')}</div>${sp.kind==='simple'?`<span class="hint">جدول التصنيفات:</span><div class="seg">${[5,10,20].map(n=>`<label><input type="radio" name="rsTop" value="${n}" ${(+sp.sTop||10)===n?'checked':''}><span>أعلى ${n}</span></label>`).join('')}</div>`:''}`:''}
+      ${sp.kind==='simple'||(sp.sec||{}).daily?`<span class="hint" style="margin-inline-start:8px">الرسم:</span><div class="seg"><label><input type="radio" name="rsChart" value="line" ${sp.sChart!=='bar'?'checked':''}><span>خطي</span></label><label><input type="radio" name="rsChart" value="bar" ${sp.sChart==='bar'?'checked':''}><span>أعمدة</span></label></div><span class="hint">الخط الزمني:</span><div class="seg">${TIME_OPTS.map(([v,l])=>`<label><input type="radio" name="rsTime" value="${v}" ${(sp.sTime||'auto')===v?'checked':''}><span>${l}</span></label>`).join('')}</div>${sp.kind==='simple'?`<span class="hint">الجداول:</span><div class="seg">${[5,10,20].map(n=>`<label><input type="radio" name="rsTop" value="${n}" ${(+sp.sTop||10)===n?'checked':''}><span>أعلى ${n}</span></label>`).join('')}</div>`:''}`:''}
       <span class="hint" style="margin-inline-start:8px">${UPD_LBL}:</span><input type="datetime-local" class="inp" id="rpUpd" value="${esc(updOf().v)}" style="width:auto"><button type="button" class="btn sm" data-rtgo="now">الآن</button><span style="flex:1"></span><span class="hint">تصدير:</span><button type="button" class="btn sm" data-rtx="pdf">PDF</button><button type="button" class="btn sm" data-rtx="xlsx">Excel</button><button type="button" class="btn sm" data-rtx="png">صورة</button><button type="button" class="btn sm" data-rtx="html">HTML</button></div>${(sp.cond||[]).length&&condText(sp.cond)?`<p class="hint" style="margin-top:0">يشمل: <b>${esc(condText(sp.cond))}</b> · ${fmt(nC)} بلاغ من ${fmt(filtered.length)}</p>`:''}
     <div class="preview-scroll"><div id="rpSlot"></div></div><p class="hint" style="margin-top:8px">هذا شكل التقرير للفلاتر الحالية بآخر إعدادات طباعة استخدمتها. غيّر الورق والاتجاه والأقسام من «طباعة وتصدير»، والألوان والشعار والغلاف من <button type="button" class="btn sm" id="expRStyle">🎨 تنسيق التقرير</button></p>`;
     document.getElementById('rpSlot').replaceWith(buildReport(filtered,{...sp,list:nC<=200&&sp.list}));
@@ -2171,7 +2171,7 @@ function timeSeries(list,mode){ const ds=list.map(r=>r.date&&String(r.date).slic
   const ks=[]; while((y<y2||(y===y2&&mo<=m2))||ks.length<need){ ks.push(`${y}-${String(mo).padStart(2,'0')}`); mo++; if(mo>12){ mo=1; y++; } if(ks.length>240) break; }
   const multi=ks[0].slice(0,4)!==ks[ks.length-1].slice(0,4);
   return {unit:'month',mode,pts:ks.map(k=>[AR_MON[+k.slice(5)-1]+(multi?' '+k.slice(2,4):''),cnt.get(k)||0,k])}; }
-function monthChartSVG(ms,type,color,Wd){ const n=ms.length, dense=n>13, two=ms.some(x=>Array.isArray(x[0])), H=dense?240:230, pl=14, pr=14, pt=24, pb=two?44:(dense?26:34), fl=dense?10:12, fv=dense?(n>24?9:10):12, step=n>40?Math.ceil(n/31):1, nov=n>40; if(!n) return '<p style="color:#888">لا توجد بيانات</p>';
+function monthChartSVG(ms,type,color,Wd,Hh){ const n=ms.length, dense=n>13, two=ms.some(x=>Array.isArray(x[0])), H=Hh||(dense?240:230), pl=14, pr=14, pt=24, pb=two?44:(dense?26:34), fl=dense?10:12, fv=dense?(n>24?9:10):12, step=n>40?Math.ceil(n/31):1, nov=n>40; if(!n) return '<p style="color:#888">لا توجد بيانات</p>';
   const max=Math.max(1,...ms.map(x=>x[1])), cw=(Wd-pl-pr)/n, y=v=>pt+(H-pt-pb)*(1-v/max), xs=i=>Wd-pr-cw*(i+0.5);
   let g=`<line x1="${pl}" y1="${H-pb}" x2="${Wd-pr}" y2="${H-pb}" stroke="#d5dcda"/>`;
   for(let t=1;t<=3;t++){ const yy=pt+(H-pt-pb)*(t/4); g+=`<line x1="${pl}" y1="${yy}" x2="${Wd-pr}" y2="${yy}" stroke="#eef1f0"/>`; }
@@ -2200,9 +2200,20 @@ function reportFoot(tot,o,st,range){
   const L=H.l?esc(hfFill(H.l,ctx)):(b.preparer?`إعداد: <b>${esc(b.preparer)}</b>`:'');
   return `<div class="rp-foot" style="${hfCss(H,11)}${H.line?'':'border-top:0;'}"><span>${R}</span><span>${L}</span></div>`;
 }
+// قائمة الأقسام بصدق: التصنيف الرئيسي والفرعي منفصلان، وما لا يمكن ظهوره يُعطَّل مع السبب
+function secItems(){ return [['daily','عدد البلاغات (الخط الزمني)',''],['center','حسب المركز الصحي',''],
+  ['cm','حسب '+label('main'),active('main')?'':'العمود غير مفعّل'],['cs','حسب '+short('sub'),active('sub')?'':'العمود غير مفعّل'],
+  ['sector','حسب القطاع',active('sector')?'':'العمود غير مفعّل'],['callers','المتصلون الأكثر تكراراً',(active('caller')||active('nid'))?'':'لا يوجد عمود للمتصل'],
+  ['staff','الموظفون المذكورون',''],['clinics','العيادات المذكورة','']]; }
+const secOn=(sec,k)=>k==='cm'?!!(sec.cats&&sec.cm!==0):k==='cs'?!!(sec.cats&&sec.cs!==0):!!sec[k];
+function secSet(sec,k,on){ if(k==='cm'||k==='cs'){ const cm=k==='cm'?on:secOn(sec,'cm'), cs=k==='cs'?on:secOn(sec,'cs'); sec.cm=cm?1:0; sec.cs=cs?1:0; sec.cats=cm||cs?1:0; } else sec[k]=on?1:0; }
+const SIMPLE_OK=['daily','center','cm','cs'];
+const SIMPLE_NOTE='في التقرير البسيط (صفحة واحدة) تعمل فقط: الخط الزمني والمركز الصحي والتصنيفات، وعدد الصفوف من «أعلى 5 / 10 / 20». البقية للتقرير الشامل.';
+function simplePicks(sec){ const on=k=>secOn(sec,k); return {daily:on('daily'),center:on('center'),cm:on('cm')&&active('main'),cs:on('cs')&&active('sub')}; }
+function secChecks(sec,attr,simple){ return `<div class="checks secbox">${secItems().map(([k,l,why])=>`<label title="${esc(why)}"><input type="checkbox" ${attr}="${k}" ${secOn(sec,k)&&!why?'checked':''} ${why||(simple&&!SIMPLE_OK.includes(k))?'disabled':''}>${esc(l)}${why?` <span class="hint">(${esc(why)})</span>`:''}</label>`).join('')}</div><p class="hint simple-note" ${simple?'':'hidden'} style="color:var(--warn,#B7791F);margin:4px 0 0">${SIMPLE_NOTE}</p>`; }
 function buildReport(list,opts){
   opts={list:false,pii:false,top:20,orient:'landscape',sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1},...opts};
-  if(opts.kind==='simple') opts={...opts,sec:{kpi:1},cols:[],list:false};
+  let SS=null; if(opts.kind==='simple'){ SS=simplePicks(opts.sec||{}); opts={...opts,sec:{kpi:(opts.sec||{}).kpi===0?0:1},cols:[],list:false}; }
   const b=brand(), ST0=opts.style||RSTYLE, ST=opts.kind==='simple'?{...ST0,cover:{...(ST0.cover||{}),on:0}}:ST0, c=rsColors(ST); list=condFilter(list,opts.cond); const RF=rFont(opts,ST);
   const el=document.createElement('div'); el.className='rp'+(opts.orient==='portrait'?' portrait':'');
   el.style.cssText=`--rp-a:${c.a};--rp-soft:${c.soft};--rp-band:${c.band};--rp-bar:${c.bar};--rp-th:${c.th};--rp-title:${c.title};--rp-logo:${+ST.logoSize||64}px;--rp-k:${RF.size/100}${RF.fam!=='plex'?`;font-family:${rfStack(RF.fam)};--rp-fh:${rfStack(RF.fam)}`:''}${RF.color?`;--rp-ink:${RF.color}`:''}`;
@@ -2229,13 +2240,16 @@ function buildReport(list,opts){
     <div class="rp-band"></div>
     ${opts.showFilters&&fd.length?`<div class="rp-filters">${fd.map(([a,v])=>`<span>${esc(a)}: <b>${esc(v)}</b></span>`).join('')}</div>`:''}${(opts.cond||[]).length&&condText(opts.cond)?`<div class="rp-filters"><span>يشمل: <b>${esc(condText(opts.cond))}</b></span></div>`:''}
     ${opts.sec.kpi?(()=>{ const K=kpiValues(list,Array.isArray(opts.kpis)?opts.kpis:DEF_PRINT.kpis); return K.length?`<div class="rp-kpis" style="--kc:${Math.min(K.length,4)}">${K.map(([l,v,sx])=>`<div class="rp-kpi"><div class="l">${esc(l)}</div><div class="v${typeof v==='number'?'':' t'}">${typeof v==='number'?fmt(v):esc(v)}</div><div class="s">${esc(sx||'')}</div></div>`).join('')}</div>`:''; })():''}</div>`;
-  if(opts.kind==='simple'){ const LAND=opts.orient!=='portrait', TS=timeSeries(list,opts.sTime), ms=TS.pts, ck=active('sub')?'sub':'main', arr=countBy(list,null,r=>rpv(r,ck)||'—'), n=+opts.sTop||10, dense=ms.length>13;
-    const chart=`<div class="rp-sec"><h4>عدد البلاغات لكل ${TS.unit==='day'?'يوم':'شهر'}<small>${esc(range)}</small></h4><div class="rp-body">${monthChartSVG(ms,opts.sChart==='bar'?'bar':'line',c.bar,LAND?(dense?610:560):W)}</div></div>`;
-    const tbl=`<div class="rp-sec"><h4>أعلى ${esc(ck==='sub'?short('sub'):label('main'))}<small>أعلى ${fmt(Math.min(n,arr.length))} من ${fmt(arr.length)}</small></h4><div class="rp-body">${rptTable(arr,ck==='sub'?short('sub'):label('main'),tot,n)}</div></div>`;
-    h+=LAND?`<div class="blk"><div style="display:grid;grid-template-columns:${dense?'1.45fr 1fr':'1.2fr 1fr'};gap:12px;align-items:start">${chart}${tbl}</div></div>`:`<div class="blk">${chart}</div><div class="blk">${tbl}</div>`; }
+  if(SS){ const LAND=opts.orient!=='portrait', n=+opts.sTop||10;
+    const T=[]; const tb=(arr,lab)=>T.push(`<div class="rp-sec"><h4>أعلى ${fmt(Math.min(n,arr.length))} · ${esc(lab)}<small>من ${fmt(arr.length)}</small></h4><div class="rp-body">${rptTable(arr,lab,tot,n)}</div></div>`);
+    if(SS.center) tb(centers,'المركز الصحي'); if(SS.cm) tb(mains,label('main')); if(SS.cs) tb(subs,short('sub'));
+    let chart='', dense=false; if(SS.daily){ const TS=timeSeries(list,opts.sTime), ms=TS.pts; dense=ms.length>13; const side=LAND&&T.length===1;
+      chart=`<div class="rp-sec"><h4>عدد البلاغات لكل ${TS.unit==='day'?'يوم':'شهر'}<small>${esc(range)}</small></h4><div class="rp-body">${monthChartSVG(ms,opts.sChart==='bar'?'bar':'line',c.bar,side?(dense?610:560):W,T.length>1&&LAND?190:0)}</div></div>`; }
+    if(chart&&LAND&&T.length===1) h+=`<div class="blk"><div style="display:grid;grid-template-columns:${dense?'1.45fr 1fr':'1.2fr 1fr'};gap:12px;align-items:start">${chart}${T[0]}</div></div>`;
+    else { if(chart) h+=`<div class="blk">${chart}</div>`; if(T.length) h+=`<div class="blk"><div style="display:grid;grid-template-columns:repeat(${LAND?T.length:Math.min(2,T.length)},1fr);gap:12px;align-items:start">${T.join('')}</div></div>`; } }
   if(opts.sec.daily){ const TS=timeSeries(list,opts.sTime); h+=`<div class="blk"><div class="rp-sec"><h4>عدد البلاغات لكل ${TS.unit==='day'?'يوم':'شهر'}<small>${esc(range)}</small></h4><div class="rp-body">${monthChartSVG(TS.pts,opts.sChart==='bar'?'bar':'line',c.bar,W)}</div></div></div>`; }
   if(opts.sec.center) h+=`<div class="blk"><div class="rp-sec"><h4>البلاغات حسب المركز الصحي<small>${fmt(centers.length)} مركز</small></h4><div class="rp-body">${rptTable(centers,'المركز الصحي',tot,top)}</div></div></div>`;
-  if(opts.sec.cats && (active('main')||active('sub'))){ const parts=[]; if(active('main')) parts.push(`<div class="rp-sec"><h4>حسب ${esc(label('main'))}<small>${fmt(mains.length)} تصنيف</small></h4><div class="rp-body">${rptTable(mains,label('main'),tot,top)}</div></div>`); if(active('sub')) parts.push(`<div class="rp-sec"><h4>حسب ${esc(short('sub'))}<small>${fmt(subs.length)} تصنيف</small></h4><div class="rp-body">${rptTable(subs,short('sub'),tot,top)}</div></div>`); h+=`<div class="blk"><div class="${parts.length>1?'rp-two':''}">${parts.join('')}</div></div>`; }
+  if(opts.sec.cats && ((active('main')&&opts.sec.cm!==0)||(active('sub')&&opts.sec.cs!==0))){ const parts=[]; if(active('main')&&opts.sec.cm!==0) parts.push(`<div class="rp-sec"><h4>حسب ${esc(label('main'))}<small>${fmt(mains.length)} تصنيف</small></h4><div class="rp-body">${rptTable(mains,label('main'),tot,top)}</div></div>`); if(active('sub')&&opts.sec.cs!==0) parts.push(`<div class="rp-sec"><h4>حسب ${esc(short('sub'))}<small>${fmt(subs.length)} تصنيف</small></h4><div class="rp-body">${rptTable(subs,short('sub'),tot,top)}</div></div>`); h+=`<div class="blk"><div class="${parts.length>1?'rp-two':''}">${parts.join('')}</div></div>`; }
   if(opts.sec.callers && (active('caller')||active('nid'))){ const gs=repeatGroups(list,Math.max(2,RPT.min)); if(gs.length){ const lim=Math.min(opts.top||1e9,gs.length); const max=gs[0].n;
     h+=`<div class="blk"><div class="rp-sec"><h4>المتصلون الأكثر تكراراً<small>${fmt(gs.length)} متصل لهم ${Math.max(2,RPT.min)} بلاغات فأكثر · ${fmt(gs.reduce((s,g)=>s+g.n,0))} بلاغ</small></h4><div class="rp-body"><table class="rpt"><thead><tr><th></th><th>المتصل</th><th style="text-align:center">البلاغات</th><th>المراكز</th><th>أكثر تصنيف</th><th>آخر بلاغ</th><th></th></tr></thead><tbody>${gs.slice(0,lim).map((g,i)=>`<tr><td class="r">${i+1}</td><td>${opts.pii?esc(g.name||g.nid):`متصل ${i+1}`}</td><td class="n">${fmt(g.n)}</td><td>${esc(g.centers.map(c=>c[0]).slice(0,2).join('، '))}${g.centers.length>2?` +${g.centers.length-2}`:''}</td><td>${esc(g.sub)}</td><td class="p" style="width:auto">${esc(fmtDate(g.last).slice(0,10))}</td><td class="bar"><div class="barline"><span style="width:${(g.n/max*100).toFixed(1)}%"></span></div></td></tr>`).join('')}</tbody></table>${opts.pii?'':'<p style="margin:6px 0 0;font-size:11px;color:var(--rp-mut)">الأسماء مخفية. اختر «تضمين اسم المتصل ورقم الهوية» عند التصدير لإظهارها.</p>'}</div></div></div>`; } }
   if(opts.sec.clinics){ const gs=clinicGroups(list,1); if(gs.length){ const lim=Math.min(opts.top||1e9,gs.length); const max=gs[0].n;
@@ -3649,8 +3663,8 @@ function rtplEditor(id,after){
       <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="tePin" ${d.pin?'checked':''}> تثبيت في تبويب «معاينة التقرير»</label>`}
       <div class="field"><label>عنوان التقرير</label><input class="inp" id="teTitle" value="${esc(d.title||'')}" placeholder="${esc(BRAND.title||'تقرير البلاغات')}"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="hint">نوع التقرير</span>${seg('teKind',[['full','شامل'],['simple','بسيط (صفحة واحدة)']],d.kind||'full')}</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="hint">الرسم الزمني</span>${seg('teSChart',[['line','خطي'],['bar','أعمدة']],d.sChart||'line')}<span class="hint">الخط الزمني</span>${seg('teSTime',TIME_OPTS,d.sTime||'auto')}<span class="hint">جدول التصنيفات</span>${seg('teSTop',[[5,'أعلى 5'],[10,'أعلى 10'],[20,'أعلى 20']],d.sTop||10)}</div>
-      <p class="hint" style="margin:0">التقرير البسيط: العنوان والمؤشرات المختارة، ثم رسم عدد البلاغات حسب الخط الزمني المختار (أيام أو أشهر)، ثم جدول أعلى التصنيفات الفرعية — في صفحة واحدة.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="hint">الرسم الزمني</span>${seg('teSChart',[['line','خطي'],['bar','أعمدة']],d.sChart||'line')}<span class="hint">الخط الزمني</span>${seg('teSTime',TIME_OPTS,d.sTime||'auto')}<span class="hint">الجداول</span>${seg('teSTop',[[5,'أعلى 5'],[10,'أعلى 10'],[20,'أعلى 20']],d.sTop||10)}</div>
+      <p class="hint" style="margin:0">التقرير البسيط في صفحة واحدة: البطاقات المختارة، ثم الخط الزمني، ثم جداول «أعلى» للمركز الصحي والتصنيفات حسب ما تؤشّره في «الأقسام والجداول».</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="hint">الاتجاه</span>${seg('teOr',[['landscape','أفقي'],['portrait','عمودي']],d.orient)}<span class="hint">عناصر الجداول</span>${seg('teTop',[[10,'أعلى 10'],[20,'أعلى 20'],[50,'أعلى 50'],[0,'الكل']],d.top)}</div>
       <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="teFlt" ${d.showFilters?'checked':''}> إظهار الفلاتر المطبقة في الصفحة الأولى</label>
       <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="tePii" ${d.pii?'checked':''}> تضمين البيانات الشخصية</label></div>
@@ -3663,8 +3677,7 @@ function rtplEditor(id,after){
       <div style="display:grid;gap:4px;margin:8px 0">${d.kpis.map((k,i)=>`<div style="display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:4px 8px"><b style="flex:1">${esc(kpiName(k))}</b>${mv(i,'k')}<button type="button" class="btn sm ghost danger" data-kdel="${i}">✕</button></div>`).join('')||'<span class="hint">لا توجد مؤشرات</span>'}</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><select class="inp" id="teKb" style="width:auto">${opt([['','مؤشر جاهز…'],...Object.entries(KPI_BASE).filter(([k])=>!d.kpis.includes(k))],'')}</select><button type="button" class="btn sm" id="teKbAdd">إضافة</button></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px"><span class="hint">من عمود:</span><select class="inp" id="teKc" style="width:auto">${opt(RC(),'sub')}</select><select class="inp" id="teKm" style="width:auto">${opt(Object.entries(KPI_MODES),'top')}</select><select class="inp" id="teKv" style="width:auto;max-width:220px"></select><button type="button" class="btn sm" id="teKcAdd">إضافة</button></div></div>
-    <div class="pcard"><h4>الأقسام والجداول</h4><div class="checks">
-      ${[['daily','عدد البلاغات (الخط الزمني)'],['center','حسب المركز الصحي'],['cats','حسب التصنيفات'],['sector','حسب القطاع'],['callers','المتصلون الأكثر تكراراً'],['staff','الموظفون المذكورون'],['clinics','العيادات المذكورة']].map(([k,l])=>`<label><input type="checkbox" data-tesec="${k}" ${d.sec[k]?'checked':''}>${l}</label>`).join('')}</div>
+    <div class="pcard"><h4>الأقسام والجداول</h4>${secChecks(d.sec,'data-tesec',d.kind==='simple')}
       <p class="hint">جداول إضافية «حسب عمود» (بالترتيب):</p>
       <div style="display:grid;gap:4px">${d.cols.map((k,i)=>`<div style="display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:4px 8px"><b style="flex:1">حسب ${esc(label(k))}</b>${mv(i,'c')}<button type="button" class="btn sm ghost danger" data-cdel="${i}">✕</button></div>`).join('')}</div>
       <div style="display:flex;gap:6px;margin-top:6px"><select class="inp" id="teCc" style="width:auto">${opt(RC().filter(([k])=>!d.cols.includes(k)),'')}</select><button type="button" class="btn sm" id="teCcAdd">إضافة جدول</button></div></div>
@@ -3691,9 +3704,9 @@ function rtplEditor(id,after){
       s.addEventListener('input',e=>{ const t=e.target; if(t.id==='teName') d.name=t.value; if(t.id==='teTitle') d.title=t.value; if(t.id==='teFc'){ d.font.color=t.value; }
         if(t.id==='teCq'){ condQ=t.value; clearTimeout(s._q); s._q=setTimeout(re,250); } });
       s.addEventListener('change',e=>{ const t=e.target;
-        if(t.id==='tePin') d.pin=t.checked; if(t.name==='teOr') d.orient=t.value; if(t.name==='teKind') d.kind=t.value; if(t.name==='teSChart') d.sChart=t.value; if(t.name==='teSTop') d.sTop=+t.value; if(t.name==='teSTime') d.sTime=t.value; if(t.name==='teTop') d.top=+t.value;
+        if(t.id==='tePin') d.pin=t.checked; if(t.name==='teOr') d.orient=t.value; if(t.name==='teKind'){ d.kind=t.value; const sm=t.value==='simple'; s.querySelectorAll('[data-tesec]').forEach(c=>{ c.disabled=(sm&&!SIMPLE_OK.includes(c.dataset.tesec))||!!c.closest('label').title; }); s.querySelectorAll('.simple-note').forEach(n=>n.hidden=!sm); const tl=s.querySelector('#teList'); if(tl) tl.disabled=sm; } if(t.name==='teSChart') d.sChart=t.value; if(t.name==='teSTop') d.sTop=+t.value; if(t.name==='teSTime') d.sTime=t.value; if(t.name==='teTop') d.top=+t.value;
         if(t.id==='teFlt') d.showFilters=t.checked?1:0; if(t.id==='tePii') d.pii=t.checked; if(t.id==='teList') d.list=t.checked; if(t.id==='teKpiOn') d.sec.kpi=t.checked?1:0;
-        if(t.dataset.tesec) d.sec[t.dataset.tesec]=t.checked?1:0;
+        if(t.dataset.tesec) secSet(d.sec,t.dataset.tesec,t.checked);
         if(t.id==='teFam') d.font.fam=t.value; if(t.name==='teFs') d.font.size=t.value?+t.value:'';
         if(t.id==='teKc'||t.id==='teKm') fillKv(s);
         if(t.dataset.cck!=null){ const c=d.cond[+t.dataset.cck]; c.k=t.value; c.v=[]; re(); }
@@ -3837,13 +3850,7 @@ function exportDialog(kind,tplId){
       <span class="l lay">عناصر الجداول</span><div class="lay">${seg('pt',[[10,'أعلى 10'],[20,'أعلى 20'],[50,'أعلى 50'],[0,'الكل']],P.top)}</div>
       <span class="l lay">الأقسام</span><div class="checks lay">
         <label><input type="checkbox" data-sec="kpi" ${P.sec.kpi?'checked':''}>المؤشرات الرئيسية</label>
-        <label><input type="checkbox" data-sec="daily" ${P.sec.daily?'checked':''}>عدد البلاغات (الخط الزمني)</label>
-        <label><input type="checkbox" data-sec="center" ${P.sec.center?'checked':''}>حسب المركز الصحي</label>
-        <label><input type="checkbox" data-sec="cats" ${P.sec.cats?'checked':''}>حسب التصنيفات</label>
-        <label><input type="checkbox" data-sec="sector" ${P.sec.sector?'checked':''}>حسب القطاع</label>
-        <label><input type="checkbox" data-sec="callers" ${P.sec.callers?'checked':''}>المتصلون الأكثر تكراراً</label>
-        <label><input type="checkbox" data-sec="staff" ${P.sec.staff?'checked':''}>الموظفون المذكورون</label>
-        <label><input type="checkbox" data-sec="clinics" ${P.sec.clinics?'checked':''}>العيادات المذكورة</label>
+        </div>${secChecks(P.sec,'data-sec',P.kind==='simple')}<div class="checks lay">
         <label><input type="checkbox" id="pList" ${P.list?'checked':''}>قائمة البلاغات التفصيلية</label>
       </div>
       <span class="l">البيانات الشخصية</span><label class="checks" style="grid-template-columns:1fr"><label><input type="checkbox" id="pPii" ${P.pii?'checked':''}>تضمين البيانات الشخصية (اسم المتصل، رقم الهوية، أسماء الموظفين)</label></label>
@@ -3853,7 +3860,7 @@ function exportDialog(kind,tplId){
   dialog({title:'طباعة وتصدير التقرير', wide:true, html, actions:[{label:'تصدير',cls:'primary',run:s=>{
       const v=name=>s.querySelector(`input[name=${name}]:checked`)?.value;
       const ui={kind:s.querySelector('input[name=pKind]:checked')?.value||'full',paper:v('pp'),orient:v('po'),margin:v('pm'),top:+v('pt'),list:s.querySelector('#pList').checked,pii:s.querySelector('#pPii').checked,sec:{...P.sec}};
-      s.querySelectorAll('[data-sec]').forEach(c=>ui.sec[c.dataset.sec]=c.checked?1:0);
+      s.querySelectorAll('[data-sec]').forEach(c=>{ if(!c.disabled||c.dataset.sec==='kpi') secSet(ui.sec,c.dataset.sec,c.checked); });
       const fm=v('pf'); const t=tid&&RTPL.find(x=>x.id===tid); PRINT.pngQ=+v('pQ')||3;
       if(t){ Object.assign(t,ui); saveRTPL(); PRINT.fmt=fm; } else PRINT={...PRINT,...ui,fmt:fm};
       try{ localStorage.setItem(PRINT_KEY,JSON.stringify(PRINT)); }catch(e){}
@@ -3867,6 +3874,7 @@ function exportDialog(kind,tplId){
       s.querySelector('#pTpl').addEventListener('change',e=>{ setRtSel(e.target.value); document.getElementById('layer').innerHTML=''; setTimeout(()=>exportDialog(fmNow(),e.target.value),0); });
       s.querySelector('#pTplEdit').addEventListener('click',()=>{ const f=fmNow(); document.getElementById('layer').innerHTML=''; setTimeout(()=>guard(()=>rtplEditor(tid||'__def',()=>exportDialog(f,tid))),0); });
       s.querySelector('#pUpd').addEventListener('change',e=>setUpd(e.target.value));
+      s.addEventListener('change',e=>{ if(e.target.name!=='pKind') return; const sm=e.target.value==='simple'; s.querySelectorAll('.secbox [data-sec]').forEach(c=>{ c.disabled=(sm&&!SIMPLE_OK.includes(c.dataset.sec))||!!c.closest('label').title; }); s.querySelectorAll('.simple-note').forEach(n=>n.hidden=!sm); const pl=s.querySelector('#pList'); if(pl) pl.disabled=sm; });
       s.querySelector('#pUpdNow').addEventListener('click',()=>{ const v=nowLocal(); setUpd(v); s.querySelector('#pUpd').value=v; toast(`${UPD_LBL}: ${updFmt(v)}`); });
       s.querySelector('#pTplAll').addEventListener('click',()=>{ document.getElementById('layer').innerHTML=''; setTimeout(()=>guard(rtplDialog),0); });
       const upd=()=>{ const f=s.querySelector('input[name=pf]:checked').value; const lst=s.querySelector('#pList').checked;
@@ -4077,7 +4085,7 @@ function pageXml(o,orientDefault){
 }
 function imgSize(url){ return new Promise(res=>{ const i=new Image(); i.onload=()=>res([i.naturalWidth||1,i.naturalHeight||1]); i.onerror=()=>res([1,1]); i.src=url; }); }
 async function buildReportXlsx(list,o){
-  o={top:20,orient:'landscape',sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1},...o}; if(o.kind==='simple') o={...o,sec:{kpi:1},cols:[],list:false}; list=condFilter(list,o.cond);
+  o={top:20,orient:'landscape',sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1},...o}; let SS=null; if(o.kind==='simple'){ SS=simplePicks(o.sec||{}); o={...o,sec:{kpi:(o.sec||{}).kpi===0?0:1},cols:[],list:false}; } list=condFilter(list,o.cond);
   const JSZip=await lib('jszip'); const z=new JSZip(); const b=brand(), RC=rsColors(), c={...brandColors(),a:RC.th,soft:RC.soft,band:RC.band};
   const land=o.orient!=='portrait'; const top=o.top||1e9;
   const S=new SheetB(); const SN='التقرير';
@@ -4149,9 +4157,10 @@ async function buildReportXlsx(list,o){
   if(o.sec.clinics){ const gs=clinicGroups(list,1); if(gs.length) pairsOf.push(['العيادات والأقسام المذكورة في الشكاوى','العيادة / القسم',gs.map(g=>[g.name,g.n])]); }
   if(o.sec.staff){ const gs=staffGroups(list,Math.max(1,STAFF_MIN)); if(gs.length) pairsOf.push(['الموظفون المذكورون في الشكاوى','الموظف · المركز',gs.map((g,i)=>[(o.pii?(g.full||g.first):`موظف ${i+1}`)+' · '+g.center,g.n])]); const ps=(active('caller')||active('nid'))?pairGroups(list,2):[]; if(ps.length) pairsOf.push(['متصلون اشتكوا الموظف نفسه أكثر من مرة','المتصل ← الموظف · المركز',ps.map((x,i)=>[(o.pii?x.caller:`متصل ${i+1}`)+' ← '+(o.pii?(x.g.full||x.g.first):'موظف')+' · '+x.g.center,x.n])]); }
   if(o.sec.callers && (active('caller')||active('nid'))){ const gs=repeatGroups(list,Math.max(2,RPT.min)); if(gs.length) pairsOf.push([`المتصلون الأكثر تكراراً (${Math.max(2,RPT.min)}+ بلاغات)`,'المتصل',gs.map((g,i)=>[o.pii?(g.name||g.nid):`متصل ${i+1}`,g.n])]); }
-  if(o.sec.cats){ if(active('main')) pairsOf.push(['حسب '+label('main'),label('main'),mains]); if(active('sub')) pairsOf.push(['حسب '+short('sub'),short('sub'),subs]); }
+  if(o.sec.cats){ if(active('main')&&o.sec.cm!==0) pairsOf.push(['حسب '+label('main'),label('main'),mains]); if(active('sub')&&o.sec.cs!==0) pairsOf.push(['حسب '+short('sub'),short('sub'),subs]); }
   (o.cols||[]).forEach(k=>{ if(col(k)) pairsOf.push(['حسب '+label(k),label(k),countBy(list,null,r=>rpv(r,k)||'—')]); });
-  if(o.kind==='simple'){ const ck=active('sub')?'sub':'main', n=+o.sTop||10; { const TS=timeSeries(list,o.sTime); pairsOf.push(TS.unit==='day'?['عدد البلاغات لكل يوم','اليوم',TS.pts.map(x=>[x[2]+(TS.mode==='week'?' '+x[0][0]:''),x[1]])]:['عدد البلاغات لكل شهر','الشهر',TS.pts.map(x=>[x[0],x[1]])]); } pairsOf.push(['أعلى '+(ck==='sub'?short('sub'):label('main')),ck==='sub'?short('sub'):label('main'),countBy(list,null,r=>rpv(r,ck)||'—').slice(0,n)]); o.top=0; }
+  if(SS){ const n=+o.sTop||10; if(SS.daily){ const TS=timeSeries(list,o.sTime); pairsOf.push(TS.unit==='day'?['عدد البلاغات لكل يوم','اليوم',TS.pts.map(x=>[x[2]+(TS.mode==='week'?' '+x[0][0]:''),x[1]])]:['عدد البلاغات لكل شهر','الشهر',TS.pts.map(x=>[x[0],x[1]])]); }
+    if(SS.center) pairsOf.push([`أعلى ${n} · المركز الصحي`,'المركز الصحي',centers.slice(0,n)]); if(SS.cm) pairsOf.push([`أعلى ${n} · ${label('main')}`,label('main'),mains.slice(0,n)]); if(SS.cs) pairsOf.push([`أعلى ${n} · ${short('sub')}`,short('sub'),subs.slice(0,n)]); o.top=0; }
   if(land){ for(let i=0;i<pairsOf.length;i+=2){ const a=table(r,0,...pairsOf[i],top); const bb=pairsOf[i+1]?table(r,6,...pairsOf[i+1],top):r; r=Math.max(a,bb); } }
   else pairsOf.forEach(p=>{ r=table(r,0,...p,top); });
   if(HF.ftr.on) S.merge(r,0,r,lastCol,`${HF.ftr.r?hfFill(HF.ftr.r,CTX):`${b.org?b.org+' · ':''}${o.title||b.title||'تقرير البلاغات'} · ${fmt(tot)} بلاغ`}${HF.ftr.l?'          '+hfFill(HF.ftr.l,CTX):(b.preparer?`          إعداد: ${b.preparer}`:'')}`,22);
