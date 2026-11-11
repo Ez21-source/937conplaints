@@ -710,7 +710,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '127';
+const APP_VER = '128';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -2195,6 +2195,15 @@ function rptTable(list,label,tot,limit){
   if(rest.length){ const rn=rest.reduce((s,x)=>s+x[1],0); rows+=`<tr><td class="r"></td><td>أخرى (${fmt(rest.length)})</td><td class="n">${fmt(rn)}</td><td class="p">${pct(rn,tot)}</td><td></td></tr>`; }
   return `<table class="rpt"><thead><tr><th></th><th>${label}</th><th style="text-align:center">العدد</th><th style="text-align:center">النسبة</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="5">لا توجد بيانات</td></tr>'}</tbody></table>`;
 }
+// جدول المركز مع مدة الإغلاق: العدد ثم 24 ساعة / 48 ساعة / أكثر من 48 ساعة
+function rptDurTable(arr,lab,list,limit){ const L=durLabels(), m=new Map(); list.forEach(r=>{ const d=durInfo(r); if(d.st==='none') return; const c=r.center||''; const o=m.get(c)||{g:0,o:0,r:0}; o[d.lvl]++; m.set(c,o); });
+  const C={g:'#22A06B',o:'#E8890C',r:'#E5484D'}, cell=(n,l)=>`<td class="n" style="color:${C[l]};font-weight:700">${n?fmt(n):'–'}</td>`;
+  const shown=arr.slice(0,limit), rest=arr.slice(limit);
+  let rows=shown.map(([v,n],i)=>{ const o=m.get(v||'')||{g:0,o:0,r:0}; return `<tr><td class="r">${i+1}</td><td>${esc(v||'—')}</td><td class="n">${fmt(n)}</td>${cell(o.g,'g')}${cell(o.o,'o')}${cell(o.r,'r')}</tr>`; }).join('');
+  if(rest.length){ const t={n:0,g:0,o:0,r:0}; rest.forEach(([v,n])=>{ const o=m.get(v||'')||{g:0,o:0,r:0}; t.n+=n; t.g+=o.g; t.o+=o.o; t.r+=o.r; }); rows+=`<tr><td class="r"></td><td>أخرى (${fmt(rest.length)})</td><td class="n">${fmt(t.n)}</td>${cell(t.g,'g')}${cell(t.o,'o')}${cell(t.r,'r')}</tr>`; }
+  const th=(l,t)=>`<th style="text-align:center;background:${C[l]};color:#fff;border-radius:6px 6px 0 0;white-space:nowrap;padding:4px 8px">${esc(t)}</th>`;
+  return `<table class="rpt"><thead><tr><th></th><th>${lab}</th><th style="text-align:center">العدد</th>${th('g',L.g)}${th('o',L.o)}${th('r',L.r)}</tr></thead><tbody>${rows||'<tr><td colspan="6">لا توجد بيانات</td></tr>'}</tbody></table>`; }
+const hasDur=list=>{ try{ return list.some(r=>durInfo(r).st!=='none'); }catch(e){ return false; } };
 // رأس التقرير وذيله: نصوص قابلة للاستبدال وتنسيقها (من «تنسيق التقرير»)
 const DEF_HF={org:{on:1,t:'',sz:100,c:'',b:1},title:{on:1,t:'',sz:100,c:'',b:1},sub:{on:1,t:'',sz:100,c:'',b:0},meta:{period:1,date:1,prep:1,sz:100,c:''},ftr:{on:1,r:'',l:'',sz:100,c:'',line:1}};
 function hfOf(st){ const h=((st||RSTYLE)||{}).hf||{}; const o={}; Object.keys(DEF_HF).forEach(k=>o[k]={...DEF_HF[k],...(h[k]||{})}); return o; }
@@ -2210,15 +2219,15 @@ function reportFoot(tot,o,st,range){
   return `<div class="rp-foot" style="${hfCss(H,11)}${H.line?'':'border-top:0;'}"><span>${R}</span><span>${L}</span></div>`;
 }
 // قائمة الأقسام بصدق: التصنيف الرئيسي والفرعي منفصلان، وما لا يمكن ظهوره يُعطَّل مع السبب
-function secItems(){ return [['daily','عدد البلاغات (الخط الزمني)',''],['center','حسب المركز الصحي',''],
+function secItems(){ return [['daily','عدد البلاغات (الخط الزمني)',''],['center','حسب المركز الصحي',''],['cdur','↳ مع مدة الإغلاق (24 / 48 / أكثر من 48 ساعة)',''],
   ['cm','حسب '+label('main'),active('main')?'':'العمود غير مفعّل'],['cs','حسب '+short('sub'),active('sub')?'':'العمود غير مفعّل'],
   ['sector','حسب القطاع',active('sector')?'':'العمود غير مفعّل'],['callers','المتصلون الأكثر تكراراً',(active('caller')||active('nid'))?'':'لا يوجد عمود للمتصل'],
   ['staff','الموظفون المذكورون',''],['clinics','العيادات المذكورة','']]; }
-const secOn=(sec,k)=>k==='cm'?!!(sec.cats&&sec.cm!==0):k==='cs'?!!(sec.cats&&sec.cs!==0):!!sec[k];
+const secOn=(sec,k)=>k==='cdur'?sec.cdur!==0:k==='cm'?!!(sec.cats&&sec.cm!==0):k==='cs'?!!(sec.cats&&sec.cs!==0):!!sec[k];
 function secSet(sec,k,on){ if(k==='cm'||k==='cs'){ const cm=k==='cm'?on:secOn(sec,'cm'), cs=k==='cs'?on:secOn(sec,'cs'); sec.cm=cm?1:0; sec.cs=cs?1:0; sec.cats=cm||cs?1:0; } else sec[k]=on?1:0; }
-const SIMPLE_OK=['daily','center','cm','cs'];
+const SIMPLE_OK=['daily','center','cdur','cm','cs'];
 const SIMPLE_NOTE='في التقرير البسيط (صفحة واحدة) تعمل فقط: الخط الزمني والمركز الصحي والتصنيفات، وعدد الصفوف من «أعلى 5 / 10 / 20». البقية للتقرير الشامل.';
-function simplePicks(sec){ const on=k=>secOn(sec,k); return {daily:on('daily'),center:on('center'),cm:on('cm')&&active('main'),cs:on('cs')&&active('sub')}; }
+function simplePicks(sec){ const on=k=>secOn(sec,k); return {cdur:(sec||{}).cdur!==0,daily:on('daily'),center:on('center'),cm:on('cm')&&active('main'),cs:on('cs')&&active('sub')}; }
 function secChecks(sec,attr,simple){ return `<div class="checks secbox">${secItems().map(([k,l,why])=>`<label title="${esc(why)}"><input type="checkbox" ${attr}="${k}" ${secOn(sec,k)&&!why?'checked':''} ${why||(simple&&!SIMPLE_OK.includes(k))?'disabled':''}>${esc(l)}${why?` <span class="hint">(${esc(why)})</span>`:''}</label>`).join('')}</div><p class="hint simple-note" ${simple?'':'hidden'} style="color:var(--warn,#B7791F);margin:4px 0 0">${SIMPLE_NOTE}</p>`; }
 function buildReport(list,opts){
   opts={list:false,pii:false,top:20,orient:'landscape',sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1},...opts};
@@ -2251,13 +2260,13 @@ function buildReport(list,opts){
     ${opts.sec.kpi?(()=>{ const K=kpiValues(list,Array.isArray(opts.kpis)?opts.kpis:DEF_PRINT.kpis); return K.length?`<div class="rp-kpis" style="--kc:${Math.min(K.length,4)}">${K.map(([l,v,sx])=>`<div class="rp-kpi"><div class="l">${esc(l)}</div><div class="v${typeof v==='number'?'':' t'}">${typeof v==='number'?fmt(v):esc(v)}</div><div class="s">${esc(sx||'')}</div></div>`).join('')}</div>`:''; })():''}</div>`;
   if(SS){ const LAND=opts.orient!=='portrait', n=+opts.sTop||10;
     const T=[]; const tb=(arr,lab)=>T.push(`<div class="rp-sec"><h4>أعلى ${fmt(Math.min(n,arr.length))} · ${esc(lab)}<small>من ${fmt(arr.length)}</small></h4><div class="rp-body">${rptTable(arr,lab,tot,n)}</div></div>`);
-    if(SS.center) tb(centers,'المركز الصحي'); if(SS.cm) tb(mains,label('main')); if(SS.cs) tb(subs,short('sub'));
+    if(SS.center){ if(SS.cdur&&hasDur(list)) T.push(`<div class="rp-sec"><h4>أعلى ${fmt(Math.min(n,centers.length))} · المركز الصحي<small>من ${fmt(centers.length)}</small></h4><div class="rp-body">${rptDurTable(centers,'المركز الصحي',list,n)}</div></div>`); else tb(centers,'المركز الصحي'); } if(SS.cm) tb(mains,label('main')); if(SS.cs) tb(subs,short('sub'));
     let chart='', dense=false; if(SS.daily){ const TS=timeSeries(list,opts.sTime), ms=TS.pts; dense=ms.length>13; const side=LAND&&T.length===1;
       chart=`<div class="rp-sec"><h4><span>عدد البلاغات لكل ${TS.unit==='day'?'يوم':'شهر'}${TS.sparse?' <span style="font-weight:400;font-size:.8em;opacity:.75">(الأيام التي فيها بلاغات فقط)</span>':''}</span><small>${esc(range)}</small></h4><div class="rp-body">${monthChartSVG(ms,opts.sChart==='bar'?'bar':'line',c.bar,side?(dense?610:560):W,T.length>1&&LAND?190:0)}</div></div>`; }
     if(chart&&LAND&&T.length===1) h+=`<div class="blk"><div style="display:grid;grid-template-columns:${dense?'1.45fr 1fr':'1.2fr 1fr'};gap:12px;align-items:start">${chart}${T[0]}</div></div>`;
     else { if(chart) h+=`<div class="blk">${chart}</div>`; if(T.length) h+=`<div class="blk"><div style="display:grid;grid-template-columns:repeat(${LAND?T.length:Math.min(2,T.length)},1fr);gap:12px;align-items:start">${T.join('')}</div></div>`; } }
   if(opts.sec.daily){ const TS=timeSeries(list,opts.sTime); h+=`<div class="blk"><div class="rp-sec"><h4><span>عدد البلاغات لكل ${TS.unit==='day'?'يوم':'شهر'}${TS.sparse?' <span style="font-weight:400;font-size:.8em;opacity:.75">(الأيام التي فيها بلاغات فقط)</span>':''}</span><small>${esc(range)}</small></h4><div class="rp-body">${monthChartSVG(TS.pts,opts.sChart==='bar'?'bar':'line',c.bar,W)}</div></div></div>`; }
-  if(opts.sec.center) h+=`<div class="blk"><div class="rp-sec"><h4>البلاغات حسب المركز الصحي<small>${fmt(centers.length)} مركز</small></h4><div class="rp-body">${rptTable(centers,'المركز الصحي',tot,top)}</div></div></div>`;
+  if(opts.sec.center) h+=`<div class="blk"><div class="rp-sec"><h4>البلاغات حسب المركز الصحي<small>${fmt(centers.length)} مركز</small></h4><div class="rp-body">${opts.sec.cdur!==0&&hasDur(list)?rptDurTable(centers,'المركز الصحي',list,top):rptTable(centers,'المركز الصحي',tot,top)}</div></div></div>`;
   if(opts.sec.cats && ((active('main')&&opts.sec.cm!==0)||(active('sub')&&opts.sec.cs!==0))){ const parts=[]; if(active('main')&&opts.sec.cm!==0) parts.push(`<div class="rp-sec"><h4>حسب ${esc(label('main'))}<small>${fmt(mains.length)} تصنيف</small></h4><div class="rp-body">${rptTable(mains,label('main'),tot,top)}</div></div>`); if(active('sub')&&opts.sec.cs!==0) parts.push(`<div class="rp-sec"><h4>حسب ${esc(short('sub'))}<small>${fmt(subs.length)} تصنيف</small></h4><div class="rp-body">${rptTable(subs,short('sub'),tot,top)}</div></div>`); h+=`<div class="blk"><div class="${parts.length>1?'rp-two':''}">${parts.join('')}</div></div>`; }
   if(opts.sec.callers && (active('caller')||active('nid'))){ const gs=repeatGroups(list,Math.max(2,RPT.min)); if(gs.length){ const lim=Math.min(opts.top||1e9,gs.length); const max=gs[0].n;
     h+=`<div class="blk"><div class="rp-sec"><h4>المتصلون الأكثر تكراراً<small>${fmt(gs.length)} متصل لهم ${Math.max(2,RPT.min)} بلاغات فأكثر · ${fmt(gs.reduce((s,g)=>s+g.n,0))} بلاغ</small></h4><div class="rp-body"><table class="rpt"><thead><tr><th></th><th>المتصل</th><th style="text-align:center">البلاغات</th><th>المراكز</th><th>أكثر تصنيف</th><th>آخر بلاغ</th><th></th></tr></thead><tbody>${gs.slice(0,lim).map((g,i)=>`<tr><td class="r">${i+1}</td><td>${opts.pii?esc(g.name||g.nid):`متصل ${i+1}`}</td><td class="n">${fmt(g.n)}</td><td>${esc(g.centers.map(c=>c[0]).slice(0,2).join('، '))}${g.centers.length>2?` +${g.centers.length-2}`:''}</td><td>${esc(g.sub)}</td><td class="p" style="width:auto">${esc(fmtDate(g.last).slice(0,10))}</td><td class="bar"><div class="barline"><span style="width:${(g.n/max*100).toFixed(1)}%"></span></div></td></tr>`).join('')}</tbody></table>${opts.pii?'':'<p style="margin:6px 0 0;font-size:11px;color:var(--rp-mut)">الأسماء مخفية. اختر «تضمين اسم المتصل ورقم الهوية» عند التصدير لإظهارها.</p>'}</div></div></div>`; } }
