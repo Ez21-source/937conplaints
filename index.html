@@ -710,7 +710,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '124';
+const APP_VER = '127';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -1098,7 +1098,7 @@ async function undoEntry(id){
 }
 // كل تغيير على البلاغات يمر من هنا: يحفظ الحالة السابقة في السجل ثم يكتب
 async function applyChange(puts,dels,meta){
-  if(VIEWER) return;
+  if(VIEWER) return; DATA_V++;
   meta=typeof meta==='string'?{type:meta}:(meta||{});
   const before=[], added=[], nos=[];
   puts.forEach(r=>{ const old=byId.get(r.id); if(old) before.push(old); else added.push(r.id); nos.push(r.no); });
@@ -1567,8 +1567,9 @@ function filterRecs(noDates){
   const ok=(F,val)=>!F||(F.none&&!val)||F.set.has(val);
   const Fm=fs('month'), Fs=fs('sector'), Fc=fs('center'), Fma=fs('main'), Fsu=fs('sub');
   const EX=extraFilterCols().map(c=>[c.k,fs(c.k)]).filter(x=>x[1]);
-  const from=noDates?'':filt.from, to=noDates?'':filt.to;
+  const from=noDates?'':filt.from, to=noDates?'':filt.to; const XS=excSet(), XM=filt.exc||'';
   return RECS.filter(r=>{
+    if(XS.size||XM==='only'){ const ex=XS.has(keyNo(r.no)); if(XM==='only'?!ex:(XM!=='show'&&ex)) return false; }
     if(NS && !NS.has(keyNo(r.no))) return false;
     if(IS && !IS.has(r.id)) return false;
     if(LS && !LS.has(keyNo(r.no))) return false;
@@ -1724,9 +1725,11 @@ function renderFilters(){
   if(filt.late) tags.push(['late','البلاغات المتأخرة فقط']);
   if(filt.impk) tags.push(['impk',impTag(filt.impk)]);
   if(filt.nos) tags.push(['nos',`بلاغات محددة (${fmt(String(filt.nos).split(' ').length)})`]);
+  if(filt.exc==='show') tags.push(['exc','تُعرض المستبعدة أيضاً']); else if(filt.exc==='only') tags.push(['exc','المستبعدة فقط']);
   if(filt.unread) tags.push(['unread',({new:'غير مقروء',upd:'محدّث',read:'تم الفتح'})[filt.unread]||'غير المقروءة']);
   activeFilterKeys().forEach(k=>{ if(fVals(k).length) tags.push([k,`${short(k)}: ${fText(k)}`]); });
   document.getElementById('fstate').innerHTML = `<span><b>${fmt(total(filtered))}</b> بلاغ${filtered.length!==RECS.length?` من أصل ${fmt(total(RECS))}`:''}</span>` + tags.map(([k,t])=>`<span class="tag">${esc(t)}<button type="button" data-untag="${k}" aria-label="إزالة">×</button></span>`).join('') + (tags.length?`<button type="button" class="btn sm ghost" data-untag="all">مسح الفلاتر</button>`:'');
+  { const xn=excSet().size; if(xn&&!filt.exc) document.getElementById('fstate').insertAdjacentHTML('beforeend',`<button type="button" class="tag" data-excopen style="cursor:pointer;border-color:color-mix(in srgb,var(--bad) 45%,var(--line))">🚫 ${fmt(xn)} مستبعدة لا تُحسب</button>`); }
 }
 function iso(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 // الفترات المحفوظة: فترة (من–إلى) باسم تختاره، تبقى كزر للرجوع إليها وعمل تقريرها
@@ -3130,6 +3133,16 @@ async function panelAction(b,body){
     SCHEMA.push({k:'c_'+uid(),l:name,type,custom:1,table:1,rep:0,req:0,pii:0,options}); schemaChanged(); toast(`أضيف عمود «${name}»`); return 'redraw';
   }
   if(b.id==='fixAdd'){ const f=document.getElementById('fixFrom').value.trim(), t=document.getElementById('fixTo').value.trim(); if(!f||!t){ toast('اختر الاسم الخاطئ واكتب الاسم الصحيح'); return; } if(nrm(f)===nrm(t)){ toast('الاسمان متطابقان'); return; } addFixes('center',[f],t).then(n=>{ toast(`أُضيف التصحيح وصُحّح ${fmt(n)} بلاغ`); document.querySelector('[data-ptab=lists]')?.click(); }); return; }
+  if(b.dataset.fixlist!==undefined){ const from=b.dataset.fixlist, L=fhList(from), to=(FIX.find(x=>x.k==='center'&&nrm(x.from)===nrm(from))||{}).to||'';
+    dialog({title:`بلاغات «${from}» المصححة`, wide:true, html:`<p class="hint" style="margin-top:0"><b>${fmt(L.length)}</b> بلاغ جاءت باسم «${esc(from)}» وصُحّحت إلى «${esc(to)}».</p><div class="ctbl-wrap" style="max-height:55vh"><table class="ctbl"><thead><tr><th>#</th><th>رقم البلاغ</th><th>تاريخ البلاغ</th><th>الاسم في الملف</th><th>الاسم الحالي</th></tr></thead><tbody>${L.slice(0,2000).map(([r,h],i)=>`<tr><td>${i+1}</td><td>${esc(r.no)}</td><td>${esc(cellText(r,'date'))}</td><td>${esc(h[0])}</td><td>${esc(r.center||'')}</td></tr>`).join('')}</tbody></table></div>`,
+      actions:[{label:'تصدير Excel',run:()=>{ (async()=>{ busy('جارٍ تجهيز الملف…'); try{ const H=['رقم البلاغ','تاريخ البلاغ','الاسم في الملف','الاسم الحالي']; let x=`<row r="1">${H.map((h,i)=>cellXml(1,i,h,1)).join('')}</row>`; L.forEach(([r,h],ri)=>{ const rr=ri+2; x+=`<row r="${rr}">${[r.no,cellText(r,'date'),h[0],r.center||''].map((c,i)=>cellXml(rr,i,c,2)).join('')}</row>`; }); const blob=await buildXlsx([],{sheets:[['بلاغات مصححة',sheetDoc(x,[16,20,34,34],`<autoFilter ref="A1:D${L.length+1}"/>`)]]}); busy(null); await saveFile(`بلاغات-مصححة-${from}-${stamp()}.xlsx`,blob); }catch(e){ busy(null); toast('تعذر التصدير'); } })(); return false; }},{label:'إغلاق',cls:'primary'}]}); return; }
+  if(b.id==='fixScan'){ const inp=document.createElement('input'); inp.type='file'; inp.accept='.xlsx,.xlsm'; inp.onchange=async()=>{ const f=inp.files&&inp.files[0]; if(!f) return; busy('جارٍ فحص الملف…'); let res;
+      try{ res=parseRecords(await readXlsx(await f.arrayBuffer())); }catch(e){ busy(null); toast(e.message||'تعذرت قراءة الملف'); return; } busy(null);
+      const rules=FIX.filter(x=>x.k==='center'); const cnt=new Map(rules.map(x=>[x.from,0])); let add=0;
+      res.recs.forEach(r=>{ const x=rules.find(q=>nrm(q.from)===nrm(r.center||'')); if(x){ cnt.set(x.from,cnt.get(x.from)+1); if(!FH[keyNo(r.no)]){ fhAdd(r.no,r.center,fixVal('center',r.center)); add++; } } });
+      const tot=[...cnt.values()].reduce((a,b)=>a+b,0);
+      dialog({title:'نتيجة فحص الملف', html:`<p style="margin-top:0">الملف «${esc(f.name)}» فيه <b>${fmt(res.recs.length)}</b> بلاغ، منها <b>${fmt(tot)}</b> بأسماء تُصحَّح:</p><div class="ctbl-wrap"><table class="ctbl"><thead><tr><th>الاسم في الملف</th><th>العدد</th><th>يُصحَّح إلى</th></tr></thead><tbody>${rules.map(x=>`<tr><td>${esc(x.from)}</td><td><b>${fmt(cnt.get(x.from))}</b></td><td>${esc(x.to)}</td></tr>`).join('')}</tbody></table></div><p class="hint">لم يُستورد شيء. ${add?`سُجّل ${fmt(add)} بلاغ في «بلاغات صُحّحت».`:''}</p>`,
+        actions:[{label:'حسناً',cls:'primary'}]}); try{ const c=document.getElementById('fixCard'); if(c) c.outerHTML=panelFix(); }catch(e){} }; inp.click(); return; }
   if(b.dataset.fixdel){ FIX=FIX.filter(x=>!(x.k==='center'&&x.from===b.dataset.fixdel)); saveFix(); toast('حُذف التصحيح (البلاغات المصححة تبقى كما هي)'); return 'redraw'; }
   if(b.dataset.ctall){ countBy(RECS,'center').forEach(([c])=>{ if(c) CTYPE[c]=b.dataset.ctall; }); saveCtype(); toast('عُيّن نوع الدوام لكل المراكز، غيّر المختلف منها من القائمة'); return 'redraw'; }
   if(b.dataset.applysec){
@@ -3220,7 +3233,7 @@ function panelChange(t){
 const SETTINGS_APP='r937-db-settings';
 function settingsSnapshot(){
   return {app:SETTINGS_APP, version:1, exported:nowLocal(), brand:BRAND, schema:schemaSerial(), secmap:SECMAP, clinics:CLINICS,
-    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE, rtpl:RTPL, filters:FCFG, staffOvr:SOVR, staffSrc:STAFF_SRC, staffPos:STAFF_POS, closerNames:CLOSER_NAMES, periods:SPER, ctype:CTYPE, visitsSet:VSET, general:GEN, dur:DUR, fixes:FIX, reopenSet:ROSET, pctD:PCT_D};
+    staffHide:[...STAFF_HIDE], staffMin:STAFF_MIN, repeat:RPT, print:PRINT, mask:MASK_ON?1:0, pin:pinHash()||'', backupEvery:BK.every, staffCatEx:STAFF_CAT_EX?[...STAFF_CAT_EX]:null, home:HOME, rules:RULES, status:STAT, sla:SLA, weekStart:WEEK_START, rstyle:RSTYLE, rtpl:RTPL, filters:FCFG, staffOvr:SOVR, staffSrc:STAFF_SRC, staffPos:STAFF_POS, closerNames:CLOSER_NAMES, periods:SPER, ctype:CTYPE, visitsSet:VSET, general:GEN, dur:DUR, fixes:FIX, reopenSet:ROSET, pctD:PCT_D, clu:CLU, exc:EXS};
 }
 function pinnedExport(){ try{ keepPinned(LOG); }catch(e){} return [...PINL].map(id=>{ const r=byId.get(id); return r?{no:r.no,items:PINLOG[id]||[]}:null; }).filter(Boolean); }
 async function exportSettings(){
@@ -3242,6 +3255,7 @@ async function importSettings(file){
         if(Array.isArray(s.clinics)){ CLINICS=s.clinics.filter(x=>Array.isArray(x)&&x[0]).map(x=>[String(x[0]),String(x[1]||'')]); saveClinics(); }
         if(Array.isArray(s.staffHide)){ STAFF_HIDE=new Set(s.staffHide); saveStaffHide(); }
         if(s.staffMin){ STAFF_MIN=+s.staffMin||1; localStorage.setItem('r937-staffmin-v1',String(STAFF_MIN)); }
+        if(s.clu){ CLU={...CLU,...s.clu}; saveClu(); } if(s.exc&&s.exc.m){ EXS={m:s.exc.m||{},keep:s.exc.keep||[]}; saveExc(); }
         if(s.pctD){ PCT_D=+s.pctD===1?1:2; try{ localStorage.setItem(PCT_KEY,String(PCT_D)); }catch(x){} }
         if(s.repeat){ RPT={min:2,short:false,...s.repeat}; saveRpt(); }
         if(Array.isArray(s.periods)){ SPER=s.periods; savePeriods(); }
@@ -3317,10 +3331,11 @@ function parseNos(txt){ return [...new Set(String(txt||'').split(/[\s,،;؛]+/).
 function verifyDialog(prefill){
   const html=`<p>اكتب رقم بلاغ أو الصق عدة أرقام (كل رقم في سطر، أو مفصولة بمسافة أو فاصلة)، أو قارن ملف Excel بالقاعدة بدون استيراده.</p>
     <textarea class="inp" id="vNos" rows="4" dir="ltr" placeholder="B1234567&#10;B1234568" style="font-family:ui-monospace,Menlo,Consolas,monospace">${esc(prefill||'')}</textarea>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" id="vGo">تحقق</button><button type="button" class="btn" id="vFileBtn">مقارنة ملف Excel</button><button type="button" class="btn" id="vStatus">فحص تغييرات التذاكر</button><input type="file" id="vFile" accept=".xlsx,.xlsm" hidden></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" id="vGo">تحقق</button><button type="button" class="btn" id="vFileBtn">مقارنة ملف Excel</button><button type="button" class="btn" id="vStatus">فحص تغييرات التذاكر</button><button type="button" class="btn" id="vClu">فحص تبعية التجمع</button><input type="file" id="vFile" accept=".xlsx,.xlsm" hidden></div>
     <div id="vOut"></div>`;
   dialog({title:'التحقق من تسجيل البلاغات', wide:true, html, actions:[{label:'إغلاق'}], onOpen:s=>{
     s.querySelector('#vStatus')?.addEventListener('click',()=>{ document.getElementById('layer').innerHTML=''; pickStatusFile(); });
+    s.querySelector('#vClu')?.addEventListener('click',()=>{ document.getElementById('layer').innerHTML=''; setTimeout(()=>cluDialog(),0); });
     const out=s.querySelector('#vOut');
     const show=(nos, fileRecs, fileName)=>{
       const byKey=new Map(RECS.map(r=>[keyNo(r.no),r]));
@@ -4741,10 +4756,18 @@ const FIX_KEY='r937-fix-v1';
 let FIX=(()=>{ try{ return JSON.parse(localStorage.getItem(FIX_KEY)||'[]')||[]; }catch(e){ return []; } })();
 const saveFix=()=>{ try{ localStorage.setItem(FIX_KEY,JSON.stringify(FIX)); }catch(e){} };
 function fixVal(k,v){ if(v==null||v==='') return v; const n=nrm(String(v)); for(let i=0;i<5;i++){ const f=FIX.find(x=>x.k===k&&nrm(x.from)===n); if(!f) break; v=f.to; if(nrm(v)===n) break; } return v; }
-function applyFixRec(r){ let c=false; ['center'].forEach(k=>{ if(r[k]!=null){ const v=fixVal(k,r[k]); if(v!==r[k]){ r[k]=v; c=true; } } }); return c; }
+// سجل البلاغات التي صُحّح اسم مركزها: رقم البلاغ ← [الاسم في الملف، الاسم بعد التصحيح]
+const FH_KEY='r937-fixhit-v1'; let FH=(()=>{ try{ return JSON.parse(localStorage.getItem(FH_KEY)||'{}')||{}; }catch(e){ return {}; } })(); let fhT=0;
+const saveFH=()=>{ clearTimeout(fhT); fhT=setTimeout(()=>{ try{ localStorage.setItem(FH_KEY,JSON.stringify(FH)); }catch(e){} },300); };
+function fhAdd(no,from,to){ const k=keyNo(no); if(!k||nrm(from)===nrm(to)) return; FH[k]=[String(from),String(to)]; saveFH(); }
+function fhBackfill(){ const rs=FIX.filter(x=>x.k==='center'); if(!rs.length||!MV.length) return 0; let n=0;
+  MV.forEach(x=>{ if(x[4]!=='center') return; const f=rs.find(r=>nrm(r.from)===nrm(x[6])); if(f&&!FH[x[1]]){ FH[x[1]]=[x[6],x[7]]; n++; } }); if(n) saveFH(); return n; }
+function fhCount(from){ const n=nrm(from), have=new Set(RECS.map(r=>keyNo(r.no))); let c=0; for(const k in FH){ if(nrm(FH[k][0])===n&&have.has(k)) c++; } return c; }
+function fhList(from){ const n=nrm(from); const by=new Map(RECS.map(r=>[keyNo(r.no),r])); const out=[]; for(const k in FH){ if(nrm(FH[k][0])===n&&by.has(k)) out.push([by.get(k),FH[k]]); } return out.sort((a,b)=>String(b[0].date).localeCompare(a[0].date)); }
+function applyFixRec(r){ let c=false; ['center'].forEach(k=>{ if(r[k]!=null){ const v=fixVal(k,r[k]); if(v!==r[k]){ if(k==='center') fhAdd(r.no,r[k],v); r[k]=v; c=true; } } }); return c; }
 async function addFixes(k,froms,to){ to=String(to||'').trim(); if(!to) return 0;
   froms.forEach(f=>{ f=String(f||'').trim(); if(!f||nrm(f)===nrm(to)) return; FIX=FIX.filter(x=>!(x.k===k&&nrm(x.from)===nrm(f))); FIX.push({k,from:f,to}); });
-  saveFix(); const ch=[]; RECS.forEach(r=>{ const v=fixVal(k,r[k]); if(v!==r[k]) ch.push(prep(clean({...r,[k]:v}))); });
+  saveFix(); const ch=[]; RECS.forEach(r=>{ const v=fixVal(k,r[k]); if(v!==r[k]){ if(k==='center') fhAdd(r.no,r[k],v); ch.push(prep(clean({...r,[k]:v}))); } });
   if(ch.length){ busy('جارٍ التصحيح…'); try{ await applyChange(ch,[],{type:'bulk',note:'تصحيح اسم '+label(k)}); }finally{ busy(null); } }
   return ch.length; }
 function askFixForever(k,olds,to){ olds=[...new Set(olds.filter(o=>o&&nrm(o)!==nrm(to)))]; if(!olds.length||VIEWER) return;
@@ -4753,14 +4776,92 @@ function askFixForever(k,olds,to){ olds=[...new Set(olds.filter(o=>o&&nrm(o)!==n
     <p>هل هذا تصحيح لاسم مكتوب خطأ؟ إن اخترت «نعم» يُصحَّح ${others?`<b>${fmt(others)}</b> بلاغ آخر بنفس الاسم الآن، و`:''}كل بلاغ يأتي بهذا الاسم في أي استيراد قادم تلقائياً.</p><p class="hint">تجد التصحيحات وتحذفها من لوحة التحكم ← القوائم والقطاعات ← «تصحيح أسماء المراكز».</p>`,
     actions:[{label:'نعم، صحّح دائماً',cls:'primary',run:async()=>{ const n=await addFixes(k,olds,to); toast(`حُفظ التصحيح${n?` وصُحّح ${fmt(n)} بلاغ`:''}`); }},{label:'هذا البلاغ فقط'}]}),80); }
 function panelFix(){
-  const cents=countBy(RECS,'center').filter(x=>x[0]); const rules=FIX.filter(x=>x.k==='center');
+  const cents=countBy(RECS,'center').filter(x=>x[0]); const rules=FIX.filter(x=>x.k==='center'); try{ fhBackfill(); }catch(e){}
   return `<div class="pcard" id="fixCard"><h4>تصحيح أسماء المراكز</h4><p class="hint">اسم خاطئ ← الاسم الصحيح. يُطبّق على البلاغات الموجودة وعلى كل ملف تستورده لاحقاً، فلا يعود الاسم الخاطئ.</p>
-    ${rules.length?`<div class="ctbl-wrap" style="max-height:260px"><table class="ctbl"><thead><tr><th>الاسم الخاطئ (كما في الملف)</th><th></th><th>يُصحَّح إلى</th><th></th></tr></thead><tbody>${rules.map((x,i)=>`<tr><td>${esc(x.from)}</td><td style="color:var(--muted)">←</td><td><b>${esc(x.to)}</b></td><td><button type="button" class="btn sm ghost" data-fixdel="${esc(x.from)}">حذف</button></td></tr>`).join('')}</tbody></table></div>`:'<p class="hint">لا توجد تصحيحات بعد. تُضاف من هنا، أو تلقائياً حين تعدّل اسم مركز في بلاغ وتختار «صحّح دائماً».</p>'}
+    ${rules.length?`<div class="ctbl-wrap" style="max-height:260px"><table class="ctbl"><thead><tr><th>الاسم الخاطئ (كما في الملف)</th><th></th><th>يُصحَّح إلى</th><th>بلاغات صُحّحت</th><th></th></tr></thead><tbody>${rules.map((x,i)=>`<tr><td>${esc(x.from)}</td><td style="color:var(--muted)">←</td><td><b>${esc(x.to)}</b></td><td>${(()=>{ const n=fhCount(x.from); return n?`<button type="button" class="btn sm" data-fixlist="${esc(x.from)}">${fmt(n)} بلاغ</button>`:'<span class="hint">0</span>'; })()}</td><td><button type="button" class="btn sm ghost" data-fixdel="${esc(x.from)}">حذف</button></td></tr>`).join('')}</tbody></table></div>`:'<p class="hint">لا توجد تصحيحات بعد. تُضاف من هنا، أو تلقائياً حين تعدّل اسم مركز في بلاغ وتختار «صحّح دائماً».</p>'}
     <div style="display:grid;gap:6px;margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:10px"><b>إضافة تصحيح</b>
       <input class="inp" id="fixFrom" list="fixFromL" placeholder="الاسم الخاطئ — اختره من القائمة أو اكتبه كما يأتي في ملف Care"><datalist id="fixFromL">${cents.map(([c,n])=>`<option value="${esc(c)}">${fmt(n)} بلاغ</option>`).join('')}</datalist>
       <input class="inp" id="fixTo" list="fixToL" placeholder="الاسم الصحيح"><datalist id="fixToL">${cents.map(([c])=>`<option value="${esc(c)}">`).join('')}</datalist>
-      <div><button type="button" class="btn sm primary" id="fixAdd">إضافة وتطبيق</button></div></div></div>`;
+      <div><button type="button" class="btn sm primary" id="fixAdd">إضافة وتطبيق</button></div></div>
+    ${rules.length?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px"><button type="button" class="btn sm" id="fixScan">🔎 فحص ملف: كم بلاغاً يحمل الأسماء الخاطئة</button><span class="hint">يقرأ ملف Care دون استيراده ويعدّ البلاغات بكل اسم خاطئ قبل التصحيح.</span></div>`:''}
+    <p class="hint" style="margin:8px 0 0">التصحيح ينقل البلاغات من اسم إلى آخر ولا يحذف أي بلاغ، فلا يغيّر إجمالي عدد البلاغات، بل عدد كل مركز فقط. «بلاغات صُحّحت» تُحسب من التصحيحات المسجّلة ومن حركة البلاغات، و«فحص ملف» يكمل ما قبلها.</p></div>`;
 }
+
+/* ---------- فحص تبعية التجمع: إفادة المنسق / ضابط الاتصال تذكر أن المركز يتبع تجمعاً آخر ---------- */
+const CLU_KEY='r937-clu-v1';
+let CLU=(()=>{ try{ return {own:'مكة',cols:null,extra:[],all:1,...JSON.parse(localStorage.getItem(CLU_KEY)||'{}')}; }catch(e){ return {own:'مكة',cols:null,extra:[],all:1}; } })();
+const saveClu=()=>{ try{ localStorage.setItem(CLU_KEY,JSON.stringify(CLU)); }catch(e){} };
+const cluAuto=()=>ALLK().filter(k=>k!=='id'&&k!=='no'&&/افاده|ضابط|منسق/.test(nrm(label(k))));
+const cluCols=()=>(CLU.cols&&CLU.cols.length?CLU.cols.filter(k=>col(k)):cluAuto());
+const CLU_NEG=/(?:^|\s)(?:لا|ليس|ليست|غير|مو|ما)\s*(?:ي|ت)?(?:تبع|تابع|تابعه|يتبع|تتبع)?\s*$/;
+const CLU_PHR=['خارج نطاق التجمع','خارج التجمع','لا يتبع للتجمع','لا يتبع التجمع','لا يتبع لتجمع','لا تتبع للتجمع','لا يتبع لنا','لا تتبع لنا','ليس تابع للتجمع','غير تابع للتجمع','ليس من مراكز التجمع','ليست من مراكز التجمع','لا يتبع تجمعنا','ليس تابع لنا','غير تابع لنا'];
+const CLU_NAMES={'جده':'جدة','الطايف':'الطائف','المدينه':'المدينة','مكه':'مكة','القنفذه':'القنفذة','الرياض':'الرياض','الليث':'الليث','رابغ':'رابغ','الشرقيه':'الشرقية','القصيم':'القصيم','حايل':'حائل','الاحسا':'الأحساء','تبوك':'تبوك','الباحه':'الباحة','جازان':'جازان','نجران':'نجران','عسير':'عسير','الجوف':'الجوف','ينبع':'ينبع'};
+const cluPretty=x=>x.split(' ').map(w=>CLU_NAMES[w]||({'الاول':'الأول','الثاني':'الثاني','الثالث':'الثالث','الرابع':'الرابع'}[w])||w.replace(/ه$/,'ة')).join(' ');
+function cluDetect(raw){ const t=nrm(raw); if(!t||t.indexOf('تجمع')<0&&!CLU.extra.some(w=>w&&t.includes(nrm(w)))&&!CLU_PHR.some(w=>t.includes(nrm(w)))) return null;
+  const own=nrm(CLU.own||'مكة'); const snip=i=>{ const a=Math.max(0,i-70); return (a?'…':'')+String(raw).slice(a,i+90)+(i+90<String(raw).length?'…':''); };
+  // ١) «يتبع / تابع / من اختصاص … تجمع X» حيث X ليس تجمعنا
+  const re=/(يتبع|يتبعون|تتبع|تابع|تابعه|تابعين|يخص|اختصاص|مسوليه|مسؤوليه|حول|تحويل|تحويله|احاله|اختصاصات)[^.،\n]{0,30}?تجمع\s+((?:ال)?[^\s.،:]+(?:\s+(?:الصحي\s+)?(?:الاول|الثاني|الثالث|الرابع))?)/g; let m;
+  while((m=re.exec(t))){ const X=m[2].replace(/^ال(?=صحي)/,''); if(X==='الصحي'||X==='صحي') continue; if(X.startsWith(own)||X.startsWith('ال'+own)) continue; const before=t.slice(Math.max(0,m.index-12),m.index); if(/(لا|ليس|غير)\s*$/.test(before)) continue; return {who:'تجمع '+cluPretty(X.replace(/\s*الصحي$/,'')),snip:snip(m.index)}; }
+  // ٢) «لا يتبع تجمع مكة»
+  let i=-1; const key='تجمع '+own; while((i=t.indexOf(key,i+1))>=0){ const before=t.slice(Math.max(0,i-22),i).replace(/\s*(ل|لل|الي|الى|ال)$/,'').replace(/\s*(ل|لل)$/,''); if(CLU_NEG.test(before)||/(لا|ليس|غير)\s*(ي|ت)?(تبع|تابع)\S*\s*(ل|لل|الي)?\s*$/.test(t.slice(Math.max(0,i-22),i))) return {who:'لا يتبع تجمع '+CLU.own,snip:snip(i)}; }
+  // ٣) عبارات عامة + عباراتك
+  for(const w of [...CLU_PHR,...(CLU.extra||[])]){ const n=nrm(w); if(!n) continue; const j=t.indexOf(n); if(j>=0) return {who:'خارج التجمع (عبارة: '+w+')',snip:snip(j)}; }
+  return null; }
+function cluScan(list){ const ks=cluCols(), out=[]; list.forEach(r=>{ for(const k of ks){ const v=r[k]; if(v==null||v==='') continue; const d=cluDetect(String(v)); if(d){ out.push({r,k,...d}); break; } } }); return out; }
+// الاستبعاد: بلاغات لا تتبع التجمع تبقى في القاعدة لكنها لا تُحسب في الشاشة والتقارير والتصدير
+let DATA_V=0, EXC_V=0, EXC_C=null;
+const EXC_KEY='r937-exc-v1';
+let EXS=(()=>{ try{ const v=JSON.parse(localStorage.getItem(EXC_KEY)||'{}'); return {m:v.m||{},keep:v.keep||[]}; }catch(e){ return {m:{},keep:[]}; } })();
+const saveExc=()=>{ EXC_V++; EXC_C=null; try{ localStorage.setItem(EXC_KEY,JSON.stringify(EXS)); }catch(e){} };
+function excInfo(){ const sig=RECS.length+'|'+EXC_V+'|'+DATA_V+'|'+(CLU.auto?1:0)+'|'+JSON.stringify([CLU.own,CLU.cols,CLU.extra]); if(EXC_C&&EXC_C.sig===sig) return EXC_C;
+  const why=new Map(); Object.entries(EXS.m).forEach(([k,v])=>why.set(k,v.why||'يدوي'));
+  if(CLU.auto){ const keep=new Set(EXS.keep); cluScan(RECS).forEach(h=>{ const k=keyNo(h.r.no); if(!keep.has(k)&&!why.has(k)) why.set(k,'تلقائي: '+h.who); }); }
+  const have=new Set(RECS.map(r=>keyNo(r.no))); const set=new Set([...why.keys()].filter(k=>have.has(k)));
+  EXC_C={sig,set,why}; return EXC_C; }
+const excSet=()=>{ try{ return excInfo().set; }catch(e){ return new Set(); } };
+function excAdd(keys,why){ const at=new Date().toISOString(); const kp=new Set(EXS.keep); keys.forEach(k=>{ EXS.m[k]={why,at}; kp.delete(k); }); EXS.keep=[...kp]; saveExc(); }
+function excBack(keys){ const kp=new Set(EXS.keep); keys.forEach(k=>{ delete EXS.m[k]; if(CLU.auto) kp.add(k); }); EXS.keep=[...kp]; saveExc(); }
+document.addEventListener('click',e=>{ if(e.target.closest('[data-excopen]')) cluDialog('exc'); });
+function cluDialog(tab0){ if(!RECS.length){ toast('لا توجد بلاغات'); return; }
+  const allK=ALLK().filter(k=>k!=='id'&&k!=='no'&&!['date','month'].includes(k)), sel=new Set(cluCols());
+  let tab=tab0||'found', picked=null, H=[];
+  const byKey=()=>new Map(RECS.map(r=>[keyNo(r.no),r]));
+  const draw=()=>{ const ks=[...sel]; CLU.cols=ks; saveClu(); EXC_C=null; const X=excInfo();
+    H=ks.length?cluScan(CLU.all?RECS:filtered):[]; if(!picked) picked=new Set(H.map(h=>keyNo(h.r.no)).filter(k=>!X.set.has(k)));
+    const tb=(t,l)=>`<button type="button" class="btn sm ${tab===t?'primary':''}" data-clutab="${t}">${l}</button>`;
+    const head=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${tb('found',`المكتشفة (${fmt(H.length)})`)}${tb('exc',`المستبعدة (${fmt(X.set.size)})`)}</div>`;
+    if(tab==='exc'){ const M=byKey(); const L=[...X.set].map(k=>[k,M.get(k),X.why.get(k)]).filter(x=>x[1]).sort((a,b)=>String(b[1].date).localeCompare(a[1].date));
+      return head+`<div class="pcard" style="margin-bottom:10px"><p style="margin:0">البلاغات المستبعدة <b>لا تُحسب</b> في الشاشة الرئيسية والبطاقات والتقارير والتصدير، لكنها <b>تبقى محفوظة</b> في القاعدة ويمكن إرجاعها في أي وقت. رقم البلاغ يبقى مستبعداً حتى لو جاء مرة أخرى في استيراد قادم.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px"><span class="hint">عرض في السجلات:</span><div class="seg">${[['','إخفاؤها (الافتراضي)'],['show','إظهارها مع البقية'],['only','المستبعدة فقط']].map(([v,l])=>`<label><input type="radio" name="excView" value="${v}" ${(filt.exc||'')===v?'checked':''}><span>${l}</span></label>`).join('')}</div></div></div>
+        ${L.length?`<div style="margin-bottom:8px"><button type="button" class="btn sm" data-excall="back">إرجاع الكل (${fmt(L.length)})</button></div><div class="ctbl-wrap" style="max-height:46vh"><table class="ctbl"><thead><tr><th>#</th><th>رقم البلاغ</th><th>التاريخ</th><th>المركز</th><th>سبب الاستبعاد</th><th></th></tr></thead><tbody>${L.slice(0,800).map(([k,r,w],i)=>`<tr><td>${i+1}</td><td>${esc(r.no)}</td><td style="white-space:nowrap">${esc(cellText(r,'date'))}</td><td>${esc(r.center||'')}</td><td>${esc(w)}</td><td><button type="button" class="btn sm ghost" data-excback="${esc(k)}">إرجاع</button></td></tr>`).join('')}</tbody></table></div>`:'<p class="hint">لا توجد بلاغات مستبعدة.</p>'}`; }
+    const byW=countBy(H.map(h=>({w:h.who})),null,x=>x.w), byC=countBy(H.map(h=>h.r),'center'), np=[...picked].filter(k=>!X.set.has(k)).length;
+    return head+`<div class="pcard" style="margin-bottom:10px"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><b>الأعمدة التي تُفحص:</b>${allK.filter(k=>sel.has(k)||cluAuto().includes(k)||/ملاحظ|وصف|تفاصيل|رد|افاده/.test(nrm(label(k)))).map(k=>`<label style="display:flex;gap:4px;align-items:center"><input type="checkbox" data-cluk="${k}" ${sel.has(k)?'checked':''}>${esc(label(k))}</label>`).join('')}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px"><span class="hint">تجمعنا:</span><input class="inp" id="cluOwn" value="${esc(CLU.own)}" style="width:120px"><label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="cluAll" ${CLU.all?'checked':''}> كل البلاغات (تجاهل الفلاتر)</label></div>
+      <label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input type="checkbox" id="cluAuto" ${CLU.auto?'checked':''}> <b>استبعاد تلقائي</b> لكل ما يُكتشف الآن وفي الاستيرادات القادمة</label>
+      <details style="margin-top:8px"><summary class="hint" style="cursor:pointer">عبارات إضافية تدل على عدم التبعية (${fmt((CLU.extra||[]).length)})</summary><textarea class="inp" id="cluExtra" rows="3" placeholder="كل عبارة في سطر، مثل: يتبع صحة جدة">${esc((CLU.extra||[]).join('\n'))}</textarea></details>
+      ${ks.length?'':'<p style="color:var(--bad)">لم يُعثر على عمود «إفادة المنسق» أو «ضابط الاتصال» — اختر الأعمدة يدوياً.</p>'}</div>
+    <p style="margin:0 0 8px"><b>${fmt(H.length)}</b> بلاغ تذكر الإفادة فيه أن المركز لا يتبع تجمع ${esc(CLU.own)}${CLU.all?'':' (ضمن الفلاتر الحالية)'}${H.length?` · المستبعد منها: <b>${fmt(H.filter(h=>X.set.has(keyNo(h.r.no))).length)}</b>`:''}.</p>
+    ${H.length?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px"><div class="pcard"><h4 style="margin-top:0">الجهة المذكورة</h4>${byW.slice(0,8).map(([w,n])=>`<div style="display:flex;justify-content:space-between;gap:8px"><span>${esc(w)}</span><b>${fmt(n)}</b></div>`).join('')}</div><div class="pcard"><h4 style="margin-top:0">حسب المركز</h4>${byC.slice(0,8).map(([w,n])=>`<div style="display:flex;justify-content:space-between;gap:8px"><span>${esc(w||'—')}</span><b>${fmt(n)}</b></div>`).join('')}</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><button type="button" class="btn sm primary" data-excdo ${np?'':'disabled'}>🚫 استبعاد المحددة (${fmt(np)})</button><button type="button" class="btn sm ghost" data-clupick="all">تحديد الكل</button><button type="button" class="btn sm ghost" data-clupick="none">إلغاء التحديد</button><span class="hint">راجع المقطع وألغِ تحديد أي بلاغ التُقط خطأً قبل الاستبعاد.</span></div>
+    <div class="ctbl-wrap" style="max-height:40vh"><table class="ctbl"><thead><tr><th></th><th>رقم البلاغ</th><th>التاريخ</th><th>المركز</th><th>الجهة المذكورة</th><th>العمود</th><th style="min-width:260px">المقطع</th></tr></thead><tbody>${H.slice(0,600).map(h=>{ const k=keyNo(h.r.no), ex=X.set.has(k); return `<tr style="${ex?'opacity:.6':''}"><td>${ex?'<span class="hint" style="white-space:nowrap">مستبعد</span>':`<input type="checkbox" data-cluck="${esc(k)}" ${picked.has(k)?'checked':''}>`}</td><td>${esc(h.r.no)}</td><td style="white-space:nowrap">${esc(cellText(h.r,'date'))}</td><td>${esc(h.r.center||'')}</td><td><b>${esc(h.who)}</b></td><td class="hint">${esc(label(h.k))}</td><td style="font-size:12.5px">${esc(h.snip)}</td></tr>`; }).join('')}</tbody></table></div>${H.length>600?`<p class="hint">يُعرض أول 600 — «تحديد الكل» يشمل الجميع، وصدّر Excel للقائمة الكاملة.</p>`:''}`:''}`; };
+  const after=()=>{ try{ refresh(true); }catch(e){} };
+  dialog({title:'فحص تبعية التجمع', wide:true, html:`<div id="cluBox">${draw()}</div>`, actions:[
+    {label:'عرضها في السجلات',run:()=>{ if(tab==='exc'){ filt={...filt,exc:'only'}; } else { if(!H.length){ toast('لا توجد بلاغات'); return false; } filt={...filt,q:'',exc:'show',from:CLU.all?'':filt.from,to:CLU.all?'':filt.to,nos:H.map(h=>keyNo(h.r.no)).join(' ')}; } view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); }},
+    {label:'تصدير Excel',run:()=>{ const X=excInfo(); const L=tab==='exc'?(()=>{ const M=byKey(); return [...X.set].map(k=>({r:M.get(k),who:X.why.get(k),k:'',snip:''})).filter(x=>x.r); })():H; if(!L.length){ toast('لا توجد بلاغات'); return false; } (async()=>{ busy('جارٍ تجهيز الملف…'); try{ const HD=['رقم البلاغ','تاريخ البلاغ','المركز','الجهة المذكورة / السبب','العمود','المقطع','مستبعد']; let x=`<row r="1">${HD.map((h,i)=>cellXml(1,i,h,1)).join('')}</row>`; L.forEach((h,ri)=>{ const rr=ri+2; x+=`<row r="${rr}">${[h.r.no,cellText(h.r,'date'),h.r.center||'',h.who,h.k?label(h.k):'',h.snip,X.set.has(keyNo(h.r.no))?'نعم':'لا'].map((c,i)=>cellXml(rr,i,c,2)).join('')}</row>`; }); const blob=await buildXlsx([],{sheets:[[tab==='exc'?'المستبعدة':'تبعية التجمع',sheetDoc(x,[16,20,30,30,20,70,10],`<autoFilter ref="A1:G${L.length+1}"/>`)]]}); busy(null); await saveFile(`${tab==='exc'?'البلاغات-المستبعدة':'فحص-تبعية-التجمع'}-${stamp()}.xlsx`,blob); }catch(e){ busy(null); toast('تعذر التصدير'); } })(); return false; }},
+    {label:'إغلاق',cls:'primary'}],
+    onOpen:sc=>{ const re=()=>{ sc.querySelector('#cluBox').innerHTML=draw(); };
+      sc.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return;
+        if(b.dataset.clutab){ tab=b.dataset.clutab; re(); return; }
+        if(b.dataset.clupick){ picked=b.dataset.clupick==='all'?new Set(H.map(h=>keyNo(h.r.no))):new Set(); re(); return; }
+        if(b.dataset.excdo!==undefined){ if(VIEWER) return; const X=excInfo(); const ks=[...picked].filter(k=>!X.set.has(k)); if(!ks.length) return; const W=new Map(H.map(h=>[keyNo(h.r.no),h.who])); ks.forEach(k=>excAdd([k],W.get(k)||'لا يتبع التجمع')); toast(`استُبعد ${fmt(ks.length)} بلاغ — لم تعد تُحسب`); after(); re(); return; }
+        if(b.dataset.excback){ excBack([b.dataset.excback]); toast('أُرجع البلاغ'); after(); re(); return; }
+        if(b.dataset.excall==='back'){ excBack([...excInfo().set]); toast('أُرجعت كل البلاغات المستبعدة'); after(); re(); return; } });
+      sc.addEventListener('change',e=>{ const t=e.target; if(t.dataset.cluk){ t.checked?sel.add(t.dataset.cluk):sel.delete(t.dataset.cluk); picked=null; re(); }
+        if(t.dataset.cluck){ t.checked?picked.add(t.dataset.cluck):picked.delete(t.dataset.cluck); const b=sc.querySelector('[data-excdo]'); if(b){ const n=[...picked].filter(k=>!excSet().has(k)).length; b.disabled=!n; b.textContent=`🚫 استبعاد المحددة (${fmt(n)})`; } }
+        if(t.name==='excView'){ filt={...filt,exc:t.value}; after(); }
+        if(t.id==='cluAuto'){ CLU.auto=t.checked?1:0; if(t.checked) EXS.keep=[]; saveClu(); saveExc(); after(); re(); toast(t.checked?'الاستبعاد التلقائي مفعّل':'أُوقف الاستبعاد التلقائي (المستبعد يدوياً يبقى)'); }
+        if(t.id==='cluAll'){ CLU.all=t.checked?1:0; saveClu(); picked=null; re(); } if(t.id==='cluOwn'){ CLU.own=t.value.trim()||'مكة'; saveClu(); picked=null; re(); if(CLU.auto) after(); }
+        if(t.id==='cluExtra'){ CLU.extra=t.value.split('\n').map(x=>x.trim()).filter(Boolean); saveClu(); picked=null; re(); if(CLU.auto) after(); } }); } }); }
 
 /* ---------- فحص حالة التذاكر من ملف بدون استيراد + «معاد فتحها» ---------- */
 const REOPEN_KEY='r937-reopen-v1', ROSET_KEY='r937-reopenset-v1';
