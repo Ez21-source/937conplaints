@@ -341,6 +341,7 @@ table.ctbl .mv{display:flex;gap:2px}
 .rp{--rp-a:#0B6B5D;--rp-soft:#DCEEEA;--rp-band:#F3F7F6;--rp-line:#DCE5E3;--rp-ink:#16211F;--rp-mut:#5E6E6B;width:1120px;background:#fff;color:var(--rp-ink);font-family:"IBM Plex Sans Arabic","Segoe UI",Tahoma,"Noto Sans Arabic",sans-serif;direction:rtl;padding:30px 34px;font-size:calc(13px*var(--rp-k,1));line-height:1.5}
 .rp.portrait{width:780px;padding:26px 28px}
 .rp .blk{padding-bottom:16px;background:#fff}
+.rp .blk-in{padding-bottom:10px}.rp .blk-one table.rpt td{padding:3px 4px}.rp .blk-one .rp-sec h4{padding-top:6px;padding-bottom:6px}
 .rp-top{display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center;padding-bottom:14px;border-bottom:3px solid var(--rp-a);margin-bottom:6px}
 .rp-top .lg img{max-height:var(--rp-logo,64px);max-width:calc(var(--rp-logo,64px) * 2.7);display:block;object-fit:contain}
 .rp-top .lgs{display:flex;gap:14px;align-items:center}
@@ -710,7 +711,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '135';
+const APP_VER = '136';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -2329,7 +2330,10 @@ function buildReport(list,opts){
   _cut('cols');
   if(opts.sec.sector && sectors.length) h+=`<div class="blk"><div class="rp-sec"><h4>حسب القطاع<small>${fmt(sectors.length)} قطاع${opts.ordS&&opts.ordS!=='desc'?' · '+ORD_LBL[opts.ordS]:''}</small></h4><div class="rp-body">${opts.sec.cdur!==0&&hasDur(list)?rptDurTable(sectors,'القطاع',list,top,'sector'):rptTable(sectors,'القطاع',tot,top)}</div></div></div>`;
   _cut('sector');
-  h+=secSeqOf(opts).map(k=>_S[k]||'').join('');
+  { const Q=secSeqOf(opts), ONE=['sector','center','cats'];
+    if(opts.tblOne!==0&&ONE.filter(k=>_S[k]).length>1){ const first=Q.find(k=>ONE.includes(k)&&_S[k]); const grp=`<div class="blk blk-one">${Q.filter(k=>ONE.includes(k)).map(k=>(_S[k]||'').replace(/<div class="blk">/g,'<div class="blk-in">')).join('')}</div>`;
+      h+=Q.map(k=>ONE.includes(k)?(k===first?grp:''):(_S[k]||'')).join(''); }
+    else h+=Q.map(k=>_S[k]||'').join(''); }
   if(opts.list && list.length){
     const cols=Array.isArray(opts.listCols)&&opts.listCols.length?opts.listCols.filter(k=>col(k)&&(opts.pii||!col(k).pii)):SCHEMA.filter(c=>!c.removed && c.rep && (opts.pii||!c.pii)).map(c=>c.k);
     const head=`<thead><tr><th>#</th>${cols.map(k=>`<th>${esc(short(k))}</th>`).join('')}</tr></thead>`;
@@ -3749,7 +3753,7 @@ const condText=cond=>(cond||[]).filter(c=>c&&c.k&&(c.v||[]).length).map(c=>`${la
 const RTPL_KEY='r937-rtpl-v1', RTSEL_KEY='r937-rtsel-v1';
 let RTPL=(()=>{ try{ const v=JSON.parse(localStorage.getItem(RTPL_KEY)||'[]'); return Array.isArray(v)?v:[]; }catch(e){ return []; } })();
 const saveRTPL=()=>{ try{ localStorage.setItem(RTPL_KEY,JSON.stringify(RTPL)); }catch(e){} };
-const SPEC_KEYS=['listGrp','listSort','secSeq','ordC','ordS','secOrd','kind','sChart','sTop','sTime','title','orient','paper','margin','top','list','pii','sec','kpis','cols','listCols','showFilters','font','cond'];
+const SPEC_KEYS=['tblOne','listGrp','listSort','secSeq','ordC','ordS','secOrd','kind','sChart','sTop','sTime','title','orient','paper','margin','top','list','pii','sec','kpis','cols','listCols','showFilters','font','cond'];
 // إعدادات تقرير كاملة: الافتراضي (PRINT) أو نموذج محفوظ
 function specOf(id){ const t=RTPL.find(x=>x.id===id); const base={...PRINT,sec:{...PRINT.sec}}; if(!t) return base;
   const o={...base}; SPEC_KEYS.forEach(k=>{ if(t[k]!==undefined) o[k]=JSON.parse(JSON.stringify(t[k])); }); o.sec={...DEF_PRINT.sec,...(t.sec||{})}; o.tpl=t.id; o.tplName=t.name; return o; }
@@ -3788,6 +3792,8 @@ function rtplEditor(id,after){
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><select class="inp" id="teKb" style="width:auto">${opt([['','مؤشر جاهز…'],...Object.entries(KPI_BASE).filter(([k])=>!d.kpis.includes(k))],'')}</select><button type="button" class="btn sm" id="teKbAdd">إضافة</button></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px"><span class="hint">من عمود:</span><select class="inp" id="teKc" style="width:auto">${opt(RC(),'sub')}</select><select class="inp" id="teKm" style="width:auto">${opt(Object.entries(KPI_MODES),'top')}</select><select class="inp" id="teKv" style="width:auto;max-width:220px"></select><button type="button" class="btn sm" id="teKcAdd">إضافة</button></div></div>
     <div class="pcard"><h4>الأقسام والجداول</h4>${secChecks(d.sec,'data-tesec',d.kind==='simple')}
+      <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="teTblOne" ${d.tblOne!==0?'checked':''}> <b>جداول القطاع والمركز والتصنيف في صفحة واحدة</b></label>
+      <p class="hint" style="margin:2px 0 0">تُجمع الجداول الثلاثة في صفحة واحدة بصفوف مضغوطة، وتُصغَّر قليلاً إن لزم لتتسع. الأنسب مع «أعلى 10».</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px"><b>ترتيب جدول المركز</b>${seg('teOrdC',[['desc','الأكثر أولاً'],['asc','الأقل أولاً'],['name','أبجدي']],d.ordC||'desc')}</div>
       ${active('sector')?`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px"><b>ترتيب جدول القطاع</b>${seg('teOrdS',[['desc','الأكثر أولاً'],['asc','الأقل أولاً'],['name','أبجدي'],['custom','ترتيبي (يدوي)']],d.ordS||'desc')}</div>
       ${d.ordS==='custom'?(()=>{ d.secOrd=secNames(d.secOrd); return `<div style="display:grid;gap:4px;margin-top:6px">${d.secOrd.map((v,i)=>`<div style="display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:4px 8px"><span class="hint" style="width:22px">${i+1}</span><b style="flex:1">${esc(v)}</b>${mv(i,'s')}</div>`).join('')}</div><p class="hint" style="margin:4px 0 0">رتّب القطاعات بالأسهم كما تريد ظهورها في الجدول.</p>`; })():''}`:''}
@@ -3823,7 +3829,7 @@ function rtplEditor(id,after){
       s.addEventListener('input',e=>{ const t=e.target; if(t.id==='teName') d.name=t.value; if(t.id==='teTitle') d.title=t.value; if(t.id==='teFc'){ d.font.color=t.value; }
         if(t.id==='teCq'){ condQ=t.value; clearTimeout(s._q); s._q=setTimeout(re,250); } });
       s.addEventListener('change',e=>{ const t=e.target;
-        if(t.id==='tePin') d.pin=t.checked; if(t.name==='teOr') d.orient=t.value; if(t.name==='teOrdC'){ d.ordC=t.value; } if(t.name==='teOrdS'){ d.ordS=t.value; re(); } if(t.name==='teKind'){ d.kind=t.value; const sm=t.value==='simple'; s.querySelectorAll('[data-tesec]').forEach(c=>{ c.disabled=(sm&&!SIMPLE_OK.includes(c.dataset.tesec))||!!c.closest('label').title; }); s.querySelectorAll('.simple-note').forEach(n=>n.hidden=!sm); const tl=s.querySelector('#teList'); if(tl) tl.disabled=sm; } if(t.name==='teSChart') d.sChart=t.value; if(t.name==='teSTop') d.sTop=+t.value; if(t.name==='teSTime') d.sTime=t.value; if(t.name==='teTop') d.top=+t.value;
+        if(t.id==='tePin') d.pin=t.checked; if(t.name==='teOr') d.orient=t.value; if(t.id==='teTblOne'){ d.tblOne=t.checked?1:0; } if(t.name==='teOrdC'){ d.ordC=t.value; } if(t.name==='teOrdS'){ d.ordS=t.value; re(); } if(t.name==='teKind'){ d.kind=t.value; const sm=t.value==='simple'; s.querySelectorAll('[data-tesec]').forEach(c=>{ c.disabled=(sm&&!SIMPLE_OK.includes(c.dataset.tesec))||!!c.closest('label').title; }); s.querySelectorAll('.simple-note').forEach(n=>n.hidden=!sm); const tl=s.querySelector('#teList'); if(tl) tl.disabled=sm; } if(t.name==='teSChart') d.sChart=t.value; if(t.name==='teSTop') d.sTop=+t.value; if(t.name==='teSTime') d.sTime=t.value; if(t.name==='teTop') d.top=+t.value;
         if(t.id==='teFlt') d.showFilters=t.checked?1:0; if(t.id==='tePii') d.pii=t.checked; if(t.id==='teList') d.list=t.checked; if(t.name==='teLGrp') d.listGrp=t.value; if(t.id==='teLSort') d.listSort=t.value; if(t.id==='teKpiOn') d.sec.kpi=t.checked?1:0;
         if(t.dataset.tesec) secSet(d.sec,t.dataset.tesec,t.checked);
         if(t.id==='teFam') d.font.fam=t.value; if(t.name==='teFs') d.font.size=t.value?+t.value:'';
@@ -3945,7 +3951,7 @@ document.addEventListener('change',e=>{ if(e.target.id==='exitOn'){ EXIT.on=e.ta
 ['pointerdown','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,()=>exitArm(),{once:true,capture:true}));
 
 /* ---------- print & export ---------- */
-const DEF_PRINT={listGrp:'',listSort:'',secSeq:null,ordC:'desc',ordS:'desc',secOrd:[],pngQ:3,kind:'full',sChart:'line',sTop:10,sTime:'auto',fmt:'pdf',paper:'A4',orient:'landscape',margin:'normal',top:20,list:true,pii:false,kpis:['total','centers','topCenter','topCat'],cols:[],listCols:null,showFilters:0,sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1}};
+const DEF_PRINT={tblOne:1,listGrp:'',listSort:'',secSeq:null,ordC:'desc',ordS:'desc',secOrd:[],pngQ:3,kind:'full',sChart:'line',sTop:10,sTime:'auto',fmt:'pdf',paper:'A4',orient:'landscape',margin:'normal',top:20,list:true,pii:false,kpis:['total','centers','topCenter','topCat'],cols:[],listCols:null,showFilters:0,sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1}};
 let PRINT=(()=>{ try{ const o=JSON.parse(localStorage.getItem(PRINT_KEY)||'{}'); return {...DEF_PRINT,...o,sec:{...DEF_PRINT.sec,...(o.sec||{})}}; }catch(e){ return JSON.parse(JSON.stringify(DEF_PRINT)); } })();
 const printOpts=()=>PRINT;
 const PAPER={A4:[595.28,841.89],A3:[841.89,1190.55],Letter:[612,792]};
