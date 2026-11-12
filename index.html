@@ -710,7 +710,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '130';
+const APP_VER = '131';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -2205,6 +2205,21 @@ function rptDurTable(arr,lab,list,limit){ const L=durLabels(), m=new Map(); list
   const th=(l,t)=>`<th style="text-align:center;background:${C[l]};color:#fff;border-radius:6px 6px 0 0;white-space:nowrap;padding:4px 8px">${esc(t)}</th>`;
   return `<table class="rpt"><thead><tr><th></th><th>${lab}</th><th style="text-align:center">العدد</th>${th('g',L.g)}${th('o',L.o)}${th('r',L.r)}</tr></thead><tbody>${rows||'<tr><td colspan="6">لا توجد بيانات</td></tr>'}</tbody></table>`; }
 const hasDur=list=>{ try{ return list.some(r=>durInfo(r).st!=='none'); }catch(e){ return false; } };
+// التنويهات في الصفحة الأولى: تنويه المعاد فتحها (تلقائي، ونصه قابل للتعديل) + تنويهات يدوية
+const notesOf=st=>({roT:'',list:[],...(((st||RSTYLE)||{}).notes||{})});
+function roNoteHtml(n,listOn){ const where=listOn?'في عمود «المدة الزمنية للإغلاق» في قائمة البلاغات':'في عمود «المدة الزمنية للإغلاق» في سجلات التطبيق';
+  const how=DUR.roMode==='a'?`تُحسب مدتها من تاريخ إنشاء التذكرة، وتظهر ${where} بالرمز <b>↺</b> بجانب المدة.`:`تظهر ${where} بعبارة <b>«↺ معاد فتحه»</b> بدل المدة، ولا تُحسب في فئات المدة (${esc(durLabels().g)} / ${esc(durLabels().o)} / ${esc(durLabels().r)}) حتى تُغلق.`;
+  return `الرمز <b>↺</b> يدل على البلاغات <b>المعاد فتحها</b> (${typeof n==='string'?n:fmt(n)} بلاغ في هذا التقرير). وقت إعادة الفتح محسوب من <b>تاريخ تحديث البيانات في التطبيق</b> (الاستيراد أو الفحص) وليس من المنصة، لأن ملف المنصة لا يذكره. ${how}`; }
+const roNotePlain=()=>roNoteHtml('{العدد}',true).replace(/<[^>]+>/g,'');
+function notesCard(d){ const N=notesOf(d);
+  return `<div class="pcard" id="ntCard"><h4>التنويهات (الصفحة الأولى)</h4>
+    <b>تنويه المعاد فتحها ↺</b> <span class="hint">— يظهر تلقائياً إذا كان في التقرير بلاغات معاد فتحها، ويُشغَّل أو يُطفأ من «الأقسام والجداول».</span>
+    <textarea class="inp" id="ntRoT" rows="4" style="margin-top:6px" placeholder="${esc(roNotePlain())}">${esc(N.roT||'')}</textarea>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px"><span class="hint">اتركه فارغاً لاستخدام النص التلقائي. اكتب <b>{العدد}</b> ليُستبدل بعدد البلاغات المعاد فتحها.</span><button type="button" class="btn sm ghost" id="ntRoCopy">نسخ النص التلقائي للتعديل</button><button type="button" class="btn sm ghost" id="ntRoReset">رجوع للتلقائي</button></div>
+    <div style="margin-top:12px"><b>تنويهات يدوية</b></div>
+    ${(N.list||[]).map((x,i)=>`<div style="display:flex;gap:8px;align-items:flex-start;margin-top:6px"><input type="checkbox" data-nton="${i}" ${x.on!==0?'checked':''} title="إظهار" style="margin-top:10px"><textarea class="inp" data-nt="${i}" rows="2" style="flex:1" placeholder="نص التنويه">${esc(x.t||'')}</textarea><button type="button" class="btn sm ghost" data-ntdel="${i}" title="حذف">حذف</button></div>`).join('')||'<p class="hint" style="margin:4px 0">لا توجد تنويهات يدوية.</p>'}
+    <button type="button" class="btn sm" id="ntAdd" style="margin-top:8px">+ إضافة تنويه</button>
+    <p class="hint" style="margin:6px 0 0">تظهر تحت البطاقات في الصفحة الأولى بإطار برتقالي يبدأ بكلمة «تنويه:»، في الشامل والبسيط وPDF والصورة.</p></div>`; }
 // رأس التقرير وذيله: نصوص قابلة للاستبدال وتنسيقها (من «تنسيق التقرير»)
 const DEF_HF={org:{on:1,t:'',sz:100,c:'',b:1},title:{on:1,t:'',sz:100,c:'',b:1},sub:{on:1,t:'',sz:100,c:'',b:0},meta:{period:1,date:1,prep:1,sz:100,c:''},ftr:{on:1,r:'',l:'',sz:100,c:'',line:1}};
 function hfOf(st){ const h=((st||RSTYLE)||{}).hf||{}; const o={}; Object.keys(DEF_HF).forEach(k=>o[k]={...DEF_HF[k],...(h[k]||{})}); return o; }
@@ -2223,16 +2238,16 @@ function reportFoot(tot,o,st,range){
 function secItems(){ return [['daily','عدد البلاغات (الخط الزمني)',''],['center','حسب المركز الصحي',''],['cdur','↳ مع مدة الإغلاق (24 / 48 / أكثر من 48 ساعة)',''],
   ['cm','حسب '+label('main'),active('main')?'':'العمود غير مفعّل'],['cs','حسب '+short('sub'),active('sub')?'':'العمود غير مفعّل'],
   ['sector','حسب القطاع',active('sector')?'':'العمود غير مفعّل'],['callers','المتصلون الأكثر تكراراً',(active('caller')||active('nid'))?'':'لا يوجد عمود للمتصل'],
-  ['staff','الموظفون المذكورون',''],['clinics','العيادات المذكورة','']]; }
-const secOn=(sec,k)=>k==='cdur'?sec.cdur!==0:k==='cm'?!!(sec.cats&&sec.cm!==0):k==='cs'?!!(sec.cats&&sec.cs!==0):!!sec[k];
+  ['roNote','تنويه «المعاد فتحها ↺» في الصفحة الأولى',''],['staff','الموظفون المذكورون',''],['clinics','العيادات المذكورة','']]; }
+const secOn=(sec,k)=>k==='roNote'?sec.roNote!==0:k==='cdur'?sec.cdur!==0:k==='cm'?!!(sec.cats&&sec.cm!==0):k==='cs'?!!(sec.cats&&sec.cs!==0):!!sec[k];
 function secSet(sec,k,on){ if(k==='cm'||k==='cs'){ const cm=k==='cm'?on:secOn(sec,'cm'), cs=k==='cs'?on:secOn(sec,'cs'); sec.cm=cm?1:0; sec.cs=cs?1:0; sec.cats=cm||cs?1:0; } else sec[k]=on?1:0; }
-const SIMPLE_OK=['daily','center','cdur','cm','cs'];
+const SIMPLE_OK=['daily','center','cdur','cm','cs','roNote'];
 const SIMPLE_NOTE='في التقرير البسيط (صفحة واحدة) تعمل فقط: الخط الزمني والمركز الصحي والتصنيفات، وعدد الصفوف من «أعلى 5 / 10 / 20». البقية للتقرير الشامل.';
 function simplePicks(sec){ const on=k=>secOn(sec,k); return {cdur:(sec||{}).cdur!==0,daily:on('daily'),center:on('center'),cm:on('cm')&&active('main'),cs:on('cs')&&active('sub')}; }
 function secChecks(sec,attr,simple){ return `<div class="checks secbox">${secItems().map(([k,l,why])=>`<label title="${esc(why)}"><input type="checkbox" ${attr}="${k}" ${secOn(sec,k)&&!why?'checked':''} ${why||(simple&&!SIMPLE_OK.includes(k))?'disabled':''}>${esc(l)}${why?` <span class="hint">(${esc(why)})</span>`:''}</label>`).join('')}</div><p class="hint simple-note" ${simple?'':'hidden'} style="color:var(--warn,#B7791F);margin:4px 0 0">${SIMPLE_NOTE}</p>`; }
 function buildReport(list,opts){
   opts={list:false,pii:false,top:20,orient:'landscape',sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1},...opts};
-  let SS=null; if(opts.kind==='simple'){ SS=simplePicks(opts.sec||{}); opts={...opts,sec:{kpi:(opts.sec||{}).kpi===0?0:1},cols:[],list:false}; }
+  const RON=((opts.sec||{}).roNote!==0), LISTON=!!opts.list&&opts.kind!=='simple'; let SS=null; if(opts.kind==='simple'){ SS=simplePicks(opts.sec||{}); opts={...opts,sec:{kpi:(opts.sec||{}).kpi===0?0:1},cols:[],list:false}; }
   const b=brand(), ST0=opts.style||RSTYLE, ST=opts.kind==='simple'?{...ST0,cover:{...(ST0.cover||{}),on:0}}:ST0, c=rsColors(ST); list=condFilter(list,opts.cond); const RF=rFont(opts,ST);
   const el=document.createElement('div'); el.className='rp'+(opts.orient==='portrait'?' portrait':'');
   el.style.cssText=`--rp-a:${c.a};--rp-soft:${c.soft};--rp-band:${c.band};--rp-bar:${c.bar};--rp-th:${c.th};--rp-title:${c.title};--rp-logo:${+ST.logoSize||64}px;--rp-k:${RF.size/100}${RF.fam!=='plex'?`;font-family:${rfStack(RF.fam)};--rp-fh:${rfStack(RF.fam)}`:''}${RF.color?`;--rp-ink:${RF.color}`:''}`;
@@ -2259,6 +2274,11 @@ function buildReport(list,opts){
     <div class="rp-band"></div>
     ${opts.showFilters&&fd.length?`<div class="rp-filters">${fd.map(([a,v])=>`<span>${esc(a)}: <b>${esc(v)}</b></span>`).join('')}</div>`:''}${(opts.cond||[]).length&&condText(opts.cond)?`<div class="rp-filters"><span>يشمل: <b>${esc(condText(opts.cond))}</b></span></div>`:''}
     ${opts.sec.kpi?(()=>{ const K=kpiValues(list,Array.isArray(opts.kpis)?opts.kpis:DEF_PRINT.kpis); return K.length?`<div class="rp-kpis" style="--kc:${Math.min(K.length,4)}">${K.map(([l,v,sx])=>`<div class="rp-kpi"><div class="l">${esc(l)}</div><div class="v${typeof v==='number'?'':' t'}">${typeof v==='number'?fmt(v):esc(v)}</div><div class="s">${esc(sx||'')}</div></div>`).join('')}</div>`:''; })():''}</div>`;
+  { const NT=notesOf(ST), box=t=>`<div style="border:1px solid #F0C27A;border-inline-start:4px solid #E8890C;background:#FFF8EC;border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:calc(12.5px*var(--rp-k,1));line-height:1.8;color:#3d2f12"><b style="color:#B7650B">تنويه:</b> ${t}</div>`; const out=[];
+    if(RON){ let n=0; try{ list.forEach(r=>{ if(durInfo(r).ro) n++; }); }catch(e){}
+      if(n) out.push(NT.roT?esc(NT.roT).replace(/\{العدد\}/g,fmt(n)).replace(/\n/g,'<br>'):roNoteHtml(n,LISTON)); }
+    (NT.list||[]).forEach(x=>{ if(x&&x.on!==0&&String(x.t||'').trim()) out.push(esc(String(x.t).trim()).replace(/\n/g,'<br>')); });
+    if(out.length) h+=`<div class="blk">${out.map(box).join('')}</div>`; }
   if(SS){ const LAND=opts.orient!=='portrait', n=+opts.sTop||10;
     const T=[]; const tb=(arr,lab)=>T.push(`<div class="rp-sec"><h4>أعلى ${fmt(Math.min(n,arr.length))} · ${esc(lab)}<small>من ${fmt(arr.length)}</small></h4><div class="rp-body">${rptTable(arr,lab,tot,n)}</div></div>`);
     if(SS.center){ if(SS.cdur&&hasDur(list)) T.push(`<div class="rp-sec"><h4>أعلى ${fmt(Math.min(n,centers.length))} · المركز الصحي<small>من ${fmt(centers.length)}</small></h4><div class="rp-body">${rptDurTable(centers,'المركز الصحي',list,n)}</div></div>`); else tb(centers,'المركز الصحي'); } if(SS.cm) tb(mains,label('main')); if(SS.cs) tb(subs,short('sub'));
@@ -3453,8 +3473,8 @@ const RS_THEMES={
   gray:{l:'رمادي',a:'#3F4A55',title:'#2A323A',bar:'#6B7884',th:'#3F4A55',band:'#F3F4F6'},
   bw:{l:'أبيض وأسود للطباعة',a:'#222222',title:'#111111',bar:'#666666',th:'#333333',band:'#F2F2F2'},
   custom:{l:'مخصص'}};
-const DEF_RS={upd:{on:1,v:''},font:{fam:'plex',size:100,color:''},theme:'brand',colors:null,logoSize:64,logoPos:'right',logo2:'',cover:{on:0,image:'',subtitle:''},wm:{on:0,src:'logo',image:'',op:0.07,data:''}};
-let RSTYLE=(()=>{ try{ const v=JSON.parse(localStorage.getItem(RS_KEY)||'null'); return v?{...DEF_RS,...v,upd:{...DEF_RS.upd,...(v.upd||{})},font:{...DEF_RS.font,...(v.font||{})},cover:{...DEF_RS.cover,...(v.cover||{})},wm:{...DEF_RS.wm,...(v.wm||{})}}:JSON.parse(JSON.stringify(DEF_RS)); }catch(e){ return JSON.parse(JSON.stringify(DEF_RS)); } })();
+const DEF_RS={notes:{roT:'',list:[]},upd:{on:1,v:''},font:{fam:'plex',size:100,color:''},theme:'brand',colors:null,logoSize:64,logoPos:'right',logo2:'',cover:{on:0,image:'',subtitle:''},wm:{on:0,src:'logo',image:'',op:0.07,data:''}};
+let RSTYLE=(()=>{ try{ const v=JSON.parse(localStorage.getItem(RS_KEY)||'null'); return v?{...DEF_RS,...v,notes:{...DEF_RS.notes,...(v.notes||{})},upd:{...DEF_RS.upd,...(v.upd||{})},font:{...DEF_RS.font,...(v.font||{})},cover:{...DEF_RS.cover,...(v.cover||{})},wm:{...DEF_RS.wm,...(v.wm||{})}}:JSON.parse(JSON.stringify(DEF_RS)); }catch(e){ return JSON.parse(JSON.stringify(DEF_RS)); } })();
 // «فترة تحديث البيانات»: العنوان ثابت والقيمة (تاريخ ووقت) تُحدَّث يدوياً
 const UPD_LBL='فترة تحديث البيانات';
 function updFmt(v){ if(!v) return 'لم تُحدَّد'; const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/); if(!m) return String(v); let h=+m[4]; const pm=h>=12; h=h%12||12; return `${m[1]}/${m[2]}/${m[3]} · ${h}:${m[5]} ${pm?'م':'ص'}`; }
@@ -3496,6 +3516,7 @@ function reportStyleDialog(){
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="hint">حجم الخط</span>${seg('rsFs',RF_SIZES,d.font.size||100)}</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="hint">لون النص</span><input type="color" id="rsFc" value="${d.font.color||'#16211F'}"><button type="button" class="btn sm ghost" id="rsFcR">اللون الافتراضي</button></div>
       <span class="hint">«جنى Janna LT» مضمّن في التطبيق ويعمل دون إنترنت، وبقية الخطوط تُحمَّل من الإنترنت. في ملف Excel يظهر الخط إذا كان مثبتاً على الجهاز. يمكن لكل نموذج تقرير أن يختار خطاً مختلفاً.</span></div>
+    ${notesCard(d)}
     <div class="pcard"><h4>${UPD_LBL}</h4><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="rsUpdOn" ${updOf(d).on?'checked':''}> إظهارها تحت عنوان التقرير</label>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><input type="datetime-local" class="inp" id="rsUpdV" value="${esc(updOf(d).v)}" style="width:auto"><button type="button" class="btn sm" id="rsUpdNow">الآن</button></div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><span class="hint">المصدر</span>${updModeSel(updOf(d),'id="rsUpdM"')}</div>
@@ -3553,9 +3574,15 @@ function reportStyleDialog(){
       sc.addEventListener('input',e=>{ if(e.target.dataset.hf && e.target.type!=='checkbox') hfSet(e.target); });
       sc.addEventListener('change',e=>{ if(e.target.dataset.hf) hfSet(e.target);
         if(e.target.id==='rsUpdOn'){ d.upd={...updOf(d),on:e.target.checked?1:0}; preview(sc); }
+        if(e.target.id==='ntRoT'){ d.notes={...notesOf(d),roT:e.target.value.trim()}; preview(sc); }
+        if(e.target.dataset.nt!==undefined){ const N=notesOf(d), L=[...N.list]; L[+e.target.dataset.nt]={...L[+e.target.dataset.nt],t:e.target.value}; d.notes={...N,list:L}; preview(sc); }
+        if(e.target.dataset.nton!==undefined){ const N=notesOf(d), L=[...N.list]; L[+e.target.dataset.nton]={...L[+e.target.dataset.nton],on:e.target.checked?1:0}; d.notes={...N,list:L}; preview(sc); }
         if(e.target.id==='rsUpdM'){ d.upd={...updOf(d),m:e.target.value}; preview(sc); }
         if(e.target.id==='rsUpdV'){ d.upd={...updOf(d),v:e.target.value,m:'manual'}; const m=sc.querySelector('#rsUpdM'); if(m) m.value='manual'; preview(sc); } });
       sc.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return;
+        if(b.id==='ntAdd'||b.dataset.ntdel!==undefined||b.id==='ntRoReset'||b.id==='ntRoCopy'){ const N=notesOf(d); let L=[...N.list], roT=N.roT;
+          if(b.id==='ntAdd') L.push({on:1,t:''}); if(b.dataset.ntdel!==undefined) L.splice(+b.dataset.ntdel,1); if(b.id==='ntRoReset') roT=''; if(b.id==='ntRoCopy') roT=roNotePlain();
+          d.notes={...N,list:L,roT}; sc.querySelector('#ntCard').outerHTML=notesCard(d); preview(sc); if(b.id==='ntAdd'){ const t=sc.querySelectorAll('[data-nt]'); t[t.length-1]?.focus(); } return; }
         if(b.id==='rsUpdNow'){ d.upd={...updOf(d),v:nowLocal(),m:'manual'}; const m=sc.querySelector('#rsUpdM'); if(m) m.value='manual'; sc.querySelector('#rsUpdV').value=d.upd.v; preview(sc); return; }
         if(b.dataset.hfc){ d.hf[b.dataset.hfc].c=''; preview(sc); toast('أُعيد اللون الافتراضي'); return; }
         if(b.dataset.hfreset){ d.hf=JSON.parse(JSON.stringify(DEF_HF)); document.getElementById('layer').innerHTML=''; setTimeout(()=>reportStyleDialogFrom(d),0); return; }
