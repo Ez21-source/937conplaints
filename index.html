@@ -710,7 +710,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '134';
+const APP_VER = '135';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -2205,6 +2205,17 @@ function rptDurTable(arr,lab,list,limit,key){ key=key||'center'; const L=durLabe
   const th=(l,t)=>`<th style="text-align:center;background:${C[l]};color:#fff;border-radius:6px 6px 0 0;white-space:nowrap;padding:4px 8px">${esc(t)}</th>`;
   return `<table class="rpt"><thead><tr><th></th><th>${lab}</th><th style="text-align:center">العدد</th>${th('g',L.g)}${th('o',L.o)}${th('r',L.r)}</tr></thead><tbody>${rows||'<tr><td colspan="6">لا توجد بيانات</td></tr>'}</tbody></table>`; }
 const hasDur=list=>{ try{ return list.some(r=>durInfo(r).st!=='none'); }catch(e){ return false; } };
+// قائمة البلاغات في التقرير: تجميع (قطاع/مركز/تصنيف) + ترتيب + مدة ملونة
+const LGRP_OPTS=[['','بدون'],['sector','القطاع'],['center','المركز الصحي'],['main','التصنيف الرئيسي'],['sub','التصنيف الفرعي']];
+const LSORT_OPTS=[['','كما في السجلات'],['durDesc','المدة: الأطول أولاً'],['durAsc','المدة: الأقصر أولاً'],['dateDesc','التاريخ: الأحدث أولاً'],['dateAsc','التاريخ: الأقدم أولاً']];
+function durPill(r){ let d; try{ d=durInfo(r); }catch(e){ return esc(rpv(r,'__dur')||''); }
+  const t=esc(durText(r)||''); if(!t) return '';
+  const C=d.roP?['#6B4FE0','#EFEBFF']:{g:['#1E8A5A','#E6F5EE'],o:['#C46A00','#FFF1DF'],r:['#D43A3F','#FDECEC']}[d.lvl]||['#5E6E6B','#EEF1F0'];
+  return `<span style="display:inline-block;padding:2px 10px;border-radius:999px;background:${C[1]};color:${C[0]};font-weight:700;white-space:nowrap">${t}</span>`; }
+const durH=r=>{ try{ const d=durInfo(r); return d.h==null?null:d.h; }catch(e){ return null; } };
+function listSorted(list,mode){ if(!mode) return list; const a=list.slice();
+  if(mode==='durDesc'||mode==='durAsc'){ const sg=mode==='durDesc'?-1:1; return a.sort((x,y)=>{ const hx=durH(x), hy=durH(y); if(hx==null&&hy==null) return 0; if(hx==null) return 1; if(hy==null) return -1; return sg*(hx-hy); }); }
+  const t=r=>{ const d=anyDate(r.date); return d?d.getTime():0; }; return a.sort((x,y)=>mode==='dateAsc'?t(x)-t(y):t(y)-t(x)); }
 // ترتيب أقسام التقرير الشامل (قابل للتغيير بالأسهم في نموذج التقرير)
 const SEC_SEQ_DEF=['daily','sector','center','cats','callers','clinics','staff','cols'];
 const SEC_SEQ_LBL={daily:'الخط الزمني',center:'حسب المركز الصحي',cats:'حسب التصنيف (الرئيسي / الفرعي)',sector:'حسب القطاع',callers:'المتصلون الأكثر تكراراً',clinics:'العيادات المذكورة',staff:'الموظفون المذكورون',cols:'جداول إضافية «حسب عمود»'};
@@ -2322,10 +2333,17 @@ function buildReport(list,opts){
   if(opts.list && list.length){
     const cols=Array.isArray(opts.listCols)&&opts.listCols.length?opts.listCols.filter(k=>col(k)&&(opts.pii||!col(k).pii)):SCHEMA.filter(c=>!c.removed && c.rep && (opts.pii||!c.pii)).map(c=>c.k);
     const head=`<thead><tr><th>#</th>${cols.map(k=>`<th>${esc(short(k))}</th>`).join('')}</tr></thead>`;
-    const chunk=opts.chunk||30;
-    for(let i=0;i<list.length;i+=chunk){
-      const part=list.slice(i,i+chunk);
-      h+=`<div class="blk">${i===0?`<div class="rp-sec"><h4>قائمة البلاغات<small>${fmt(list.length)} بلاغ</small></h4></div><div style="height:8px"></div>`:''}<table class="rpl">${head}<tbody>${part.map((r,j)=>`<tr><td>${i+j+1}</td>${cols.map(k=>`<td class="${col(k).ltr||col(k).type==='datetime'||col(k).type==='number'?'ltr':''}">${esc(rpv(r,k))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    const chunk=opts.chunk||30, G=opts.listGrp&&(opts.listGrp==='center'||active(opts.listGrp))?opts.listGrp:'';
+    const sorted=listSorted(list,opts.listSort); const rows=[];
+    if(G){ const by=new Map(); sorted.forEach(r=>{ const v=r[G]||'—'; if(!by.has(v)) by.set(v,[]); by.get(v).push(r); });
+      let gs=[...by.entries()].map(([v,a])=>[v,a.length]); gs=G==='sector'?ordArr(gs.sort((a,b)=>b[1]-a[1]),opts.ordS,opts.secOrd):G==='center'?ordArr(gs.sort((a,b)=>b[1]-a[1]),opts.ordC):gs.sort((a,b)=>b[1]-a[1]);
+      const GL={sector:'القطاع',center:'المركز الصحي',main:label('main'),sub:short('sub')}[G];
+      gs.forEach(([v,n])=>{ rows.push({g:`<tr><td colspan="${cols.length+1}" style="background:color-mix(in srgb,var(--rp-a) 10%,#fff);font-weight:700;color:var(--rp-a);padding:7px 8px">${esc(GL)}: ${esc(v)} <span style="font-weight:400;color:#6b7a77;font-size:.9em">${fmt(n)} بلاغ</span></td></tr>`}); by.get(v).forEach((r,i)=>rows.push({r,i})); }); }
+    else sorted.forEach((r,i)=>rows.push({r,i}));
+    const cell=(r,k)=>k==='__dur'?`<td>${durPill(r)}</td>`:`<td class="${col(k).ltr||col(k).type==='datetime'||col(k).type==='number'?'ltr':''}">${esc(rpv(r,k))}</td>`;
+    for(let i=0;i<rows.length;i+=chunk){
+      const part=rows.slice(i,i+chunk);
+      h+=`<div class="blk">${i===0?`<div class="rp-sec"><h4>قائمة البلاغات<small>${fmt(list.length)} بلاغ${G?' · مجمّعة حسب '+esc({sector:'القطاع',center:'المركز',main:label('main'),sub:short('sub')}[G]):''}</small></h4></div><div style="height:8px"></div>`:''}<table class="rpl">${head}<tbody>${part.map(x=>x.g?x.g:`<tr><td>${x.i+1}</td>${cols.map(k=>cell(x.r,k)).join('')}</tr>`).join('')}</tbody></table></div>`;
     }
   }
   h+=`<div class="blk" data-foot="1">${reportFoot(tot,opts,ST,range)}</div>`;
@@ -3731,7 +3749,7 @@ const condText=cond=>(cond||[]).filter(c=>c&&c.k&&(c.v||[]).length).map(c=>`${la
 const RTPL_KEY='r937-rtpl-v1', RTSEL_KEY='r937-rtsel-v1';
 let RTPL=(()=>{ try{ const v=JSON.parse(localStorage.getItem(RTPL_KEY)||'[]'); return Array.isArray(v)?v:[]; }catch(e){ return []; } })();
 const saveRTPL=()=>{ try{ localStorage.setItem(RTPL_KEY,JSON.stringify(RTPL)); }catch(e){} };
-const SPEC_KEYS=['secSeq','ordC','ordS','secOrd','kind','sChart','sTop','sTime','title','orient','paper','margin','top','list','pii','sec','kpis','cols','listCols','showFilters','font','cond'];
+const SPEC_KEYS=['listGrp','listSort','secSeq','ordC','ordS','secOrd','kind','sChart','sTop','sTime','title','orient','paper','margin','top','list','pii','sec','kpis','cols','listCols','showFilters','font','cond'];
 // إعدادات تقرير كاملة: الافتراضي (PRINT) أو نموذج محفوظ
 function specOf(id){ const t=RTPL.find(x=>x.id===id); const base={...PRINT,sec:{...PRINT.sec}}; if(!t) return base;
   const o={...base}; SPEC_KEYS.forEach(k=>{ if(t[k]!==undefined) o[k]=JSON.parse(JSON.stringify(t[k])); }); o.sec={...DEF_PRINT.sec,...(t.sec||{})}; o.tpl=t.id; o.tplName=t.name; return o; }
@@ -3781,6 +3799,9 @@ function rtplEditor(id,after){
       <div style="display:flex;gap:6px;margin-top:6px"><select class="inp" id="teCc" style="width:auto">${opt(RC().filter(([k])=>!d.cols.includes(k)),'')}</select><button type="button" class="btn sm" id="teCcAdd">إضافة جدول</button></div></div>
     <div class="pcard"><h4>قائمة البلاغات التفصيلية</h4>
       <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="teList" ${d.list?'checked':''}> إظهار القائمة</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px"><b>تجميع القائمة حسب</b>${seg('teLGrp',LGRP_OPTS.filter(([k])=>!k||k==='center'||active(k)),d.listGrp||'')}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px"><b>ترتيب القائمة</b><select class="inp" id="teLSort" style="width:auto">${LSORT_OPTS.map(([k,l])=>`<option value="${k}" ${(d.listSort||'')===k?'selected':''}>${l}</option>`).join('')}</select></div>
+      <p class="hint" style="margin:4px 0 0">عمود «المدة الزمنية للإغلاق» يظهر ملوناً: أخضر / برتقالي / أحمر، والمعاد فتحه بنفسجي. التجميع حسب القطاع يتبع «ترتيب جدول القطاع».</p>
       <p class="hint">الأعمدة الظاهرة بالترتيب (رتّب بالأسهم):</p>
       <div style="display:grid;gap:3px;max-height:320px;overflow:auto">${(()=>{ const all=listColsAll(true).map(c=>c.k); const order=[...d.listCols.filter(k=>all.includes(k)),...all.filter(k=>!d.listCols.includes(k))];
         return order.map(k=>{ const on=d.listCols.includes(k), i=d.listCols.indexOf(k); const c=col(k); return `<div style="display:flex;gap:6px;align-items:center;padding:2px 6px;border-radius:6px;${on?'background:var(--surface-2)':''}"><label style="flex:1;display:flex;gap:6px;align-items:center"><input type="checkbox" data-lc="${esc(k)}" ${on?'checked':''}> ${esc(c.l)}${c.pii?' <span class="hint">(شخصي)</span>':''}</label>${on?mv(i,'l'):''}</div>`; }).join(''); })()}</div></div>
@@ -3803,7 +3824,7 @@ function rtplEditor(id,after){
         if(t.id==='teCq'){ condQ=t.value; clearTimeout(s._q); s._q=setTimeout(re,250); } });
       s.addEventListener('change',e=>{ const t=e.target;
         if(t.id==='tePin') d.pin=t.checked; if(t.name==='teOr') d.orient=t.value; if(t.name==='teOrdC'){ d.ordC=t.value; } if(t.name==='teOrdS'){ d.ordS=t.value; re(); } if(t.name==='teKind'){ d.kind=t.value; const sm=t.value==='simple'; s.querySelectorAll('[data-tesec]').forEach(c=>{ c.disabled=(sm&&!SIMPLE_OK.includes(c.dataset.tesec))||!!c.closest('label').title; }); s.querySelectorAll('.simple-note').forEach(n=>n.hidden=!sm); const tl=s.querySelector('#teList'); if(tl) tl.disabled=sm; } if(t.name==='teSChart') d.sChart=t.value; if(t.name==='teSTop') d.sTop=+t.value; if(t.name==='teSTime') d.sTime=t.value; if(t.name==='teTop') d.top=+t.value;
-        if(t.id==='teFlt') d.showFilters=t.checked?1:0; if(t.id==='tePii') d.pii=t.checked; if(t.id==='teList') d.list=t.checked; if(t.id==='teKpiOn') d.sec.kpi=t.checked?1:0;
+        if(t.id==='teFlt') d.showFilters=t.checked?1:0; if(t.id==='tePii') d.pii=t.checked; if(t.id==='teList') d.list=t.checked; if(t.name==='teLGrp') d.listGrp=t.value; if(t.id==='teLSort') d.listSort=t.value; if(t.id==='teKpiOn') d.sec.kpi=t.checked?1:0;
         if(t.dataset.tesec) secSet(d.sec,t.dataset.tesec,t.checked);
         if(t.id==='teFam') d.font.fam=t.value; if(t.name==='teFs') d.font.size=t.value?+t.value:'';
         if(t.id==='teKc'||t.id==='teKm') fillKv(s);
@@ -3924,7 +3945,7 @@ document.addEventListener('change',e=>{ if(e.target.id==='exitOn'){ EXIT.on=e.ta
 ['pointerdown','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,()=>exitArm(),{once:true,capture:true}));
 
 /* ---------- print & export ---------- */
-const DEF_PRINT={secSeq:null,ordC:'desc',ordS:'desc',secOrd:[],pngQ:3,kind:'full',sChart:'line',sTop:10,sTime:'auto',fmt:'pdf',paper:'A4',orient:'landscape',margin:'normal',top:20,list:true,pii:false,kpis:['total','centers','topCenter','topCat'],cols:[],listCols:null,showFilters:0,sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1}};
+const DEF_PRINT={listGrp:'',listSort:'',secSeq:null,ordC:'desc',ordS:'desc',secOrd:[],pngQ:3,kind:'full',sChart:'line',sTop:10,sTime:'auto',fmt:'pdf',paper:'A4',orient:'landscape',margin:'normal',top:20,list:true,pii:false,kpis:['total','centers','topCenter','topCat'],cols:[],listCols:null,showFilters:0,sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1}};
 let PRINT=(()=>{ try{ const o=JSON.parse(localStorage.getItem(PRINT_KEY)||'{}'); return {...DEF_PRINT,...o,sec:{...DEF_PRINT.sec,...(o.sec||{})}}; }catch(e){ return JSON.parse(JSON.stringify(DEF_PRINT)); } })();
 const printOpts=()=>PRINT;
 const PAPER={A4:[595.28,841.89],A3:[841.89,1190.55],Letter:[612,792]};
