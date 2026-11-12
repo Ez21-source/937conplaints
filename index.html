@@ -710,7 +710,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '129';
+const APP_VER = '130';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -785,7 +785,8 @@ const schemaSerial=()=>SCHEMA.map(c=>({k:c.k,l:c.l,type:c.type,req:c.req?1:0,pii
 function saveSchema(){ try{ localStorage.setItem(SCHEMA_KEY,JSON.stringify(schemaSerial())); return true; }catch(e){ return false; } }
 const VCOL_DUR={k:'__dur',l:'المدة الزمنية للإغلاق',type:'list',virt:1};
 const col = k => k==='__dur' ? VCOL_DUR : SCHEMA.find(c=>c.k===k);
-const rv = (r,k) => k==='__dur' ? durCat(r) : r[k];
+const RO_LBL='↺ معاد فتحه';
+const rv = (r,k) => k==='__dur' ? (durCat(r)||(durInfo(r).roP?RO_LBL:'')) : r[k];
 const cols = () => SCHEMA.filter(c=>!c.removed);
 const active = k => { const c=col(k); return !!c && !c.removed; };
 const ALLK = () => SCHEMA.map(c=>c.k);
@@ -1629,7 +1630,7 @@ function optionsFor(k){
   });
   filt[k]=save;
   if(k==='month'){ const m=new Map(); base.forEach(r=>{ if(r._m) m.set(r._m,{n:(m.get(r._m)?.n||0)+1, key:monthKey(r)}); }); return [...m.entries()].sort((a,b)=>b[1].key<a[1].key?-1:1).map(([v,o])=>[v,o.n]); }
-  if(k==='__dur'){ const m=new Map(); base.forEach(r=>{ const v=durCat(r); m.set(v,(m.get(v)||0)+1); }); const L=durLabels(); return [L.g,L.o,L.r].filter(c=>m.has(c)).map(c=>[c,m.get(c)]).concat(m.has('')?[['__none',m.get('')]]:[]); }
+  if(k==='__dur'){ const m=new Map(); base.forEach(r=>{ const v=rv(r,'__dur'); m.set(v,(m.get(v)||0)+1); }); const L=durLabels(); return [L.g,L.o,L.r,RO_LBL].filter(c=>m.has(c)).map(c=>[c,m.get(c)]).concat(m.has('')?[['__none',m.get('')]]:[]); }
   return countBy(base,k).filter(([v])=>v!=='');
 }
 // فلتر متعدد: القيمة '' = الكل، أو نص واحد، أو قائمة قيم
@@ -4697,7 +4698,7 @@ function genAction(b){
 
 /* ---------- المدة الزمنية للإغلاق ---------- */
 const DUR_KEY='r937-dur-v1';
-const DEF_DUR={on:1,start:'created',stCol:'حالة التذكرة',stVal:'تحت المعالجة - ضابط الاتصال',endCol:'تاريخ الحل',endCol2:'تاريخ الحل من المنسق',active:'hours',openShow:'hours',t1:24,t2:48};
+const DEF_DUR={on:1,start:'created',stCol:'حالة التذكرة',stVal:'تحت المعالجة - ضابط الاتصال',endCol:'تاريخ الحل',endCol2:'تاريخ الحل من المنسق',active:'hours',openShow:'hours',roMode:'b',t1:24,t2:48};
 let DUR=(()=>{ try{ return {...DEF_DUR,...JSON.parse(localStorage.getItem(DUR_KEY)||'{}')}; }catch(e){ return {...DEF_DUR}; } })();
 const saveDur=()=>{ try{ localStorage.setItem(DUR_KEY,JSON.stringify(DUR)); }catch(e){} };
 const durEndKey=()=>colByLabel(DUR.endCol), durEndKey2=()=>DUR.endCol2?colByLabel(DUR.endCol2):null, durStKey=()=>colByLabel(DUR.stCol);
@@ -4714,9 +4715,17 @@ function durStart(r){
 // المدة = من البداية حتى «تاريخ الحل» (أو «تاريخ الحل من المنسق» إن كان الأول فارغاً)، وللمفتوح حتى الآن
 function durLvl(h){ return h<=(+DUR.t1||24)?'g':h<=(+DUR.t2||48)?'o':'r'; }
 let DIC=new WeakMap(), DIC_SIG='';
-function durInfo(r){ const sig=LOG_VER+'|'+MV_VER+'|'+REOPEN.length+'|'+RECS.length+'|'+Math.floor(Date.now()/60000)+'|'+DUR.start+'|'+DUR.stVal+'|'+DUR.stCol+'|'+DUR.endCol+'|'+DUR.endCol2+'|'+DUR.t1+'|'+DUR.t2;
+function durInfo(r){ const sig=LOG_VER+'|'+MV_VER+'|'+REOPEN.length+'|'+RECS.length+'|'+Math.floor(Date.now()/60000)+'|'+DUR.start+'|'+DUR.stVal+'|'+DUR.stCol+'|'+DUR.endCol+'|'+DUR.endCol2+'|'+DUR.t1+'|'+DUR.t2+'|'+DUR.roMode;
   if(sig!==DIC_SIG){ DIC=new WeakMap(); DIC_SIG=sig; } let x=DIC.get(r); if(!x){ x=durInfo0(r); DIC.set(r,x); } return x; }
-function durInfo0(r){ const ci=roCycles(r); if(ci){ const L=ci.cyc[ci.cyc.length-1]; if(L&&L.h!=null) return {st:L.open?'open':'closed',h:L.h,lvl:durLvl(L.h),ro:ci.n,roAt:ci.ro[ci.ro.length-1]}; }
+// البلاغ المعاد فتحه: وقت إعادة الفتح الحقيقي غير موجود في الملف (يُعرف بوقت الاستيراد/الفحص)
+//  ب (الافتراضي): يُكتب «معاد فتحه» حتى يُغلق، ثم تُحسب فئته — ولا يدخل في فئات المدة وهو مفتوح
+//  أ: يُحسب من تاريخ إنشاء التذكرة كأي بلاغ، مع علامة ↺
+function durInfo0(r){ const ci=roCycles(r); if(ci){ const L=ci.cyc[ci.cyc.length-1], RA={ro:ci.n,roAt:ci.ro[ci.ro.length-1]};
+    if(DUR.roMode==='a'){ const d=durBase(r); return d.st==='none'?d:{...d,...RA}; }
+    if(L&&L.open) return {st:'none',roP:1,...RA};
+    if(L&&L.h!=null) return {st:'closed',h:L.h,lvl:durLvl(L.h),...RA}; }
+  return durBase(r); }
+function durBase(r){
   const ek=durEndKey(), ek2=durEndKey2(); const end=(ek?anyDate(r[ek]):null)||(ek2?anyDate(r[ek2]):null);
   if(end){ const st=durStart(r)||anyDate(r.date); if(!st) return {st:'none'}; const h=Math.max(0,(end.getTime()-st.getTime())/3600000); return {st:'closed',h,lvl:durLvl(h)}; }
   // بلاغ لم يأتِ من ملف فيه «تاريخ الحل» ولا «حالة التذكرة» (من ملف قديم): لا نعرف حالته
@@ -4726,8 +4735,9 @@ function durInfo0(r){ const ci=roCycles(r); if(ci){ const L=ci.cyc[ci.cyc.length
 const durLabels=()=>{ const t1=+DUR.t1||24, t2=+DUR.t2||48; return {g:`${t1} ساعة`,o:`${t2} ساعة`,r:`أكثر من ${t2} ساعة`}; };
 function durCat(r){ const d=durInfo(r); if(d.st==='none') return ''; return durLabels()[d.lvl]; }
 // النص الظاهر: المفتوح بالساعات الفعلية (حسب الإعداد) والمحلول بالتصنيف
-function durText(r){ const d=durInfo(r); if(d.st==='none') return ''; return d.st==='open'&&DUR.openShow!=='cat'?hrsTxt(d.h):durLabels()[d.lvl]; }
+function durText(r){ const d=durInfo(r); if(d.roP) return '↺ معاد فتحه'; if(d.st==='none') return ''; if(d.ro) return '↺ '+(d.st==='open'&&DUR.openShow!=='cat'?hrsTxt(d.h):durLabels()[d.lvl]); return d.st==='open'&&DUR.openShow!=='cat'?hrsTxt(d.h):durLabels()[d.lvl]; }
 function durBadge(r){ const d=durInfo(r);
+  if(d.roP) return `<span class="dur" style="background:color-mix(in srgb,#7C5CFF 16%,transparent);color:#6B4FE0" title="أُعيد فتحه ${d.ro===1?'مرة':d.ro===2?'مرتين':d.ro+' مرات'} · اكتُشف ${fmtLocal(new Date(d.roAt).toISOString())} · تُحسب المدة عند إغلاقه">↺ معاد فتحه</span>`;
   if(d.st==='none') return '<span class="ro-empty">—</span>';
   const roT=d.ro?`أُعيد فتحه ${d.ro===1?'مرة':d.ro===2?'مرتين':d.ro+' مرات'} · آخرها ${fmtLocal(new Date(d.roAt).toISOString())} · `:'';
   return `<span class="dur dur-${d.lvl}" title="${roT}${d.st==='closed'?`محلول · استغرق ${hrsTxt(d.h)}`:`مفتوح منذ ${hrsTxt(d.h)} · ${durLabels()[d.lvl]}`}">${d.ro?'↺ ':''}${d.st==='open'&&DUR.openShow!=='cat'?hrsTxt(d.h):durLabels()[d.lvl]}</span>`; }
@@ -4752,13 +4762,17 @@ function panelDur(){
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px"><span class="hint">أكثر من ذلك =</span><span class="dur dur-r">${durLabels().r}</span></div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px"><b>البلاغ المفتوح يُعرض</b><div class="seg"><label><input type="radio" name="duOpen" value="hours" ${DUR.openShow!=='cat'?'checked':''}><span>بالساعات الفعلية <span class="dur dur-o" style="font-size:11px">41 ساعة</span></span></label><label><input type="radio" name="duOpen" value="cat" ${DUR.openShow==='cat'?'checked':''}><span>بالتصنيف <span class="dur dur-o" style="font-size:11px">${durLabels().o}</span></span></label></div></div>
       <p class="hint" style="margin:4px 0 0">البلاغ المحلول يُعرض دائماً بالتصنيف. الفلتر بالتصنيفات، والترتيب بالساعات الفعلية.</p>
+      <div style="margin-top:12px"><b>البلاغ المعاد فتحه</b><div style="display:grid;gap:6px;margin-top:6px">
+        <label class="opt"><input type="radio" name="duRo" value="b" ${DUR.roMode!=='a'?'checked':''}><span>يُكتب «↺ معاد فتحه» حتى يُغلق (الافتراضي)<small>لا يدخل في فئات 24 / 48 / أكثر من 48 وهو مفتوح، وعند إغلاقه تُحسب فئته.</small></span></label>
+        <label class="opt"><input type="radio" name="duRo" value="a" ${DUR.roMode==='a'?'checked':''}><span>يُحسب من تاريخ إنشاء التذكرة<small>مثل أي بلاغ، مع علامة ↺ بجانب مدته.</small></span></label></div>
+        <p class="hint" style="margin:4px 0 0">ملف Care لا يذكر وقت إعادة الفتح، فيعرفه التطبيق بوقت الاستيراد أو الفحص الذي اكتشفها؛ لذلك لا يُعتمد كبداية للمدة.</p></div>
 </div>
   </div>`;
 }
 function durChange(t){
   if(t.id==='duOn') DUR.on=t.checked?1:0; else if(t.name==='duStart') DUR.start=t.value; else if(t.id==='duStCol'){ DUR.stCol=t.value; saveDur(); refresh(true); return 'redraw'; }
   else if(t.id==='duStVal') DUR.stVal=t.value; else if(t.id==='duEnd'){ DUR.endCol=t.value; saveDur(); refresh(true); return 'redraw'; } else if(t.id==='duEnd2'){ DUR.endCol2=t.value; saveDur(); refresh(true); return 'redraw'; }
-  else if(t.id==='duT1'){ DUR.t1=Math.max(1,+t.value||24); saveDur(); refresh(true); return 'redraw'; } else if(t.id==='duT2'){ DUR.t2=Math.max((+DUR.t1||24)+1,+t.value||48); saveDur(); refresh(true); return 'redraw'; } else if(t.name==='duAct') DUR.active=t.value; else if(t.name==='duOpen'){ DUR.openShow=t.value; saveDur(); refresh(true); return 'redraw'; }
+  else if(t.id==='duT1'){ DUR.t1=Math.max(1,+t.value||24); saveDur(); refresh(true); return 'redraw'; } else if(t.id==='duT2'){ DUR.t2=Math.max((+DUR.t1||24)+1,+t.value||48); saveDur(); refresh(true); return 'redraw'; } else if(t.name==='duAct') DUR.active=t.value; else if(t.name==='duOpen'){ DUR.openShow=t.value; saveDur(); refresh(true); return 'redraw'; } else if(t.name==='duRo'){ DUR.roMode=t.value; saveDur(); refresh(true); toast(t.value==='a'?'المعاد فتحه يُحسب من تاريخ الإنشاء':'المعاد فتحه يُكتب «معاد فتحه» حتى يُغلق'); return 'redraw'; }
   else return null;
   saveDur(); refresh(true); return true;
 }
