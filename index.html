@@ -711,7 +711,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '139';
+const APP_VER = '141';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -873,16 +873,18 @@ function clinicRegex(kws){
   return new RegExp('(?:^|[^\\u0621-\\u064A])(?:'+parts.join('|')+')(?=$|[^\\u0621-\\u064A])');
 }
 function clinicIndex(){
-  if(clinIdx) return clinIdx;
+  const cv=dvSig()+'|'+JSON.stringify(CLINICS)+'|'+CLIN_MIN; if(clinIdx&&clinIdx._v===cv) return clinIdx;
   const dcols=SCHEMA.filter(c=>c.type==='long'&&!c.removed).map(c=>c.k);
   const rx=CLINICS.map(([name,kw])=>[name,clinicRegex(kw)]).filter(x=>x[1]);
   const m=new Map(rx.map(([n])=>[n,[]]));
   RECS.forEach(r=>{ const txt=nrm(dcols.map(k=>r[k]||'').join(' ')); if(!txt) return; rx.forEach(([n,re])=>{ if(re.test(txt)) m.get(n).push(r); }); });
-  return clinIdx=m;
+  m._v=cv; return clinIdx=m;
 }
 function clinicGroups(list,min){ const ids=new Set(list.map(r=>r.id)); return [...clinicIndex().entries()].map(([name,recs])=>{ const f=recs.filter(r=>ids.has(r.id)); return {k:name,name,recs:f,n:f.length}; }).filter(g=>g.n>=Math.max(1,min)).map(g=>{ const s=[...g.recs].sort((a,b)=>String(a.date).localeCompare(String(b.date))); return {...g,centers:countBy(s,'center'),sub:(countBy(s,active('sub')?'sub':'main')[0]||[''])[0],last_d:s[s.length-1].date}; }).sort((a,b)=>b.n-a.n); }
+const dvSig=()=>(typeof DATA_V!=='undefined'?DATA_V:0)+'|'+RECS.length+'|'+SCHEMA.filter(c=>c.type==='long'&&!c.removed).map(c=>c.k).join(',');
+const stSig=()=>{ try{ return dvSig()+'|'+STAFF_SRC+'|'+JSON.stringify(CLOSER_NAMES); }catch(e){ return dvSig(); } };
 function staffIndex(){
-  if(staffIdx) return staffIdx;
+  const sv=stSig(); if(staffIdx&&staffIdx._v===sv) return staffIdx;
   const dcols=SCHEMA.filter(c=>c.type==='long'&&!c.removed).map(c=>c.k);
   const toks=r=>dcols.map(k=>r[k]||'').join(' ');
   const freq=new Map(); const tokRec=new Map();
@@ -936,7 +938,7 @@ function staffIndex(){
       }
     });
   });
-  return staffIdx=m;
+  m._v=sv; return staffIdx=m;
 }
 const TITLE_SHOW={'د':'الدكتور/ة','الدكتور':'الدكتور','الدكتوره':'الدكتورة','دكتور':'الدكتور','دكتوره':'الدكتورة','الطبيب':'الطبيب','الطبيبه':'الطبيبة','طبيب':'الطبيب','طبيبه':'الطبيبة','الممرض':'الممرض','الممرضه':'الممرضة','ممرض':'الممرض','ممرضه':'الممرضة','الموظف':'الموظف','الموظفه':'الموظفة','موظف':'الموظف','موظفه':'الموظفة'};
 function staffTitle(g){ const t=[...g.titles.entries()].sort((a,b)=>b[1]-a[1])[0]; return t?(TITLE_SHOW[t[0]]||t[0]):''; }
@@ -995,7 +997,7 @@ function pairGroups(list,min){
   return [...m.values()].filter(x=>x.recs.length>=min).map(x=>{ x.recs.sort((a,b)=>String(a.date).localeCompare(String(b.date))); return {...x,n:x.recs.length,caller:x.recs.find(r=>r.caller)?.caller||x.recs[0].nid||'',first_d:x.recs[0].date,last_d:x.recs[x.recs.length-1].date}; }).sort((a,b)=>b.n-a.n||String(b.last_d).localeCompare(String(a.last_d)));
 }
 function staffLabel(k){ const g=staffIndex().get(k); return g?`${g.full||g.first} · ${g.center}`:k; }
-function callerIndex(){ if(callerIdx) return callerIdx; const m=new Map(); RECS.forEach(r=>{ const k=callerKey(r); if(!k) return; if(!m.has(k)) m.set(k,[]); m.get(k).push(r); }); return callerIdx=m; }
+function callerIndex(){ const cv=(typeof DATA_V!=='undefined'?DATA_V:0)+'|'+RECS.length+'|'+JSON.stringify(RPT); if(callerIdx&&callerIdx._v===cv) return callerIdx; const m=new Map(); RECS.forEach(r=>{ const k=callerKey(r); if(!k) return; if(!m.has(k)) m.set(k,[]); m.get(k).push(r); }); m._v=cv; return callerIdx=m; }
 function repeatGroups(list,min){ const m=new Map(); list.forEach(r=>{ const k=callerKey(r); if(!k) return; if(!m.has(k)) m.set(k,[]); m.get(k).push(r); }); return [...m.entries()].filter(([,g])=>g.length>=min).map(([k,g])=>{ g.sort((a,b)=>String(a.date).localeCompare(String(b.date))); const top=(f)=>{ const c=countBy(g,f)[0]; return c?c[0]:''; }; return {k,g,n:g.length,name:g.find(r=>r.caller)?.caller||'',nid:g.find(r=>r.nid)?.nid||'',centers:countBy(g,'center'),sub:top(active('sub')?'sub':'main'),first:g[0].date,last:g[g.length-1].date}; }).sort((a,b)=>b.n-a.n||String(b.last).localeCompare(String(a.last))); }
 function callerLabel(k){ const g=callerIndex().get(k); const r=g&&(g.find(x=>x.caller)||g[0]); return r ? (r.caller||r.nid||k) : k.slice(3); }
 function findByNo(no,exceptId){ const k=keyNo(no); if(!k) return null; return RECS.find(x=>keyNo(x.no)===k && x.id!==exceptId)||null; }
@@ -1107,13 +1109,13 @@ async function applyChange(puts,dels,meta){
   meta=typeof meta==='string'?{type:meta}:(meta||{});
   const before=[], added=[], nos=[];
   puts.forEach(r=>{ const old=byId.get(r.id); if(old) before.push(old); else added.push(r.id); nos.push(r.no); });
-  if(['import','update'].includes(meta.type)){ puts.forEach(r=>bumpRev(byId.get(r.id),r)); saveRead(); }
+  if(['import','update'].includes(meta.type)&&!meta.archive){ puts.forEach(r=>bumpRev(byId.get(r.id),r)); saveRead(); }
   dels.forEach(id=>{ const old=byId.get(id); if(old){ before.push(old); nos.push(old.no); } });
   let type=meta.type;
   if(!type) type = dels.length&&!puts.length ? 'del' : puts.length===1 ? (added.length?'add':'edit') : 'bulk';
   if(puts.length||dels.length) logChange(type,{before,added,nos,n:puts.length+dels.length,note:meta.note||''});
-  try{ if(typeof mvRecord==='function') mvRecord(puts,dels,type,LAST_LOG&&LAST_LOG.t); }catch(e){ console.error(e); }
-  bumpChanges(puts.length+dels.length);
+  if(!meta.archive){ try{ if(typeof mvRecord==='function') mvRecord(puts,dels,type,LAST_LOG&&LAST_LOG.t); }catch(e){ console.error(e); }
+  bumpChanges(puts.length+dels.length); }
   puts.forEach(r=>{ if(byId.has(r.id)){ const i=RECS.indexOf(byId.get(r.id)); RECS[i]=r; } else RECS.push(r); byId.set(r.id,r); });
   if(dels.length){ const s=new Set(dels); RECS=RECS.filter(r=>!s.has(r.id)); dels.forEach(id=>{ byId.delete(id); selected.delete(id); }); }
   try{ if(puts.length) await dbPut(puts); if(dels.length) await dbDel(dels); }catch(e){ console.error(e); toast('تعذر الحفظ على الجهاز، صدّر نسخة احتياطية'); }
@@ -1236,6 +1238,9 @@ function bucketOf0(d,per){
   const dt=new Date(day+'T00:00:00'); dt.setDate(dt.getDate()-weekOff(dt)); const a=iso(dt); const e=new Date(dt); e.setDate(e.getDate()+6); const b=iso(e);
   return {k:a,from:a,to:b,l:`أسبوع ${a.slice(8,10)}/${a.slice(5,7)}`};
 }
+// إذا كانت الفترة الحالية ناقصة (مثل أسبوع فيه يوم واحد) تُقارن بفترة سابقة مساوية لها في الطول — نكتب ذلك بدقة
+function prevLbl(g,per,def){ const full=per==='week'?7:per==='month'?28:1; if(!g||!g.pl||g.pl>=full) return def; const d=x=>{ const s=new Date(x*86400000).toISOString().slice(0,10); return s.slice(8,10)+'/'+s.slice(5,7); };
+  return g.pl===1?`اليوم السابق (${d(g.pa)})`:`الفترة السابقة (${dWord(g.pl)}: ${d(g.pa)}–${d(g.pb)})`; }
 // حد كل مركز/قطاع/تصنيف بالعدد للفترة الأخيرة (يُحسب من بلاغاته في الأسابيع السابقة)
 const nB=n=>n===0?'0 بلاغ':n===1?'بلاغ واحد':n===2?'بلاغان':n<=10?`${fmt(n)} بلاغات`:`${fmt(n)} بلاغاً`;
 function autoLimits(rule){
@@ -1306,8 +1311,8 @@ function evalRules0(list){
         buckets.forEach(bk=>{ const s0=di(bk.from), e0=Math.min(di(bk.to),last), len=e0-s0+1; if(s0-len<first) return;
           const ents = wantDown ? [...hist.keys()] : groups.filter(g=>g.b.k===bk.k).map(g=>g.v);
           ents.forEach(v=>{ const cur=(m.get(v+'§'+bk.k)||{n:0}).n, prev=sumH(v,s0-len,s0-1);
-            if(wantUp && cur>prev && cur>=fl){ const pc=prev?(cur-prev)/prev*100:Infinity; if(isP?pc>=P:cur-prev>=mg) res.push({v,b:bk,n:cur,th:prev,pc,dir:'up'}); }
-            if(wantDown && prev>cur && prev>=fl){ const pc=(prev-cur)/prev*100; if(isP?pc>=P:prev-cur>=mg) res.push({v,b:bk,n:cur,th:prev,pc,dir:'down'}); } }); });
+            if(wantUp && cur>prev && cur>=fl){ const pc=prev?(cur-prev)/prev*100:Infinity; if(isP?pc>=P:cur-prev>=mg) res.push({v,b:bk,n:cur,th:prev,pc,dir:'up',pl:len,pa:s0-len,pb:s0-1}); }
+            if(wantDown && prev>cur && prev>=fl){ const pc=(prev-cur)/prev*100; if(isP?pc>=P:prev-cur>=mg) res.push({v,b:bk,n:cur,th:prev,pc,dir:'down',pl:len,pa:s0-len,pb:s0-1}); } }); });
         groups=res;
       } else groups=groups.filter(g=>g.n>=n).map(g=>({...g,th:n,dir:'up'}));
       const mag=g=>isP?(isFinite(g.pc)?g.pc:1e9):Math.abs(g.n-g.th);
@@ -1316,7 +1321,7 @@ function evalRules0(list){
         const SP=isS?' خارج مستوى الخدمة':'';
         out.push({rule,dir:g.dir,sla:isS,sev:up?(g.n>=Math.max(1,th)*1.5?2:1):1,n:g.n,th,diff:Math.abs(g.n-th),pc:isP?(isFinite(g.pc)?g.pc:1e9):null,bk:g.b.k,
         title:k?`${g.v}: ${nB(g.n)}${SP}`:nB(g.n)+SP,
-        sub: rule.auto ? `${g.b.l} · ${prevL} ${nB(th)} · ${up?'زيادة':'انخفاض'} ${chg}${isP?` (الحد ${+rule.pct||30}%)`:''}` : `${g.b.l} · الحد ${nB(th)}`,
+        sub: rule.auto ? `${g.b.l} · ${prevLbl(g,per,prevL)} ${nB(th)} · ${up?'زيادة':'انخفاض'} ${chg}${isP?` (الحد ${+rule.pct||30}%)`:''}` : `${g.b.l} · الحد ${nB(th)}`,
         act:{...(k?{[k]:g.v}:{}),from:g.b.from,to:g.b.to,...(isS?{sla:'out'}:{})},
         // صيغة مختصرة للشريط: «المعابدة: 53 ↑40 (السابق 13)»
         tick: `${k==='sector'?'قطاع ':''}${k?String(g.v).replace(/^مركز\s+صحي\s+/,'')+': ':''}${fmt(g.n)}${isS?' خارج المستوى':''} ${rule.auto?`${up?'↑':'↓'}${isP?(isFinite(g.pc)?pctF(g.pc,0)+'%':'جديد'):fmt(Math.abs(g.n-th))} (السابق ${fmt(th)})`:`(الحد ${fmt(th)})`}`}); });
@@ -1610,7 +1615,7 @@ const total = list => list.length;
 
 /* ---------- render ---------- */
 function renderAll(){ apply(); renderFilters(); renderAlerts(); renderSummary(); renderView(); setTimeout(applyFolds,0); renderInfo(); }
-function refresh(keepPage){ clearTimeout(SUM_T); if(!keepPage) page=0; setTimeout(renderBackupBanner,0); setTimeout(()=>{ try{ renderMvBanner(); }catch(e){} },0); callerIdx=null; staffIdx=null; clinIdx=null; apply(); renderFilters(); renderAlerts(); renderSummary(); renderView(); renderInfo(); }
+function refresh(keepPage){ clearTimeout(SUM_T); if(!keepPage) page=0; setTimeout(renderBackupBanner,0); setTimeout(()=>{ try{ renderMvBanner(); }catch(e){} },0); apply(); renderFilters(); renderAlerts(); renderSummary(); renderView(); renderInfo(); }
 function flagNote(list){ const idx=kwIndex(); const n=list.filter(r=>idx.has(r.id)).length; return n?` · ${fmt(n)} منها فيها كلمات حساسة`:''; }
 function renderInfo(){
   document.getElementById('dbInfo').textContent = `${fmt(RECS.length)} بلاغ في القاعدة` + (persistent?' · محفوظة على هذا الجهاز':' · الحفظ غير متاح هنا، صدّر نسخة احتياطية');
@@ -2364,7 +2369,7 @@ function buildReport(list,opts){
 let qT=null;
 // البحث أثناء الكتابة: تُحدَّث النتائج والقائمة فوراً، وتُؤجَّل البطاقات والتنبيهات (الأثقل) حتى تتوقف عن الكتابة
 let SUM_T=0;
-function refreshSearch(){ page=0; callerIdx=null; staffIdx=null; clinIdx=null; apply(); renderFilters(); renderView(); renderInfo();
+function refreshSearch(){ page=0; apply(); renderFilters(); renderView(); renderInfo();
   clearTimeout(SUM_T); SUM_T=setTimeout(()=>{ const run=()=>{ try{ renderAlerts(); renderSummary(); }catch(e){ console.error(e); } }; if(window.requestIdleCallback) requestIdleCallback(run,{timeout:400}); else run(); },700); }
 document.getElementById('q').addEventListener('input',e=>{ clearTimeout(qT); clearTimeout(SUM_T); qT=setTimeout(()=>{ filt.q=e.target.value; refreshSearch(); },250); });
 document.getElementById('dFrom').addEventListener('change',e=>{ filt.from=e.target.value; refresh(); });
@@ -4460,9 +4465,10 @@ function continueImport(file,res){
     <label class="opt"><input type="radio" name="im" value="new" ${partial||preUpd?'':'checked'}><span>إضافة الجديدة فقط<small>تبقى البلاغات الموجودة كما هي</small></span></label>
     <label class="opt"><input type="radio" name="im" value="onlyupd" ${partial?'checked':''}><span>تحديث الموجودة فقط (${fmt(dups.length)})<small>تُحدّث أعمدة الملف فقط في البلاغات المسجّلة، وتبقى بقية أعمدتها كما هي. لا يُضاف أي بلاغ جديد.</small></span></label>
     <label class="opt"><input type="radio" name="im" value="upd" ${preUpd?'checked':''}><span>إضافة الجديدة وتحديث الموجودة<small>تُضاف الجديدة، وتُحدّث في الموجودة أعمدة الملف فقط</small></span></label>
+    <label class="opt" style="margin-top:6px;border-color:color-mix(in srgb,#7C5CFF 40%,var(--line))"><input type="checkbox" id="imArch" ${(()=>{ const fmx=uniq.map(r=>String(r.date||'').slice(0,10)).filter(Boolean).sort().pop()||'', dmn=RECS.map(r=>String(r.date||'').slice(0,10)).filter(Boolean).sort()[0]||''; return fmx&&dmn&&fmx<dmn?'checked':''; })()}><span>📦 بيانات أرشيف (سنوات سابقة)<small>لا تُسجَّل في «حركة البلاغات»، ولا تُعدّ «متأخرة»، ولا تظهر في «التحديثات»، ولا يتغيّر «آخر تحديث للبيانات». يُؤشَّر تلقائياً إذا كانت كل بلاغات الملف أقدم من بيانات التطبيق.</small></span></label>
     <label class="opt"><input type="radio" name="im" value="all"><span>استبدال كل القاعدة<small>تُحذف البلاغات الحالية (${fmt(RECS.length)}) وتحل محلها بلاغات الملف</small></span></label>`,
     actions:[{label:'استيراد',cls:'primary',run:async s=>{
-      const mode=s.querySelector('input[name=im]:checked').value;
+      const mode=s.querySelector('input[name=im]:checked').value, ARCH=!!s.querySelector('#imArch')?.checked;
       if(mode==='all'){ await replaceAll(uniq,{type:'replace',note:file.name}); setLastUpd('استبدال',file.name,uniq.length,0); toast(`استُورد ${fmt(uniq.length)} بلاغ${flagNote(RECS)}`); return; }
       const add= mode==='onlyupd' ? [] : fresh.map(prep);
       // التحديث يدمج: يغيّر فقط الأعمدة الموجودة في الملف وقيمها غير فارغة
@@ -4471,8 +4477,8 @@ function continueImport(file,res){
       const updAll=upd.length, CK=ALLK().filter(k=>k!=='id');
       const updCh=upd.filter(n=>{ const o=byId.get(n.id); return !o || CK.some(k=>vNorm(o[k])!==vNorm(n[k])); });
       upd.length=0; updCh.forEach(x=>upd.push(x));
-      busy('جارٍ الحفظ…'); try{ if(add.length||upd.length){ await saveRecords(add.concat(upd),{type:mode==='onlyupd'?'update':'import',note:file.name}); setLastUpd('استيراد',file.name,add.length,upd.length); } else logChange(mode==='onlyupd'?'update':'import',{n:0,note:file.name}); } finally{ busy(null); }
-      if(mode!=='onlyupd' && late.length) addLate(late,file.name);
+      busy('جارٍ الحفظ…'); try{ if(add.length||upd.length){ await saveRecords(add.concat(upd),{type:mode==='onlyupd'?'update':'import',note:(ARCH?'📦 أرشيف · ':'')+file.name,archive:ARCH}); if(!ARCH) setLastUpd('استيراد',file.name,add.length,upd.length); } else logChange(mode==='onlyupd'?'update':'import',{n:0,note:file.name}); } finally{ busy(null); }
+      if(mode!=='onlyupd' && late.length && !ARCH) addLate(late,file.name);
       try{ resolvePendingPins(); }catch(e){}
       { const rk=roKey(); if(rk && upd.length){ const rl=upd.map(n=>{ const o=existing.get(keyNo(n.no)); return o&&isReopen(o[rk],n[rk])?{o,from:o[rk]||'',to:n[rk]||'',ch:CK.filter(c=>vNorm(o[c])!==vNorm(n[c]))}:null; }).filter(Boolean); if(rl.length){ const sv=ROSET.mode; ROSET.mode='reopen'; addReopen(rl,file.name); ROSET.mode=sv; } } }
       if(upd.length || late.length || (!add.length && updAll)){ const eid=LAST_LOG?.id; toast((mode==='onlyupd'?`حُدّث ${fmt(upd.length)} بلاغ`:`أضيف ${fmt(add.length)} بلاغ${upd.length?` وحُدّث ${fmt(upd.length)}`:''}`)+(updAll>upd.length?` · ${fmt(updAll-upd.length)} بلاغ بدون تغيير`:'')); setTimeout(()=>importSummary(eid),60); return; }
@@ -5160,14 +5166,15 @@ function pinnedDialog(){
 const MVS_KEY='r937-mv-v1';
 let MVS=(()=>{ try{ return {on:1,max:300000,warn:80,...JSON.parse(localStorage.getItem(MVS_KEY)||'{}')}; }catch(e){ return {on:1,max:300000,warn:80}; } })();
 const saveMVS=()=>{ try{ localStorage.setItem(MVS_KEY,JSON.stringify(MVS)); }catch(e){} };
+let MV_READY=false, MV_P=null;
 let MV=[], MV_VER=0, MV_T=null, MVIX=null, MVIX_V=-1, MV_DIRTY=new Set(), MV_FULL=false; const MV_KEYS=new Set(); const mvMon=t=>String(t).slice(0,7);
 const mvCut=v=>{ v=String(v??''); return v.length>1500?v.slice(0,1500)+'…':v; };
 // تُحفظ الحركات في أجزاء شهرية (mv:YYYY-MM) فيُكتب الشهر الذي تغيّر فقط بدل القاعدة كلها
 async function loadMV(){ try{ const keys=(await dbMetaKeys()).filter(k=>typeof k==='string'&&k.startsWith('mv:')).sort(); let all=[];
     for(const k of keys){ const v=await dbMeta(k); if(Array.isArray(v)&&v.length){ all=all.concat(v); MV_KEYS.add(k); } }
     const old=await dbMeta('movelog'); if(Array.isArray(old)&&old.length){ all=all.concat(old); all.sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0); MV_FULL=true; setTimeout(()=>mvSave(true),3000); }
-    MV=all; }catch(e){ console.error(e); MV=[]; } MV_VER++; }
-async function mvFlush(){ const full=MV_FULL, dirty=MV_DIRTY; MV_FULL=false; MV_DIRTY=new Set(); const by=new Map();
+    const pend=MV; MV=all; if(pend&&pend.length){ MV=MV.concat(pend).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0); pend.forEach(x=>MV_DIRTY.add(mvMon(x[0]))); } }catch(e){ console.error(e); } MV_READY=true; MV_VER++; }
+async function mvFlush(){ if(!MV_READY&&MV_P) await MV_P; const full=MV_FULL, dirty=MV_DIRTY; MV_FULL=false; MV_DIRTY=new Set(); const by=new Map();
   if(full) MV.forEach(x=>{ const m=mvMon(x[0]); let a=by.get(m); if(!a){ a=[]; by.set(m,a); } a.push(x); });
   else { if(!dirty.size) return; const mins=[...dirty].sort()[0]; dirty.forEach(m=>by.set(m,[])); for(let i=MV.length-1;i>=0;i--){ const m=mvMon(MV[i][0]); if(m<mins) break; const a=by.get(m); if(a) a.push(MV[i]); } by.forEach(a=>a.reverse()); }
   const W=[]; by.forEach((a,m)=>{ const k='mv:'+m; if(a.length){ W.push(dbSetMeta(k,a)); MV_KEYS.add(k); } else if(MV_KEYS.has(k)){ W.push(dbDelMeta(k).catch(()=>{})); MV_KEYS.delete(k); } });
@@ -5351,12 +5358,16 @@ try{ navigator.storage && navigator.storage.persist && navigator.storage.persist
   }
   }
   setAll(list);
-  await loadLog(); await loadRead(); await loadVisits(); await loadPinLog(); try{ resolvePendingPins(); }catch(e){} await loadMV(); setTimeout(()=>mvBackfill().catch(e=>console.error(e)),1500); setTimeout(()=>{ try{ renderMvBanner(); }catch(e){} },800);
+  await loadLog(); await loadRead(); await loadVisits(); await loadPinLog(); try{ resolvePendingPins(); }catch(e){} MV_P=loadMV(); // تُحمَّل حركة البلاغات بعد ظهور الشاشة حتى لا يتأخر فتح التطبيق
   setTimeout(()=>recomputeStatus(true),0);
   pageSize=+HOME.pageSize||50;
   if(HOME.defView && HOME.views.some(v=>v[0]===HOME.defView&&v[1])){ view=HOME.defView; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); }
   applyHome(); applySide();
   renderAll();
+  MV_P.then(()=>{ LOG_VER++; try{ refresh(true); }catch(e){ console.error(e); } setTimeout(()=>mvBackfill().catch(e=>console.error(e)),1500); setTimeout(()=>{ try{ renderMvBanner(); }catch(e){} },300);
+    // تجهيز مسبق في وقت الفراغ: أول فتح لبلاغ وأول بحث يصبحان فوريين
+    const idle=f=>window.requestIdleCallback?requestIdleCallback(f,{timeout:3000}):setTimeout(f,400);
+    [()=>mvIdx(),()=>callerIndex(),()=>kwIndex(),()=>roKeys(),()=>clinicIndex(),()=>staffIndex()].forEach((f,i)=>setTimeout(()=>idle(()=>{ try{ f(); }catch(e){} }),600+i*250)); });
   renderBackupBanner(); renderViewerBar(); try{ renderHeader(); applyActs(); }catch(e){ console.error(e); }
   try{ const m=sessionStorage.getItem('r937-cp-msg'); if(m){ sessionStorage.removeItem('r937-cp-msg'); setTimeout(()=>toast(m==='cancel'?'أُلغيت تغييرات لوحة التحكم':'لم تُحفظ تغييرات لوحة التحكم السابقة، فأُعيدت الإعدادات كما كانت'),400); } }catch(e){}
 })();
