@@ -711,7 +711,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '138';
+const APP_VER = '139';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -1610,7 +1610,7 @@ const total = list => list.length;
 
 /* ---------- render ---------- */
 function renderAll(){ apply(); renderFilters(); renderAlerts(); renderSummary(); renderView(); setTimeout(applyFolds,0); renderInfo(); }
-function refresh(keepPage){ if(!keepPage) page=0; setTimeout(renderBackupBanner,0); setTimeout(()=>{ try{ renderMvBanner(); }catch(e){} },0); callerIdx=null; staffIdx=null; clinIdx=null; apply(); renderFilters(); renderAlerts(); renderSummary(); renderView(); renderInfo(); }
+function refresh(keepPage){ clearTimeout(SUM_T); if(!keepPage) page=0; setTimeout(renderBackupBanner,0); setTimeout(()=>{ try{ renderMvBanner(); }catch(e){} },0); callerIdx=null; staffIdx=null; clinIdx=null; apply(); renderFilters(); renderAlerts(); renderSummary(); renderView(); renderInfo(); }
 function flagNote(list){ const idx=kwIndex(); const n=list.filter(r=>idx.has(r.id)).length; return n?` · ${fmt(n)} منها فيها كلمات حساسة`:''; }
 function renderInfo(){
   document.getElementById('dbInfo').textContent = `${fmt(RECS.length)} بلاغ في القاعدة` + (persistent?' · محفوظة على هذا الجهاز':' · الحفظ غير متاح هنا، صدّر نسخة احتياطية');
@@ -2362,7 +2362,11 @@ function buildReport(list,opts){
 
 /* ---------- events ---------- */
 let qT=null;
-document.getElementById('q').addEventListener('input',e=>{ clearTimeout(qT); qT=setTimeout(()=>{ filt.q=e.target.value; refresh(); },300); });
+// البحث أثناء الكتابة: تُحدَّث النتائج والقائمة فوراً، وتُؤجَّل البطاقات والتنبيهات (الأثقل) حتى تتوقف عن الكتابة
+let SUM_T=0;
+function refreshSearch(){ page=0; callerIdx=null; staffIdx=null; clinIdx=null; apply(); renderFilters(); renderView(); renderInfo();
+  clearTimeout(SUM_T); SUM_T=setTimeout(()=>{ const run=()=>{ try{ renderAlerts(); renderSummary(); }catch(e){ console.error(e); } }; if(window.requestIdleCallback) requestIdleCallback(run,{timeout:400}); else run(); },700); }
+document.getElementById('q').addEventListener('input',e=>{ clearTimeout(qT); clearTimeout(SUM_T); qT=setTimeout(()=>{ filt.q=e.target.value; refreshSearch(); },250); });
 document.getElementById('dFrom').addEventListener('change',e=>{ filt.from=e.target.value; refresh(); });
 document.getElementById('dTo').addEventListener('change',e=>{ filt.to=e.target.value; refresh(); });
 document.addEventListener('change',e=>{ const s=e.target.closest&&e.target.closest('select[data-f]'); if(s){ filt[s.dataset.f]=s.value; refresh(); } });
