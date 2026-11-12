@@ -710,7 +710,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '133';
+const APP_VER = '134';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -2197,7 +2197,7 @@ function rptTable(list,label,tot,limit){
   return `<table class="rpt"><thead><tr><th></th><th>${label}</th><th style="text-align:center">العدد</th><th style="text-align:center">النسبة</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="5">لا توجد بيانات</td></tr>'}</tbody></table>`;
 }
 // جدول المركز مع مدة الإغلاق: العدد ثم 24 ساعة / 48 ساعة / أكثر من 48 ساعة
-function rptDurTable(arr,lab,list,limit){ const L=durLabels(), m=new Map(); list.forEach(r=>{ const d=durInfo(r); if(d.st==='none') return; const c=r.center||''; const o=m.get(c)||{g:0,o:0,r:0}; o[d.lvl]++; m.set(c,o); });
+function rptDurTable(arr,lab,list,limit,key){ key=key||'center'; const L=durLabels(), m=new Map(); list.forEach(r=>{ const d=durInfo(r); if(d.st==='none') return; const c=r[key]||''; const o=m.get(c)||{g:0,o:0,r:0}; o[d.lvl]++; m.set(c,o); });
   const C={g:'#22A06B',o:'#E8890C',r:'#E5484D'}, cell=(n,l)=>`<td class="n" style="color:${C[l]};font-weight:700">${n?fmt(n):'–'}</td>`;
   const shown=arr.slice(0,limit), rest=arr.slice(limit);
   let rows=shown.map(([v,n],i)=>{ const o=m.get(v||'')||{g:0,o:0,r:0}; return `<tr><td class="r">${i+1}</td><td>${esc(v||'—')}</td><td class="n">${fmt(n)}</td>${cell(o.g,'g')}${cell(o.o,'o')}${cell(o.r,'r')}</tr>`; }).join('');
@@ -2246,7 +2246,7 @@ function reportFoot(tot,o,st,range){
   return `<div class="rp-foot" style="${hfCss(H,11)}${H.line?'':'border-top:0;'}"><span>${R}</span><span>${L}</span></div>`;
 }
 // قائمة الأقسام بصدق: التصنيف الرئيسي والفرعي منفصلان، وما لا يمكن ظهوره يُعطَّل مع السبب
-function secItems(){ return [['daily','عدد البلاغات (الخط الزمني)',''],['center','حسب المركز الصحي',''],['cdur','↳ مع مدة الإغلاق (24 / 48 / أكثر من 48 ساعة)',''],
+function secItems(){ return [['daily','عدد البلاغات (الخط الزمني)',''],['center','حسب المركز الصحي',''],['cdur','↳ مدة الإغلاق (24 / 48 / أكثر من 48) في جداول المركز والقطاع والتصنيف',''],
   ['cm','حسب '+label('main'),active('main')?'':'العمود غير مفعّل'],['cs','حسب '+short('sub'),active('sub')?'':'العمود غير مفعّل'],
   ['sector','حسب القطاع',active('sector')?'':'العمود غير مفعّل'],['callers','المتصلون الأكثر تكراراً',(active('caller')||active('nid'))?'':'لا يوجد عمود للمتصل'],
   ['roNote','تنويه «المعاد فتحها ↺» في الصفحة الأولى',''],['staff','الموظفون المذكورون',''],['clinics','العيادات المذكورة','']]; }
@@ -2291,8 +2291,8 @@ function buildReport(list,opts){
     (NT.list||[]).forEach(x=>{ if(x&&x.on!==0&&String(x.t||'').trim()) out.push(esc(String(x.t).trim()).replace(/\n/g,'<br>')); });
     if(out.length) h+=`<div class="blk">${out.map(box).join('')}</div>`; }
   if(SS){ const LAND=opts.orient!=='portrait', n=+opts.sTop||10;
-    const T=[]; const tb=(arr,lab)=>T.push(`<div class="rp-sec"><h4>أعلى ${fmt(Math.min(n,arr.length))} · ${esc(lab)}<small>من ${fmt(arr.length)}</small></h4><div class="rp-body">${rptTable(arr,lab,tot,n)}</div></div>`);
-    if(SS.center){ if(SS.cdur&&hasDur(list)) T.push(`<div class="rp-sec"><h4>أعلى ${fmt(Math.min(n,centers.length))} · المركز الصحي<small>من ${fmt(centers.length)}</small></h4><div class="rp-body">${rptDurTable(centers,'المركز الصحي',list,n)}</div></div>`); else tb(centers,'المركز الصحي'); } if(SS.cm) tb(mains,label('main')); if(SS.cs) tb(subs,short('sub'));
+    const T=[]; const tb=(arr,lab,key)=>T.push(`<div class="rp-sec"><h4>أعلى ${fmt(Math.min(n,arr.length))} · ${esc(lab)}<small>من ${fmt(arr.length)}</small></h4><div class="rp-body">${key&&SS.cdur&&hasDur(list)?rptDurTable(arr,lab,list,n,key):rptTable(arr,lab,tot,n)}</div></div>`);
+    if(SS.center){ if(SS.cdur&&hasDur(list)) T.push(`<div class="rp-sec"><h4>أعلى ${fmt(Math.min(n,centers.length))} · المركز الصحي<small>من ${fmt(centers.length)}</small></h4><div class="rp-body">${rptDurTable(centers,'المركز الصحي',list,n)}</div></div>`); else tb(centers,'المركز الصحي'); } if(SS.cm) tb(mains,label('main'),'main'); if(SS.cs) tb(subs,short('sub'),'sub');
     let chart='', dense=false; if(SS.daily){ const TS=timeSeries(list,opts.sTime), ms=TS.pts; dense=ms.length>13; const side=LAND&&T.length===1;
       chart=`<div class="rp-sec"><h4><span>عدد البلاغات لكل ${TS.unit==='day'?'يوم':'شهر'}${TS.sparse?' <span style="font-weight:400;font-size:.8em;opacity:.75">(الأيام التي فيها بلاغات فقط)</span>':''}</span><small>${esc(range)}</small></h4><div class="rp-body">${monthChartSVG(ms,opts.sChart==='bar'?'bar':'line',c.bar,side?(dense?610:560):W,T.length>1&&LAND?190:0)}</div></div>`; }
     if(chart&&LAND&&T.length===1) h+=`<div class="blk"><div style="display:grid;grid-template-columns:${dense?'1.45fr 1fr':'1.2fr 1fr'};gap:12px;align-items:start">${chart}${T[0]}</div></div>`;
@@ -2302,7 +2302,7 @@ function buildReport(list,opts){
   _cut('daily');
   if(opts.sec.center) h+=`<div class="blk"><div class="rp-sec"><h4>البلاغات حسب المركز الصحي<small>${fmt(centers.length)} مركز${opts.ordC&&opts.ordC!=='desc'?' · '+ORD_LBL[opts.ordC]:''}</small></h4><div class="rp-body">${opts.sec.cdur!==0&&hasDur(list)?rptDurTable(centers,'المركز الصحي',list,top):rptTable(centers,'المركز الصحي',tot,top)}</div></div></div>`;
   _cut('center');
-  if(opts.sec.cats && ((active('main')&&opts.sec.cm!==0)||(active('sub')&&opts.sec.cs!==0))){ const parts=[]; if(active('main')&&opts.sec.cm!==0) parts.push(`<div class="rp-sec"><h4>حسب ${esc(label('main'))}<small>${fmt(mains.length)} تصنيف</small></h4><div class="rp-body">${rptTable(mains,label('main'),tot,top)}</div></div>`); if(active('sub')&&opts.sec.cs!==0) parts.push(`<div class="rp-sec"><h4>حسب ${esc(short('sub'))}<small>${fmt(subs.length)} تصنيف</small></h4><div class="rp-body">${rptTable(subs,short('sub'),tot,top)}</div></div>`); h+=`<div class="blk"><div class="${parts.length>1?'rp-two':''}">${parts.join('')}</div></div>`; }
+  if(opts.sec.cats && ((active('main')&&opts.sec.cm!==0)||(active('sub')&&opts.sec.cs!==0))){ const DD=opts.sec.cdur!==0&&hasDur(list), parts=[]; if(active('main')&&opts.sec.cm!==0) parts.push(`<div class="rp-sec"><h4>حسب ${esc(label('main'))}<small>${fmt(mains.length)} تصنيف</small></h4><div class="rp-body">${DD?rptDurTable(mains,label('main'),list,top,'main'):rptTable(mains,label('main'),tot,top)}</div></div>`); if(active('sub')&&opts.sec.cs!==0) parts.push(`<div class="rp-sec"><h4>حسب ${esc(short('sub'))}<small>${fmt(subs.length)} تصنيف</small></h4><div class="rp-body">${DD?rptDurTable(subs,short('sub'),list,top,'sub'):rptTable(subs,short('sub'),tot,top)}</div></div>`); h+=DD?parts.map(x=>`<div class="blk">${x}</div>`).join(''):`<div class="blk"><div class="${parts.length>1?'rp-two':''}">${parts.join('')}</div></div>`; }
   _cut('cats');
   if(opts.sec.callers && (active('caller')||active('nid'))){ const gs=repeatGroups(list,Math.max(2,RPT.min)); if(gs.length){ const lim=Math.min(opts.top||1e9,gs.length); const max=gs[0].n;
     h+=`<div class="blk"><div class="rp-sec"><h4>المتصلون الأكثر تكراراً<small>${fmt(gs.length)} متصل لهم ${Math.max(2,RPT.min)} بلاغات فأكثر · ${fmt(gs.reduce((s,g)=>s+g.n,0))} بلاغ</small></h4><div class="rp-body"><table class="rpt"><thead><tr><th></th><th>المتصل</th><th style="text-align:center">البلاغات</th><th>المراكز</th><th>أكثر تصنيف</th><th>آخر بلاغ</th><th></th></tr></thead><tbody>${gs.slice(0,lim).map((g,i)=>`<tr><td class="r">${i+1}</td><td>${opts.pii?esc(g.name||g.nid):`متصل ${i+1}`}</td><td class="n">${fmt(g.n)}</td><td>${esc(g.centers.map(c=>c[0]).slice(0,2).join('، '))}${g.centers.length>2?` +${g.centers.length-2}`:''}</td><td>${esc(g.sub)}</td><td class="p" style="width:auto">${esc(fmtDate(g.last).slice(0,10))}</td><td class="bar"><div class="barline"><span style="width:${(g.n/max*100).toFixed(1)}%"></span></div></td></tr>`).join('')}</tbody></table>${opts.pii?'':'<p style="margin:6px 0 0;font-size:11px;color:var(--rp-mut)">الأسماء مخفية. اختر «تضمين اسم المتصل ورقم الهوية» عند التصدير لإظهارها.</p>'}</div></div></div>`; } }
@@ -2316,7 +2316,7 @@ function buildReport(list,opts){
   _cut('staff');
   (opts.cols||[]).forEach(k=>{ if(!col(k)) return; const arr=countBy(list,null,r=>rpg(r,k)||'—'); h+=`<div class="blk"><div class="rp-sec"><h4>حسب ${esc(label(k))}<small>${fmt(arr.length)}</small></h4><div class="rp-body">${rptTable(arr,label(k),tot,top)}</div></div></div>`; });
   _cut('cols');
-  if(opts.sec.sector && sectors.length) h+=`<div class="blk"><div class="rp-sec"><h4>حسب القطاع<small>${fmt(sectors.length)} قطاع${opts.ordS&&opts.ordS!=='desc'?' · '+ORD_LBL[opts.ordS]:''}</small></h4><div class="rp-body">${rptTable(sectors,'القطاع',tot,top)}</div></div></div>`;
+  if(opts.sec.sector && sectors.length) h+=`<div class="blk"><div class="rp-sec"><h4>حسب القطاع<small>${fmt(sectors.length)} قطاع${opts.ordS&&opts.ordS!=='desc'?' · '+ORD_LBL[opts.ordS]:''}</small></h4><div class="rp-body">${opts.sec.cdur!==0&&hasDur(list)?rptDurTable(sectors,'القطاع',list,top,'sector'):rptTable(sectors,'القطاع',tot,top)}</div></div></div>`;
   _cut('sector');
   h+=secSeqOf(opts).map(k=>_S[k]||'').join('');
   if(opts.list && list.length){
