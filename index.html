@@ -711,7 +711,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '144';
+const APP_VER = '145';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -824,6 +824,7 @@ function callerKey(r){
   return 'nm:'+n;
 }
 let callerIdx=null;
+const NAMES_STOP=new Set(['قام','كان','قال','رفض','طلب','تم','لم','لا','ما','وقد','قد','بعد','قبل','عند','عندما','الذي','التي','حيث','كما','ايضا','جدا','فقط','بشكل','بسبب','لانه','اللي','هو','هي'].map(w=>w));
 const NAMES_LEX=new Set(["ابتسام", "ابتهاج", "ابرار", "ابراهيم", "اثار", "اثير", "اجوان", "احسان", "احلام", "احمد", "اروي", "اريج", "ارين", "ازدهار", "اسامه", "اساور", "اسراء", "اسرار", "اسعد", "اسماء", "اسماعيل", "اسيا", "اسيل", "اشرف", "اشواق", "اصيل", "اعتماد", "افنان", "اقبال", "الاء", "البراء", "البندري", "الجوهره", "الحان", "الحسن", "الحسين", "العنود", "الماس", "الهام", "الهنوف", "الوليد", "الياس", "الين", "امال", "اماني", "امجد", "امل", "امنه", "امواج", "امير", "اميره", "امين", "امينه", "انس", "انصاف", "انمار", "انوار", "اهداب", "اياد", "ايفا", "ايلاف", "ايلان", "ايمان", "ايمن", "ايناس", "ايه", "باسل", "باسم", "بتال", "بتول", "بدر", "بدريه", "بدور", "براء", "بسام", "بسمه", "بشائر", "بشاير", "بشري", "بندر", "بيان", "تارا", "تالا", "تالين", "ترف", "تركي", "تغريد", "تميم", "تهاني", "توق", "تولين", "ثامر", "ثريا", "جابر", "جاد", "جاسم", "جبره", "جسار", "جمال", "جمانه", "جمعه", "جميل", "جميله", "جني", "جوان", "جواهر", "جود", "جوري", "جوهره", "حاتم", "حازم", "حامد", "حبيبه", "حجاب", "حسام", "حسن", "حسناء", "حسنه", "حسين", "حصه", "حلا", "حليمه", "حمد", "حمدان", "حمده", "حمزه", "حمود", "حميده", "حنان", "حنين", "حور", "حياه", "خالد", "خديجه", "خضراء", "خلف", "خلود", "خيريه", "دارين", "داليا", "دانا", "دانه", "دحمانه", "دره", "دلال", "ديم", "ديما", "دينا", "رؤي", "رائد", "رائف", "راكان", "راما", "رامي", "راويه", "رايد", "ربي", "رتيل", "رجاء", "رحاب", "رحمه", "رخاء", "رداد", "رزان", "رسن", "رسيل", "رشا", "رشاء", "رعد", "رغد", "رفيف", "رقيه", "ركان", "رمزي", "رنا", "رند", "رنيم", "رهف", "روابي", "رواد", "روان", "روز", "روزان", "روضه", "ريان", "ريتاج", "ريتال", "ريتان", "ريفان", "ريلام", "ريلان", "ريم", "ريما", "ريماس", "ريمان", "ريناد", "ريهام", "ريوف", "زايد", "زرعه", "زكيه", "زهراء", "زهره", "زهور", "زياد", "زين", "زينب", "زينه", "ساره", "سالم", "سالمه", "سالين", "سامر", "سامي", "ساميه", "سجي", "سحاب", "سحر", "سدن", "سديم", "سراج", "سطام", "سعاد", "سعد", "سعود", "سعيد", "سعيده", "سلطان", "سلطانه", "سلمان", "سلمي", "سلوي", "سليم", "سليمان", "سما", "سماح", "سماهر", "سمر", "سميحه", "سمير", "سميره", "سميه", "سند", "سهام", "سهم", "سهي", "سهير", "سوسن", "سيف", "شادن", "شاهر", "شذي", "شروق", "شريفه", "شفاء", "شمسيه", "شموخ", "شميمه", "شهد", "شوق", "شيخه", "شيماء", "صافيه", "صالح", "صالحه", "صبا", "صباح", "صفاء", "صفوان", "صفيه", "صلاح", "ضياء", "طارق", "طلال", "عائشه", "عابده", "عادل", "عاصم", "عاطف", "عامر", "عامره", "عايش", "عايضه", "عبدالاله", "عبدالباسط", "عبدالرحمن", "عبدالرحيم", "عبدالعزيز", "عبدالقادر", "عبدالكريم", "عبداللطيف", "عبدالله", "عبدالمجيد", "عبدالمحسن", "عبدالمعين", "عبدالملك", "عبدالوهاب", "عبده", "عبيده", "عبير", "عدنان", "عريف", "عزام", "عزلا", "عزه", "عزيزه", "عطيه", "عفاف", "علا", "علي", "عليا", "علياء", "عليان", "عليه", "عماد", "عمار", "عمر", "عمره", "عنود", "عهد", "عهود", "عواطف", "عوض", "عويضه", "عيد", "عيده", "عيسي", "عيشه", "عيضه", "غاده", "غازي", "غاليه", "غدي", "غدير", "غرام", "غزل", "غفران", "غلا", "غني", "غيث", "غيداء", "غيم", "فؤاد", "فائزه", "فاتن", "فارس", "فاطمه", "فايز", "فايزه", "فجر", "فراس", "فرح", "فلاح", "فهد", "فواز", "فوزي", "فوزيه", "فيصل", "قصي", "قمر", "كريمه", "كلثوم", "كوثر", "كيان", "لؤي", "لارا", "لانا", "لجين", "لطيفه", "لما", "لمار", "لمي", "لمياء", "لورين", "ليان", "ليلاس", "ليلي", "لين", "مؤيد", "ماجد", "مازن", "ماهر", "مبارك", "مبروكه", "متعب", "مجاهد", "محسن", "محمد", "محمود", "مدينه", "مراحب", "مراد", "مرام", "مروان", "مروه", "مريم", "مزنه", "مزيه", "مست", "مشاري", "مشاعل", "مشعل", "مشهور", "مصطفي", "مصلح", "مضيف", "مطلق", "معاذ", "معاويه", "معتز", "معيد", "معيض", "ملاذ", "ملاك", "ملك", "ملكه", "ملوك", "مليحه", "ممدوح", "منار", "منال", "منصور", "منور", "مني", "منير", "منيره", "مها", "مهاب", "مهدي", "مهند", "موئيد", "موده", "موسي", "موضي", "ميار", "ميان", "ميرال", "ميسم", "ميعاد", "ميلا", "ميليسا", "ميمونه", "نائف", "نادر", "نادين", "ناديه", "ناصر", "نايف", "نايل", "نبيل", "نبيله", "نجات", "نجاح", "نجاه", "نجلاء", "نجمه", "نجود", "نجوي", "ندي", "نسرين", "نسيله", "نسيم", "نعمه", "نعيمه", "نهي", "نوار", "نواف", "نوال", "نور", "نوره", "نوري", "نوف", "نوير", "نيار", "هاله", "هاني", "هايل", "هبه", "هتان", "هدي", "هديل", "هشام", "هلا", "هناء", "هنادي", "هناي", "هند", "هوازن", "هيا", "هياء", "هيثم", "هيفاء", "هيلين", "وائل", "وافي", "وتين", "وجدان", "وجدي", "وداد", "وديع", "ورد", "ورده", "وريف", "وسام", "وسيم", "وصال", "وضحي", "وعد", "وفاء", "وفيه", "ولاء", "وليد", "يارا", "ياسر", "ياسمين", "يامن", "يحيي", "يزن", "يزيد", "يسري", "يمني", "يوسف", "يونس"]);
 // الصفات الوظيفية: الاسم الذي يحملها هو الموظف المقصود، ولا يُعد «موظف بلاغ» حتى لو جاء آخر الوصف
 const STAFF_PRO=new Set(['الممرضه','الممرض','ممرضه','ممرض','الدكتوره','الدكتور','دكتوره','دكتور','د','الطبيبه','الطبيب','طبيبه','طبيب','الاخصائيه','الاخصائي','اخصائي','اخصائيه','الصيدلي','الصيدلانيه','الصيدلاني','المدير','مدير','مديره','المديره','الفني','الفنيه','المشرف','المشرفه','الحارس']);
@@ -892,9 +893,10 @@ function staffIndex(){
   const nxt=w=>NAMES_LEX.has(w) || (w.length>=4 && w.endsWith('ي') && (freq.get(w)||0)<=8 && (w.startsWith('ال') || !/^[يتوفبل]/.test(w) || (/^[بفل]/.test(w) && w.length>=5 && (freq.get(w)||0)<=6 && !/^(بال|فال|لل|وال)/.test(w))));
   const tokz=t=>String(t||'').replace(/[ً-ْـ]/g,'').replace(/د\s*[.\/]/g,'د ').replace(/[^ء-ي\s]/g,' ').split(/\s+/).filter(Boolean);
   const m=new Map();
-  const add=(r,first,full,title,pos,fl)=>{ const key=first+'|'+(r.center||'');
-    if(!m.has(key)) m.set(key,{k:key,first,full:'',titles:new Map(),center:r.center||'',recs:[],pos:new Map(),praise:new Set(),resolve:new Set()});
+  const add=(r,first,full,title,pos,fl,ck)=>{ const sec=nrm(String(full||'').split(/\s+/)[1]||''); const key=(sec?first+' '+sec:first)+'|'+(r.center||'');
+    if(!m.has(key)) m.set(key,{k:key,first,sec,full:'',titles:new Map(),center:r.center||'',recs:[],pos:new Map(),praise:new Set(),resolve:new Set(),ment:new Map()});
     const g=m.get(key); if(!g.pos.has(r.id)) g.recs.push(r);
+    { const om=g.ment.get(r.id); if(!om||om.pos==='end') g.ment.set(r.id,{full:String(full||''),title:title||'',ck:ck||'',pos}); }
     const old=g.pos.get(r.id); if(!old || old==='end') g.pos.set(r.id,pos); // إذا ورد الاسم في موضعين يُعتمد غير التوقيع
     if(!g.last) g.last=new Set();
     if(fl&&fl.pr) g.praise.add(r.id); if(fl&&fl.rs) g.resolve.add(r.id); if(fl&&fl.last) g.last.add(r.id);
@@ -905,7 +907,8 @@ function staffIndex(){
       for(let i=0;i<L-1;i++){
         if(!STAFF_TITLES.has(raw[i]) || !NAMES_LEX.has(raw[i+1])) continue;
         const NOTNM=new Set(['على','إلى','الى','عن','في','من','مع']);
-        const name=[raw[i+1]]; let j=i+2; while(j<L && name.length<3 && !NOTNM.has(orig[j]) && nxt(raw[j])){ name.push(raw[j]); j++; }
+        const loose=w=>w.length>=3 && (freq.get(w)||0)<=25 && !/^[يتنو]/.test(w) && !/(وا|ت|ون|ين|ه|ها|هم|كم|نا)$/.test(w) && !w.startsWith('ال') && !STAFF_TITLES.has(w) && !NAMES_STOP.has(w);
+        const name=[raw[i+1]]; let j=i+2; while(j<L && name.length<3 && !NOTNM.has(orig[j]) && (nxt(raw[j]) || (j===i+2 && loose(raw[j])))){ name.push(raw[j]); j++; }
         for(let x=i-1;x<j;x++) used.add(x);
         const rel=i/Math.max(1,L);
         // الاسم مع صفة (الموظف، الطبيب…) لا يكون مشرف إغلاق: إما موظف مقصود أو موظف منشأة
@@ -915,12 +918,12 @@ function staffIndex(){
         if(!pr && orig[j]==='على' && j+1<L && PRAISE_ALA.has(raw[j+1])) pr=true;
         // «تم حلها من قبل الطبيب فلان» = موظف منشأة
         let rs=(!isDesc && STAFF_SRC!=='pos'); if(!rs){ for(let x=Math.max(0,i-6); x<Math.min(L,j+3); x++){ if(isResolveTok(raw[x])){ rs=true; break; } } }
-        add(r,raw[i+1],orig.slice(i+1,j).join(' '),raw[i],pos,{pr,rs,last:L-j===0});
+        add(r,raw[i+1],orig.slice(i+1,j).join(' '),raw[i],pos,{pr,rs,last:L-j===0},ck);
       }
       // مشرف الإغلاق: اسمه في آخر النص دون صفة، مثل «…المتبعه///نزهه» أو «…تم الإغلاق نزهه»
       const tt=String(text).replace(/[\u064B-\u0652\u0640]/g,'');
       // اسم من قائمة مشرفي الإغلاق في آخر النص تماماً (كلمة أو كلمتان أو ثلاث)
-      { const CL=clSetN(); for(let q=Math.min(3,L);q>=1;q--){ const nmN=raw.slice(L-q).join(' '); if(CL.has(nmN) && !used.has(L-q) && !STAFF_TITLES.has(raw[L-q])){ add(r,raw[L-q],orig.slice(L-q).join(' '),'','end'); for(let x=L-q;x<L;x++) used.add(x); break; } } }
+      { const CL=clSetN(); for(let q=Math.min(3,L);q>=1;q--){ const nmN=raw.slice(L-q).join(' '); if(CL.has(nmN) && !used.has(L-q) && !STAFF_TITLES.has(raw[L-q])){ add(r,raw[L-q],orig.slice(L-q).join(' '),'','end',null,ck); for(let x=L-q;x<L;x++) used.add(x); break; } } }
       const tail=/([\/\\\-–—:|،,]*)\s*([\u0621-\u064A]+(?:\s+[\u0621-\u064A]+){0,2})\s*[.!؟)]*\s*$/.exec(tt);
       if(tail){ const w=tokz(tail[2]); const sep=tail[1]||'', strong=sep.length>=2||/[—–]/.test(sep);
         // نحدد بداية الاسم: أول كلمة معروفة كاسم ضمن الكلمات الأخيرة، وكل ما بعدها يجب أن يكون اسماً أيضاً
@@ -934,10 +937,15 @@ function staffIndex(){
         if(st>=0){ const nm=w.slice(st), f=nrm(nm[0]), pos0=L-nm.length, prev=raw[pos0-1];
           const PLACE=new Set(['مستشفي','مستشفى','مركز','حي','مدينه','شارع','مجمع','عياده','قسم','مدرسه','محافظه','منطقه','جامعه','نظام','برنامج','تطبيق','منصه','موقع','بوابه'].map(nrm));
           if(NOTN.has(f)) { /* ليست اسماً */ } else
-          if(!STAFF_TITLES.has(f) && !(prev&&STAFF_TITLES.has(prev)) && !(prev&&PLACE.has(prev)) && !used.has(pos0) && (sep||ctx||NAMES_LEX.has(f))) add(r,f,nm.join(' '),'','end'); }
+          if(!STAFF_TITLES.has(f) && !(prev&&STAFF_TITLES.has(prev)) && !(prev&&PLACE.has(prev)) && !used.has(pos0) && (sep||ctx||NAMES_LEX.has(f))) add(r,f,nm.join(' '),'','end',null,ck); }
       }
     });
   });
+  { const by=new Map(); m.forEach(g=>{ if(!g.sec) return; const b=g.first+'|'+g.center; if(!by.has(b)) by.set(b,[]); by.get(b).push(g); });
+    [...m.values()].filter(g=>!g.sec).forEach(S=>{ const T=by.get(S.first+'|'+S.center); if(!T||T.length!==1) return; const g=T[0];
+      S.recs.forEach(r=>{ if(!g.pos.has(r.id)){ g.recs.push(r); g.pos.set(r.id,S.pos.get(r.id)); } if(!g.ment.has(r.id)&&S.ment.has(r.id)) g.ment.set(r.id,S.ment.get(r.id)); });
+      S.praise.forEach(x=>g.praise.add(x)); S.resolve.forEach(x=>g.resolve.add(x)); if(S.last){ if(!g.last) g.last=new Set(); S.last.forEach(x=>g.last.add(x)); } S.titles.forEach((n,t)=>g.titles.set(t,(g.titles.get(t)||0)+n));
+      m.delete(S.k); }); }
   m._v=sv; return staffIdx=m;
 }
 const TITLE_SHOW={'د':'الدكتور/ة','الدكتور':'الدكتور','الدكتوره':'الدكتورة','دكتور':'الدكتور','دكتوره':'الدكتورة','الطبيب':'الطبيب','الطبيبه':'الطبيبة','طبيب':'الطبيب','طبيبه':'الطبيبة','الممرض':'الممرض','الممرضه':'الممرضة','ممرض':'الممرض','ممرضه':'الممرضة','الموظف':'الموظف','الموظفه':'الموظفة','موظف':'الموظف','موظفه':'الموظفة'};
@@ -954,13 +962,15 @@ const SPOS_OPTS=[['all','الكل'],['intent','الموظف المقصود'],['s
 let STAFF_POS=(()=>{ try{ return localStorage.getItem(SPOS_KEY)||'all'; }catch(e){ return 'all'; } })();
 // أسماء أعمدة الإفادة (إفادة الضابط…): 'closer' = مشرف إغلاق، 'pos' = حسب موضعها مثل الوصف
 const SSRC_KEY='r937-staffsrc-v1';
+let STAFF_INFO_SHOW=(()=>{ try{ return localStorage.getItem('r937-staffinfo-v1')!=='0'; }catch(e){ return true; } })();
 let STAFF_SRC=(()=>{ try{ const v=localStorage.getItem(SSRC_KEY)||'fac'; return v==='closer'?'fac':v; }catch(e){ return 'fac'; } })();
 // تصنيف يدوي لكل شخص (الاسم|المركز): intent | closer | fac
 const SOVR_KEY='r937-staffovr-v1';
 let SOVR=(()=>{ try{ const o=JSON.parse(localStorage.getItem(SOVR_KEY)||'null'); if(o) return o;
   const m={}; try{ JSON.parse(localStorage.getItem('r937-closers-v1')||'[]').forEach(k=>m[k]='closer'); JSON.parse(localStorage.getItem('r937-staffkeep-v1')||'[]').forEach(k=>m[k]='intent'); }catch(e){} return m; }catch(e){ return {}; } })();
 const saveSovr=()=>{ try{ localStorage.setItem(SOVR_KEY,JSON.stringify(SOVR)); }catch(e){} };
-const ovrOf=g=>SOVR[g.k]||SOVR[g.first]||'';
+const ovrOf=g=>SOVR[g.k]||SOVR[g.first+'|'+g.center]||SOVR[g.first]||'';
+const stHidden=g=>STAFF_HIDE.has(g.k)||STAFF_HIDE.has(g.first+'|'+g.center);
 const CAT_L={intent:'الموظف المقصود',closer:'مشرف الإغلاق',fac:'موظف المنشأة',praise:'شكر وثناء'};
 // تصنيف ذكر الموظف في بلاغ معيّن
 function catOf(g,r){ const p=g.pos?.get(r.id)||'mid', o=ovrOf(g);
@@ -988,12 +998,12 @@ const saveClosers=()=>{ try{ localStorage.setItem(CLN_KEY,JSON.stringify(CLOSER_
 const clSetN=()=>new Set(CLOSER_NAMES.map(nrm));
 const isCloserName=g=>{ const S=clSetN(); return S.has(nrm(g.first))||S.has(nrm(g.full)); };
 function complaintsOnly(list){ const f=staffCatField(); if(!f) return list; const ex=staffCatEx(); if(!ex.size) return list; return list.filter(r=>!ex.has(r[f])); }
-function staffGroups(list,min){ list=complaintsOnly(list); const ids=new Set(list.map(r=>r.id)); return [...staffIndex().values()].filter(g=>!STAFF_HIDE.has(g.k)).map(g=>{ const recs=g.recs.filter(r=>ids.has(r.id)&&posOk(g,r)); const pc={intent:0,closer:0,fac:0,praise:0}; g.recs.forEach(r=>{ if(ids.has(r.id)) pc[catOf(g,r).c]++; }); return {...g,recsF:recs,n:recs.length,pc}; }).filter(g=>g.n>=min).map(g=>{ const s=[...g.recsF].sort((a,b)=>String(a.date).localeCompare(String(b.date))); return {...g,sub:(countBy(s,active('sub')?'sub':'main')[0]||[''])[0],first_d:s[0].date,last_d:s[s.length-1].date}; }).sort((a,b)=>b.n-a.n||String(b.last_d).localeCompare(String(a.last_d))); }
+function staffGroups(list,min){ list=complaintsOnly(list); const ids=new Set(list.map(r=>r.id)); return [...staffIndex().values()].filter(g=>!stHidden(g)).map(g=>{ const recs=g.recs.filter(r=>ids.has(r.id)&&posOk(g,r)); const pc={intent:0,closer:0,fac:0,praise:0}; g.recs.forEach(r=>{ if(ids.has(r.id)) pc[catOf(g,r).c]++; }); return {...g,recsF:recs,n:recs.length,pc}; }).filter(g=>g.n>=min).map(g=>{ const s=[...g.recsF].sort((a,b)=>String(a.date).localeCompare(String(b.date))); return {...g,sub:(countBy(s,active('sub')?'sub':'main')[0]||[''])[0],first_d:s[0].date,last_d:s[s.length-1].date}; }).sort((a,b)=>b.n-a.n||String(b.last_d).localeCompare(String(a.last_d))); }
 // متصل ذكر نفس الموظف في أكثر من شكوى
 function pairGroups(list,min){
   list=complaintsOnly(list);
   const ids=new Set(list.map(r=>r.id)); const m=new Map();
-  staffIndex().forEach(g=>{ if(STAFF_HIDE.has(g.k)) return; g.recs.forEach(r=>{ if(!ids.has(r.id)) return; const ck=callerKey(r); if(!ck) return; const k=ck+'§'+g.k; if(!m.has(k)) m.set(k,{k,ck,g,recs:[]}); m.get(k).recs.push(r); }); });
+  staffIndex().forEach(g=>{ if(stHidden(g)) return; g.recs.forEach(r=>{ if(!ids.has(r.id)) return; const ck=callerKey(r); if(!ck) return; const k=ck+'§'+g.k; if(!m.has(k)) m.set(k,{k,ck,g,recs:[]}); m.get(k).recs.push(r); }); });
   return [...m.values()].filter(x=>x.recs.length>=min).map(x=>{ x.recs.sort((a,b)=>String(a.date).localeCompare(String(b.date))); return {...x,n:x.recs.length,caller:x.recs.find(r=>r.caller)?.caller||x.recs[0].nid||'',first_d:x.recs[0].date,last_d:x.recs[x.recs.length-1].date}; }).sort((a,b)=>b.n-a.n||String(b.last_d).localeCompare(String(a.last_d)));
 }
 function staffLabel(k){ const g=staffIndex().get(k); return g?`${g.full||g.first} · ${g.center}`:k; }
@@ -2755,6 +2765,10 @@ function importSummary(eid){
       s.addEventListener('click',ev=>{ const t=ev.target.closest('[data-imp]'); if(!t) return; filt={...filt,q:'',from:'',to:'',impk:e.id+'|'+t.dataset.imp}; document.getElementById('layer').innerHTML=''; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); toast('أزل الفلتر من الوسم أعلى النتائج للرجوع'); }); }});
 }
 let REC_BACK=null, REC_GONE=false;
+// تظليل اسم الموظف داخل نص البلاغ حيث ورد
+function markPhrase(root,ph){ if(!root||!ph) return; const ws=String(ph).split(/\s+/).filter(Boolean).map(w=>w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').split('').join('[\u064B-\u0652\u0640]*')); if(!ws.length) return;
+  const re=new RegExp(ws.join('[\\s\\u064B-\\u0652\\u0640]+'),'g'); const tw=document.createTreeWalker(root,NodeFilter.SHOW_TEXT); const nodes=[]; while(tw.nextNode()) nodes.push(tw.currentNode);
+  nodes.forEach(n=>{ const t=n.nodeValue; re.lastIndex=0; if(!re.test(t)) return; re.lastIndex=0; const f=document.createDocumentFragment(); let last=0, m; while((m=re.exec(t))){ f.append(t.slice(last,m.index)); const mk=document.createElement('mark'); mk.textContent=m[0]; mk.style.cssText='background:#F5B041;color:#111;border-radius:3px;padding:0 2px'; f.append(mk); last=m.index+m[0].length; if(!m[0].length) break; } f.append(t.slice(last)); n.replaceWith(f); }); }
 // مراجعة «غير موجودة في الملف»: متى ظهر البلاغ أول مرة، ومتى روجع
 const GR_KEY='r937-gonerev-v1'; let GR=(()=>{ try{ return JSON.parse(localStorage.getItem(GR_KEY)||'{}')||{}; }catch(e){ return {}; } })();
 const saveGR=()=>{ try{ localStorage.setItem(GR_KEY,JSON.stringify(GR)); }catch(e){} };
@@ -2767,15 +2781,19 @@ function viewRecord(r){ const back=REC_BACK, fromGone=REC_GONE; REC_BACK=null; R
   const html=`<div class="ro-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>للعرض فقط. اضغط «تعديل» لتغيير البيانات.</div>
     <dl class="ro">${(()=>{ let pos=0; const full=cs.map(c=>c.type==='long'); cs.forEach((c,i)=>{ if(full[i]){ pos=0; return; } if(pos===0 && (i===cs.length-1 || full[i+1])) full[i]=true; else pos=1-pos; }); return cs.map((c,i)=>`<div class="${full[i]?'full':''}">`); })().map((open,i)=>open+`<dt>${esc(cs[i].l)}${cs[i].pii?' <span class="badge">شخصي</span>':''}</dt><dd>${fieldValueHTML(r,cs[i])}</dd></div>`).join('')}</dl>`;
   const ck=callerKey(r), others=ck?(callerIndex().get(ck)||[]).filter(x=>x.id!==r.id):[];
-  const staffIn=[...staffIndex().values()].filter(g=>!STAFF_HIDE.has(g.k) && g.recs.some(x=>x.id===r.id));
-  const staffNote= staffIn.length ? `<div class="rpt-note" style="background:var(--surface-2);border-color:var(--line)"><span>موظفون مذكورون: ${staffIn.map(g=>`<button type="button" class="chip" data-seestaff="${esc(g.k)}">${esc(staffTitle(g))} ${esc(g.full||g.first)} · ${fmt(g.recs.length)}</button>`).join(' ')}</span></div>` : '';
+  const staffIn=[...staffIndex().values()].filter(g=>!stHidden(g) && g.recs.some(x=>x.id===r.id));
+  const staffNote= staffIn.length ? (()=>{ const mk=g=>{ const mt=g.ment&&g.ment.get(r.id)||{}, c=catOf(g,r); const t=mt.title?(TITLE_SHOW[mt.title]||mt.title):''; return {g,mt,c,txt:`${t?t+' ':''}${mt.full||g.full||g.first}`,where:mt.ck?short(mt.ck):''}; };
+      const L=staffIn.map(mk), A=L.filter(x=>x.c.c==='intent'), B=L.filter(x=>x.c.c!=='intent');
+      const chip=(x,small)=>`<button type="button" class="chip" data-seestaff="${esc(x.g.k)}" data-stmark="${esc(x.mt.full||x.g.first)}" title="اضغط لعرض بلاغاته"${small?' style="font-size:.9em"':''}>${esc(x.txt)}${x.where?` <span class="hint">— ${esc(x.where)}${small?' · '+esc(CAT_L[x.c.c]||''):''}</span>`:''} · ${fmt(x.g.recs.length)}</button>`;
+      return (A.length?`<div class="rpt-note" style="background:var(--surface-2);border-color:var(--line)"><span>الموظف المقصود: ${A.map(x=>chip(x,false)).join(' ')}</span></div>`:'')
+        +(B.length&&STAFF_INFO_SHOW?`<div class="rpt-note" style="background:var(--surface-2);border-color:var(--line);font-size:.92em;opacity:.85"><span>في الإفادات: ${B.map(x=>chip(x,true)).join(' ')}</span></div>`:''); })() : '';
   const clIn=[...clinicIndex().entries()].filter(([,recs])=>recs.some(x=>x.id===r.id)).map(([n])=>n);
   const clNote= clIn.length ? `<div class="rpt-note" style="background:var(--surface-2);border-color:var(--line)"><span>العيادات المذكورة: ${clIn.map(n=>`<button type="button" class="chip" data-seecl="${esc(n)}">${esc(n)}</button>`).join(' ')}</span></div>` : '';
   const note= others.length ? `<div class="rpt-note"><span>لهذا المتصل <b>${fmt(others.length)}</b> ${others.length===1?'بلاغ آخر':'بلاغات أخرى'} · آخرها ${esc(fmtDate(others.map(x=>x.date).sort().pop()))}</span><button type="button" class="btn sm" id="seeCaller">عرض بلاغاته</button></div>` : '';
   const fl=kwIndex().get(r.id);
   const kwNote= fl ? `<div class="rpt-note" style="border-color:var(--bad);background:color-mix(in srgb,var(--bad) 9%,transparent)"><span><span class="kwflag"></span>يحتوي كلمات حساسة: <b>${esc([...new Set(fl.map(x=>x.w))].join('، '))}</b></span></div>` : '';
   const durNote=DUR.on?`<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="hint">المدة الزمنية للإغلاق:</span>${durBadge(r)}</div>`:'';
-  dialog({title:`البلاغ ${r.no||''}${revTotal(r)?` · ↻ ${fmt(revTotal(r))} ${revTotal(r)===1?'تحديث':'تحديثات'}`:''}`, html:durNote+chNote+kwNote+note+staffNote+clNote+html, wide:true, onOpen:s=>{ const b=s.querySelector('#seeCaller'); if(b) b.onclick=()=>{ document.getElementById('layer').innerHTML=''; showCaller(ck); }; s.querySelectorAll('[data-seestaff]').forEach(x=>x.onclick=()=>{ document.getElementById('layer').innerHTML=''; showStaff(x.dataset.seestaff); }); s.querySelectorAll('[data-seecl]').forEach(x=>x.onclick=()=>{ document.getElementById('layer').innerHTML=''; showClinic(x.dataset.seecl); }); }, actions:[
+  dialog({title:`البلاغ ${r.no||''}${revTotal(r)?` · ↻ ${fmt(revTotal(r))} ${revTotal(r)===1?'تحديث':'تحديثات'}`:''}`, html:durNote+chNote+kwNote+note+staffNote+clNote+html, wide:true, onOpen:s=>{ try{ s.querySelectorAll('[data-stmark]').forEach(b=>markPhrase(s.querySelector('dl.ro'),b.dataset.stmark)); }catch(e){} const b=s.querySelector('#seeCaller'); if(b) b.onclick=()=>{ document.getElementById('layer').innerHTML=''; showCaller(ck); }; s.querySelectorAll('[data-seestaff]').forEach(x=>x.onclick=()=>{ document.getElementById('layer').innerHTML=''; showStaff(x.dataset.seestaff); }); s.querySelectorAll('[data-seecl]').forEach(x=>x.onclick=()=>{ document.getElementById('layer').innerHTML=''; showClinic(x.dataset.seecl); }); }, actions:[
     ...(back?[{label:'↩ رجوع للقائمة',run:()=>{ setTimeout(back,0); }}]:[]),
     ...(fromGone&&r?[{label:'↺ إلغاء «روجع»',run:()=>{ grMark([keyNo(r.no)],false); toast('أُعيد إلى «لم تُراجَع»'); if(back) setTimeout(back,0); }}]:[]),
     ...(VIEWER||!r?[]:(()=>{ let ex=false; try{ ex=excSet().has(keyNo(r.no)); }catch(e){}
