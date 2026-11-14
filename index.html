@@ -712,7 +712,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '146';
+const APP_VER = '147';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -2604,8 +2604,10 @@ document.getElementById('moreMenu').addEventListener('click',e=>{
 /* ---------- إرسال الأرقام إلى «نموذج تقرير بلاغات 937» ---------- */
 const BRIDGE_KEY='r937-bridge-v1';
 const brShort = s => String(s||'').replace(/^\s*المراكز\s+(الصحية\s+)?التابعة\s+(ل|الى|إلى)\s*/,'').replace(/^\s*مستشفى\s+/,'').trim();
-function brPeriodRecs(sector, from, to){
-  return RECS.filter(r=>{ const d=String(r.date||'').slice(0,10); if(!d||d<from||d>to) return false; if(sector && r.sector!==sector) return false; return true; });
+function brPeriodRecs(sector, from, to, off){
+  const XS=excSet(), OF=new Set(off||[]);
+  return RECS.filter(r=>{ const d=String(r.date||'').slice(0,10); if(!d||d<from||d>to) return false; if(sector && r.sector!==sector) return false;
+    if(OF.size && OF.has(String(r.sector||'').trim())) return false; if(XS.size && XS.has(keyNo(r.no))) return false; return true; });
 }
 function brCount(list, k, top){
   const m=new Map(); list.forEach(r=>{ const v=String(r[k]||'').trim(); if(!v) return; m.set(v,(m.get(v)||0)+1); });
@@ -2624,7 +2626,7 @@ function brSla(list, k, top){
   return {summary: tall?{overall:Math.round(tin/tall*1e4)/1e4}:{}, rows};
 }
 function brBuild(o){
-  const P=[brPeriodRecs(o.sector,o.a.from,o.a.to), brPeriodRecs(o.sector,o.b.from,o.b.to)];
+  const P=[brPeriodRecs(o.sector,o.a.from,o.a.to,o.off), brPeriodRecs(o.sector,o.b.from,o.b.to,o.off)];
   const sec={};
   const put=(key,fn)=>{ sec[key]={p:P.map(fn)}; };
   const names=(rows)=>rows.map(r=>({name:r.name}));
@@ -2660,14 +2662,15 @@ function brDefaults(){
   const qE=(y,qq)=>{ const s=qS(y,qq); return new Date(s.getFullYear(),s.getMonth()+3,0); };
   const QN=['الربع الأول','الربع الثاني','الربع الثالث','الربع الرابع'];
   const y=last.getFullYear();
-  return {type:'hospital', sector:'', top:12,
+  return {type:'hospital', sector:'', top:12, off:[],
     a:{label:QN[(q+3)%4], from:iso(qS(y,q-1)), to:iso(qE(y,q-1))},
     b:{label:QN[q], from:iso(qS(y,q)), to:iso(qE(y,q))}, ...saved};
 }
 function bridgeDialog(){
   if(!RECS.length){ toast('لا توجد بلاغات في القاعدة بعد'); return; }
   const d=brDefaults();
-  const sectors=[...new Set(RECS.map(r=>String(r.sector||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));
+  const XS0=excSet(), SC=new Map(); RECS.forEach(r=>{ if(XS0.size&&XS0.has(keyNo(r.no))) return; const s=String(r.sector||'').trim(); if(s) SC.set(s,(SC.get(s)||0)+1); });
+  const sectors=[...SC.keys()].sort((a,b)=>a.localeCompare(b,'ar')); const OFF=new Set(d.off||[]);
   const opt=(v,l,sel)=>`<option value="${esc(v)}"${sel?' selected':''}>${esc(l)}</option>`;
   const per=(k,p,t)=>`<fieldset style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0;display:grid;gap:8px">
     <legend style="padding:0 6px;font-weight:600">${t}</legend>
@@ -2683,23 +2686,27 @@ function bridgeDialog(){
       <div class="field" style="flex:2 1 220px" data-brsec><label>المستشفى (القطاع)</label><select class="inp" data-br="sector">${opt('','كل القطاعات',!d.sector)}${sectors.map(s=>opt(s,s,s===d.sector)).join('')}</select></div>
       <div class="field" style="flex:0 1 110px"><label>عدد التصانيف</label><input class="inp" type="number" min="3" max="50" data-br="top" value="${esc(d.top)}"></div>
     </div>
+    <div data-broffbox style="border:1px solid var(--line);border-radius:10px;padding:10px 12px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px"><b style="font-size:13px">القطاعات المشمولة</b><span style="color:var(--muted);font-size:12px">ألغِ تحديد أي قطاع لا تريده أن يظهر في التقرير</span><span style="margin-inline-start:auto;display:flex;gap:6px"><button type="button" class="btn sm" data-broffall="1">الكل</button><button type="button" class="btn sm" data-broffall="0">لا شيء</button></span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:2px 12px;max-height:190px;overflow:auto">${sectors.map(s=>`<label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" data-broff="${esc(s)}"${OFF.has(s)?'':' checked'}><span style="flex:1">${esc(s)}</span><span style="color:var(--muted);font-size:11.5px">${fmt(SC.get(s))}</span></label>`).join('')}</div></div>
+    <div style="font-size:12.5px;color:var(--muted)">البلاغات المستبعدة (من «فحص تبعية التجمع ← المستبعدة») لا تدخل في الأرقام المرسلة.</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px">${per('a',d.a,'الفترة السابقة')}${per('b',d.b,'الفترة الحالية')}</div>
     <div style="font-size:13px">${slaNote}<br><span style="color:var(--muted)">أقسام رضا المستفيد تصل بأسماء المراكز والتصانيف، وتُعبّأ نسبها يدوياً في التقرير.</span></div>
     <div id="brPrev" style="font-size:13px;color:var(--muted)"></div></div>`,
     onOpen:sc=>{
-      const read=()=>{ const o={a:{},b:{}}; sc.querySelectorAll('[data-br]').forEach(i=>{ const [x,y]=i.dataset.br.split('.'); if(y) o[x][y]=i.value.trim(); else o[x]=i.value; }); o.top=Math.max(3,Math.min(50,+o.top||12)); return o; };
-      const upd=()=>{ const o=read(); sc.querySelector('[data-brsec]').style.opacity=o.type==='weekly'?.45:1; sc.querySelector('[data-br="sector"]').disabled=o.type==='weekly';
+      const read=()=>{ const o={a:{},b:{}}; sc.querySelectorAll('[data-br]').forEach(i=>{ const [x,y]=i.dataset.br.split('.'); if(y) o[x][y]=i.value.trim(); else o[x]=i.value; }); o.top=Math.max(3,Math.min(50,+o.top||12)); o.off=[...sc.querySelectorAll('[data-broff]')].filter(i=>!i.checked).map(i=>i.dataset.broff); return o; };
+      const upd=()=>{ const o=read(); sc.querySelector('[data-brsec]').style.opacity=o.type==='weekly'?.45:1; sc.querySelector('[data-br="sector"]').disabled=o.type==='weekly'; sc.querySelector('[data-broffbox]').hidden=!(o.type==='weekly'||!o.sector);
         const ok=o.a.from&&o.a.to&&o.b.from&&o.b.to;
         const sec=o.type==='weekly'?'':o.sector;
-        sc.querySelector('#brPrev').textContent = ok ? `البلاغات المطابقة: ${o.a.label||'السابقة'} ${fmt(brPeriodRecs(sec,o.a.from,o.a.to).length)} · ${o.b.label||'الحالية'} ${fmt(brPeriodRecs(sec,o.b.from,o.b.to).length)}` : 'حدّد تاريخ البداية والنهاية للفترتين'; };
-      sc.addEventListener('input',upd); sc.addEventListener('change',upd); sc._brRead=read; upd();
+        sc.querySelector('#brPrev').textContent = ok ? `البلاغات المطابقة: ${o.a.label||'السابقة'} ${fmt(brPeriodRecs(sec,o.a.from,o.a.to,o.off).length)} · ${o.b.label||'الحالية'} ${fmt(brPeriodRecs(sec,o.b.from,o.b.to,o.off).length)}` : 'حدّد تاريخ البداية والنهاية للفترتين'; };
+      sc.addEventListener('input',upd); sc.addEventListener('change',upd); sc.addEventListener('click',e=>{ const b=e.target.closest('[data-broffall]'); if(!b) return; sc.querySelectorAll('[data-broff]').forEach(i=>i.checked=b.dataset.broffall==='1'); upd(); }); sc._brRead=read; upd();
     },
     actions:[{label:'حفظ ملف التقرير',cls:'primary',run:async sc=>{
       const o=sc._brRead();
       if(!(o.a.from&&o.a.to&&o.b.from&&o.b.to)){ toast('حدّد تواريخ الفترتين'); return false; }
       if(o.a.from>o.a.to||o.b.from>o.b.to){ toast('تاريخ البداية بعد تاريخ النهاية'); return false; }
-      if(o.type==='weekly') o.sector='';
-      try{ localStorage.setItem(BRIDGE_KEY,JSON.stringify({type:o.type,sector:o.sector,top:o.top,a:o.a,b:o.b})); }catch(e){}
+      if(o.type==='weekly') o.sector=''; if(o.sector) o.off=[];
+      if(!o.sector && sectors.length && o.off.length>=sectors.length){ toast('اختر قطاعاً واحداً على الأقل'); return false; }
+      try{ localStorage.setItem(BRIDGE_KEY,JSON.stringify({type:o.type,sector:o.sector,top:o.top,off:o.off,a:o.a,b:o.b})); }catch(e){}
       o.name = o.type==='weekly' ? `الأسبوعي ${o.b.from.slice(5).replace('-','/')}` : (brShort(o.sector)||'كل القطاعات');
       const out=brBuild(o);
       if(!out.counts[0]&&!out.counts[1]){ toast('لا توجد بلاغات في الفترتين المحددتين'); return false; }
