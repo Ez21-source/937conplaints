@@ -713,7 +713,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '155';
+const APP_VER = '156';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -5394,6 +5394,7 @@ async function checkStatusFile(file){
   res.recs.forEach(n=>{ const k=keyNo(n.no); if(!k||sr.has(k)) return; sr.add(k); const o=ex.get(k)||null; const old=String(n.__c0||'').trim();
     if(old&&nrm(old)!==nrm(n.center)) ren.push({k,n,o,old,cur:n.center});
     const sec=o?o.sector:(SECMAP[n.center]||centerToSector(n.center)||''); if(isDef(sec)) ns.push({k,n,o,old:old&&nrm(old)!==nrm(n.center)?old:'',cur:o?o.center:n.center,sec:String(sec||'').trim()}); });
+  if(!VIEWER&&ren.length){ try{ await oldcSync(); }catch(e){ console.error(e); } }
   ren.sort((a,b)=>String(b.n.date).localeCompare(String(a.n.date))); ns.sort((a,b)=>String(b.n.date).localeCompare(String(a.n.date)));
   checkDialog({file,sk,hits,news,gone,ren,ns,rng,same,F:{from:'',to:''},tab:hits.length||!news.length?'chg':'new',sel:CC0});
 }
