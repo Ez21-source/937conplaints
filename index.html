@@ -712,7 +712,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '150';
+const APP_VER = '151';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -5223,10 +5223,17 @@ function secFixDialog(){ const L=secFixList(true); if(!L.length){ toast('لا ت
   const secs=[...new Set(RECS.map(r=>String(r.sector||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));
   const opts=v=>`<option value="">— بدون قطاع —</option>`+[...new Set([v,...secs].filter(Boolean))].map(s=>`<option value="${esc(s)}"${s===v?' selected':''}>${esc(s)}</option>`).join('');
   dialog({title:`تصحيح القطاع (${fmt(L.length)})`, wide:true, html:`<p style="margin-top:0">بلاغات حُوّلت في CARE إلى منشأة أخرى (مثلاً من مركز إلى المستشفى)، فتحدّثت المنشأة وبقي القطاع القديم، فكانت تُحسب على القطاع القديم. القطاع المقترح من «ربط المراكز بالقطاعات» أو من بقية بلاغات المنشأة الجديدة، ويمكنك تغييره.</p>
-    <div style="max-height:55vh;overflow:auto"><table class="tbl"><thead><tr><th><input type="checkbox" data-sfall checked></th><th>رقم البلاغ</th><th>التاريخ</th><th>المنشأة السابقة ← الحالية</th><th>القطاع الحالي</th><th>القطاع الصحيح</th></tr></thead><tbody>
-    ${L.map((x,i)=>`<tr data-sfopen="${i}" style="cursor:pointer" title="اضغط لقراءة البلاغ"><td><input type="checkbox" data-sfi="${i}" checked></td><td dir="ltr" style="color:var(--accent);text-decoration:underline">${esc(x.r.no)}</td><td>${esc(String(x.r.date||'').slice(0,10))}</td><td>${esc(x.from)} ← <b>${esc(x.r.center)}</b></td><td style="color:var(--bad)">${esc(x.cur||'—')}</td><td><select class="inp" data-sfs="${i}">${opts(x.exp)}</select></td></tr>`).join('')}</tbody></table></div>`,
+    <label style="display:flex;gap:8px;align-items:center;margin:4px 0 8px;font-weight:600"><input type="checkbox" data-sfall checked> تحديد الكل</label>
+    <div style="max-height:58vh;overflow:auto;display:grid;gap:8px">
+    ${L.map((x,i)=>`<div class="sfcard" style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:6px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="checkbox" data-sfi="${i}" checked><button type="button" class="btn sm ghost" data-sfopen="${i}" dir="ltr" style="color:var(--accent);text-decoration:underline;padding:0 4px">${esc(x.r.no)}</button><span class="hint">${esc(String(x.r.date||'').slice(0,10))}</span><span class="hint" style="margin-inline-start:auto">اضغط الرقم لقراءة البلاغ</span></div>
+      <div style="font-size:13.5px"><span class="hint">المنشأة:</span> ${esc(x.from)} ← <b>${esc(x.r.center)}</b></div>
+      <div style="font-size:13.5px;display:grid;gap:2px"><div><span class="hint">القطاع الحالي (خطأ):</span> <span style="color:var(--bad);text-decoration:line-through">${esc(x.cur||'—')}</span></div>
+        <div><span class="hint">القطاع الصحيح:</span> <b style="color:#22A06B" data-sfnew="${i}">${esc(x.exp||'— اختر —')}</b></div></div>
+      <select class="inp" data-sfs="${i}" style="width:100%" aria-label="القطاع الصحيح">${opts(x.exp)}</select></div>`).join('')}</div>`,
     onOpen:s=>{ s.addEventListener('change',e=>{ if(e.target.matches('[data-sfall]')) s.querySelectorAll('[data-sfi]').forEach(c=>c.checked=e.target.checked); });
-      s.addEventListener('click',e=>{ const tr=e.target.closest('tr[data-sfopen]'); if(!tr||e.target.closest('input,select,button,label')) return; const x=L[+tr.dataset.sfopen]; if(!x) return; REC_BACK=()=>secFixDialog(); document.getElementById('layer').innerHTML=''; viewRecord(x.r); }); },
+      s.addEventListener('change',e=>{ const sl=e.target.closest('[data-sfs]'); if(sl){ const b=s.querySelector(`[data-sfnew="${sl.dataset.sfs}"]`); if(b) b.textContent=sl.value||'— بدون قطاع —'; } });
+      s.addEventListener('click',e=>{ const tr=e.target.closest('[data-sfopen]'); if(!tr) return; const x=L[+tr.dataset.sfopen]; if(!x) return; REC_BACK=()=>secFixDialog(); document.getElementById('layer').innerHTML=''; viewRecord(x.r); }); },
     actions:[{label:'تصحيح المحدد',cls:'primary',run:async s=>{ const up=[]; s.querySelectorAll('[data-sfi]').forEach(c=>{ if(!c.checked) return; const i=+c.dataset.sfi, x=L[i], v=s.querySelector(`[data-sfs="${i}"]`).value; if(vNorm(v)===vNorm(x.r.sector)) return; const b={...x.r,sector:v}; delete b._s; delete b._m; up.push(prep(clean(b))); });
         if(!up.length){ toast('لا يوجد تغيير'); return false; } busy('جارٍ الحفظ…'); try{ await saveRecords(up,{type:'update',note:'تصحيح القطاع بعد تحويل المنشأة'}); } finally{ busy(null); } SFL=null; refresh(true); toast(`صُحّح قطاع ${fmt(up.length)} بلاغ`); }},
       {label:`عرضها في السجلات (${fmt(L.length)})`,run:()=>{ filt={...filt,q:'',from:'',to:'',exc:'show',gone:'',nos:L.map(x=>keyNo(x.r.no)).join(' ')}; view='table'; document.querySelectorAll('[data-view]').forEach(v=>v.setAttribute('aria-pressed',v.dataset.view===view)); refresh(); toast(`تُعرض ${fmt(L.length)} بلاغ تغيّرت منشأته`); }},
