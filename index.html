@@ -712,7 +712,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '147';
+const APP_VER = '149';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -1591,9 +1591,10 @@ function filterRecs(noDates){
   const ok=(F,val)=>!F||(F.none&&!val)||F.set.has(val);
   const Fm=fs('month'), Fs=fs('sector'), Fc=fs('center'), Fma=fs('main'), Fsu=fs('sub');
   const EX=extraFilterCols().map(c=>[c.k,fs(c.k)]).filter(x=>x[1]);
-  const from=noDates?'':filt.from, to=noDates?'':filt.to; const XS=excSet(), XM=filt.exc||'';
+  const from=noDates?'':filt.from, to=noDates?'':filt.to; const XS=excSet(), XM=filt.exc||''; const GS=filt.gone?goneSet():null;
   return RECS.filter(r=>{
     if(XS.size||XM==='only'){ const ex=XS.has(keyNo(r.no)); if(XM==='only'?!ex:(XM!=='show'&&ex)) return false; }
+    if(GS){ const g=GS.has(keyNo(r.no)); if(filt.gone==='only'?!g:g) return false; }
     if(NS && !NS.has(keyNo(r.no))) return false;
     if(IS && !IS.has(r.id)) return false;
     if(LS && !LS.has(keyNo(r.no))) return false;
@@ -1754,9 +1755,12 @@ function renderFilters(){
   if(filt.impk) tags.push(['impk',impTag(filt.impk)]);
   if(filt.nos) tags.push(['nos',`بلاغات محددة (${fmt(String(filt.nos).split(' ').length)})`]);
   if(filt.exc==='show') tags.push(['exc','تُعرض المستبعدة أيضاً']); else if(filt.exc==='only') tags.push(['exc','المستبعدة فقط']);
+  if(filt.gone==='only') tags.push(['gone','غير الموجودة في ملف CARE فقط']); else if(filt.gone==='hide') tags.push(['gone','بدون غير الموجودة في ملف CARE']);
   if(filt.unread) tags.push(['unread',({new:'غير مقروء',upd:'محدّث',read:'تم الفتح'})[filt.unread]||'غير المقروءة']);
   activeFilterKeys().forEach(k=>{ if(fVals(k).length) tags.push([k,`${short(k)}: ${fText(k)}`]); });
   document.getElementById('fstate').innerHTML = `<span><b>${fmt(total(filtered))}</b> بلاغ${filtered.length!==RECS.length?` من أصل ${fmt(total(RECS))}`:''}</span>` + tags.map(([k,t])=>`<span class="tag">${esc(t)}<button type="button" data-untag="${k}" aria-label="إزالة">×</button></span>`).join('') + (tags.length?`<button type="button" class="btn sm ghost" data-untag="all">مسح الفلاتر</button>`:'');
+  { const sf=secFixList(); if(sf.length) document.getElementById('fstate').insertAdjacentHTML('beforeend',`<button type="button" class="tag" data-secfix style="cursor:pointer;border-color:color-mix(in srgb,var(--bad) 45%,var(--line))">⚠ ${fmt(sf.length)} بلاغ تغيّرت منشأته وبقي قطاعه القديم — تصحيح</button>`); }
+  { const gn=goneSet(), XS2=excSet(); let gv=0; gn.forEach(k=>{ if(!XS2.has(k)) gv++; }); if(gv&&!filt.gone) document.getElementById('fstate').insertAdjacentHTML('beforeend',`<span class="tag" style="border-color:color-mix(in srgb,#D69E2E 55%,var(--line))">📄 ${fmt(gv)} غير موجودة في ملف CARE <button type="button" class="btn sm ghost" data-goneflt="only" style="padding:0 6px">عرضها</button><button type="button" class="btn sm ghost" data-goneflt="hide" style="padding:0 6px">إخفاؤها</button></span>`); }
   { const xn=excSet().size; if(xn&&!filt.exc) document.getElementById('fstate').insertAdjacentHTML('beforeend',`<button type="button" class="tag" data-excopen style="cursor:pointer;border-color:color-mix(in srgb,var(--bad) 45%,var(--line))">🚫 ${fmt(xn)} مستبعدة لا تُحسب</button>`); }
 }
 function iso(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
@@ -2888,7 +2892,17 @@ function markPhrase(root,ph){ if(!root||!ph) return; const ws=String(ph).split(/
   nodes.forEach(n=>{ const t=n.nodeValue; re.lastIndex=0; if(!re.test(t)) return; re.lastIndex=0; const f=document.createDocumentFragment(); let last=0, m; while((m=re.exec(t))){ f.append(t.slice(last,m.index)); const mk=document.createElement('mark'); mk.textContent=m[0]; mk.style.cssText='background:#F5B041;color:#111;border-radius:3px;padding:0 2px'; f.append(mk); last=m.index+m[0].length; if(!m[0].length) break; } f.append(t.slice(last)); n.replaceWith(f); }); }
 // مراجعة «غير موجودة في الملف»: متى ظهر البلاغ أول مرة، ومتى روجع
 const GR_KEY='r937-gonerev-v1'; let GR=(()=>{ try{ return JSON.parse(localStorage.getItem(GR_KEY)||'{}')||{}; }catch(e){ return {}; } })();
-const saveGR=()=>{ try{ localStorage.setItem(GR_KEY,JSON.stringify(GR)); }catch(e){} };
+let GR_V=0, GONE_C=null;
+const saveGR=()=>{ GR_V++; try{ localStorage.setItem(GR_KEY,JSON.stringify(GR)); }catch(e){} };
+// البلاغات غير الموجودة في آخر ملف CARE (داخل فترة الملف). تتحدّث عند كل استيراد أو فحص ملف، وتعود «موجودة» إذا ظهرت في ملف لاحق
+function goneSet(){ const sig=GR_V+'|'+RECS.length; if(GONE_C&&GONE_C.sig===sig) return GONE_C.set; const have=new Set(RECS.map(r=>keyNo(r.no)));
+  const set=new Set(Object.keys(GR).filter(k=>GR[k]&&GR[k].gone!==false&&have.has(k))); GONE_C={sig,set}; return set; }
+function goneMark(fileRecs, fname){ const fds=fileRecs.map(n=>String(n.date||'').slice(0,10)).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).sort(); if(!fds.length) return [];
+  const from=fds[0], to=fds[fds.length-1], fk=new Set(fileRecs.map(n=>keyNo(n.no)).filter(Boolean)), t=new Date().toISOString(); let ch=false;
+  const gone=RECS.filter(r=>{ const d=String(r.date||'').slice(0,10); return d&&d>=from&&d<=to&&!fk.has(keyNo(r.no)); });
+  gone.forEach(r=>{ const k=keyNo(r.no); if(!k) return; const g=GR[k]; if(!g){ GR[k]={seen:t,rev:null,gone:true,f:fname||''}; ch=true; } else if(g.gone===false){ GR[k]={...g,gone:true,f:fname||'',rev:null,seen:t}; ch=true; } });
+  fk.forEach(k=>{ const g=GR[k]; if(g&&g.gone!==false){ GR[k]={...g,gone:false,back:t}; ch=true; } });
+  if(ch) saveGR(); return gone; }
 const grRev=k=>!!(GR[k]&&GR[k].rev); function grMark(ks,on){ const t=new Date().toISOString(); ks.forEach(k=>{ GR[k]={...(GR[k]||{seen:t}),rev:on?t:null}; }); saveGR(); }
 const dm=t=>{ if(!t) return ''; const d=new Date(t), z=n=>String(n).padStart(2,'0'); return `${z(d.getDate())}/${z(d.getMonth()+1)} ${z(d.getHours())}:${z(d.getMinutes())}`; };
 function viewRecord(r){ const back=REC_BACK, fromGone=REC_GONE; REC_BACK=null; REC_GONE=false; if(fromGone&&r){ const k=keyNo(r.no); if(!grRev(k)) grMark([k],true); }
@@ -4629,6 +4643,7 @@ function continueImport(file,res){
       upd.length=0; updCh.forEach(x=>upd.push(x));
       busy('جارٍ الحفظ…'); try{ if(add.length||upd.length){ await saveRecords(add.concat(upd),{type:mode==='onlyupd'?'update':'import',note:(ARCH?'📦 أرشيف · ':'')+file.name,archive:ARCH}); if(!ARCH) setLastUpd('استيراد',file.name,add.length,upd.length); } else logChange(mode==='onlyupd'?'update':'import',{n:0,note:file.name}); } finally{ busy(null); }
       if(mode!=='onlyupd' && late.length && !ARCH) addLate(late,file.name);
+      if(!ARCH && !partial){ try{ goneMark(uniq,file.name); }catch(e){} }
       try{ resolvePendingPins(); }catch(e){}
       { const rk=roKey(); if(rk && upd.length){ const rl=upd.map(n=>{ const o=existing.get(keyNo(n.no)); return o&&isReopen(o[rk],n[rk])?{o,from:o[rk]||'',to:n[rk]||'',ch:CK.filter(c=>vNorm(o[c])!==vNorm(n[c]))}:null; }).filter(Boolean); if(rl.length){ const sv=ROSET.mode; ROSET.mode='reopen'; addReopen(rl,file.name); ROSET.mode=sv; } } }
       if(upd.length || late.length || (!add.length && updAll)){ const eid=LAST_LOG?.id; toast((mode==='onlyupd'?`حُدّث ${fmt(upd.length)} بلاغ`:`أضيف ${fmt(add.length)} بلاغ${upd.length?` وحُدّث ${fmt(upd.length)}`:''}`)+(updAll>upd.length?` · ${fmt(updAll-upd.length)} بلاغ بدون تغيير`:'')); setTimeout(()=>importSummary(eid),60); return; }
@@ -5101,7 +5116,7 @@ function excInfo(){ const sig=RECS.length+'|'+EXC_V+'|'+DATA_V+'|'+(CLU.auto?1:0
 const excSet=()=>{ try{ return excInfo().set; }catch(e){ return new Set(); } };
 function excAdd(keys,why){ const at=new Date().toISOString(); const kp=new Set(EXS.keep); keys.forEach(k=>{ EXS.m[k]={why,at}; kp.delete(k); }); EXS.keep=[...kp]; saveExc(); }
 function excBack(keys){ const kp=new Set(EXS.keep); keys.forEach(k=>{ delete EXS.m[k]; if(CLU.auto) kp.add(k); }); EXS.keep=[...kp]; saveExc(); }
-document.addEventListener('click',e=>{ if(e.target.closest('[data-excopen]')) cluDialog('exc'); });
+document.addEventListener('click',e=>{ if(e.target.closest('[data-excopen]')) cluDialog('exc'); const gb=e.target.closest('[data-goneflt]'); if(gb){ filt={...filt,gone:gb.dataset.goneflt}; refresh(); } });
 function cluDialog(tab0){ if(!RECS.length){ toast('لا توجد بلاغات'); return; }
   const allK=ALLK().filter(k=>k!=='id'&&k!=='no'&&!['date','month'].includes(k)), sel=new Set(cluCols());
   let tab=tab0||'found', picked=null, H=[];
@@ -5183,7 +5198,38 @@ function sameVal(k,a,b){ const x=vNorm(a), y=vNorm(b); if(x===y) return true; if
   if(isPhoneCol(k) && phoneNorm(x) && phoneNorm(x)===phoneNorm(y)) return true;
   if(/^-?\d+(\.\d+)?$/.test(x) && /^-?\d+(\.\d+)?$/.test(y) && +x===+y) return true; return false; }
 function mergeFromFile(o,r,fields){ const base={...o}; delete base._s; delete base._m; const CL=new Set(clearableKeys());
-  fields.forEach(k=>{ if(k==='no') return; const v=r[k]; if(v!==undefined && v!==null && String(v).trim()!==''){ if(!sameVal(k,base[k],v)) base[k]=v; } else if(CL.has(k)) base[k]=''; }); return prep(clean(base)); }
+  fields.forEach(k=>{ if(k==='no') return; const v=r[k]; if(v!==undefined && v!==null && String(v).trim()!==''){ if(!sameVal(k,base[k],v)) base[k]=v; } else if(CL.has(k)) base[k]=''; });
+  // تغيّرت المنشأة (مثلاً حُوّل البلاغ من مركز إلى المستشفى) ولم يأتِ في الملف قطاع جديد ← يُحدَّث القطاع حسب المنشأة الجديدة
+  if(active('sector') && vNorm(base.center)!==vNorm(o.center) && String(base.center||'').trim() && vNorm(base.sector)===vNorm(o.sector)){ const ns=secExpect(base.center,keyNo(o.no)); base.sector=ns||defSec()||''; }
+  return prep(clean(base)); }
+// القطاع المتوقع لمنشأة: من ربط المراكز بالقطاعات، ثم من أكثر قطاع لبقية بلاغات نفس المنشأة (عدا البلاغات المحوّلة إليها)
+function secExpect(c, skipK){ c=String(c||'').trim(); if(!c) return ''; if(SECMAP[c]) return SECMAP[c];
+  const mv=secMovedKeys(), cnt=new Map(); RECS.forEach(r=>{ if(r.center!==c||!r.sector) return; const k=keyNo(r.no); if(k===skipK||mv.has(k)) return; cnt.set(r.sector,(cnt.get(r.sector)||0)+1); });
+  return [...cnt.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||''; }
+let SMK=null; function secMovedKeys(){ const sig=MV.length; if(SMK&&SMK.sig===sig) return SMK.set; const s=new Set(); MV.forEach(x=>{ if(x[4]==='center') s.add(x[1]); }); SMK={sig,set:s}; return s; }
+// بلاغات تغيّرت منشأتها سابقاً وبقي قطاعها القديم
+const SFI_KEY='r937-secfix-ign-v1'; let SFI=(()=>{ try{ return new Set(JSON.parse(localStorage.getItem(SFI_KEY)||'[]')); }catch(e){ return new Set(); } })();
+const saveSFI=()=>{ try{ localStorage.setItem(SFI_KEY,JSON.stringify([...SFI])); }catch(e){} };
+let SFL=null;
+function secFixList(force){ if(!active('sector')||!MV_READY) return []; const sig=LOG_VER+'|'+MV.length+'|'+RECS.length+'|'+SFI.size+'|'+Object.keys(SECMAP).length; if(!force&&SFL&&SFL.sig===sig) return SFL.L;
+  const last=new Map(); MV.forEach(x=>{ if(x[4]==='center'){ const p=last.get(x[1]); if(!p||String(x[0])>=String(p[0])) last.set(x[1],x); } });
+  const M=new Map(RECS.map(r=>[keyNo(r.no),r])), L=[], DS=defSec();
+  last.forEach((x,k)=>{ const r=M.get(k); if(!r||SFI.has(k)) return; const from=String(x[6]||'').trim(); if(vNorm(from)===vNorm(r.center)) return;
+    const exp=secExpect(r.center,k), oldS=secExpect(from,k), cur=String(r.sector||'').trim();
+    if(exp){ if(vNorm(exp)!==vNorm(cur)) L.push({r,k,from,cur,exp,t:x[0]}); }
+    else if(cur && oldS && vNorm(cur)===vNorm(oldS)) L.push({r,k,from,cur,exp:DS||'',t:x[0]}); });
+  L.sort((a,b)=>String(b.r.date).localeCompare(String(a.r.date))); SFL={sig,L}; return L; }
+function secFixDialog(){ const L=secFixList(true); if(!L.length){ toast('لا توجد بلاغات تحتاج تصحيح القطاع'); return; }
+  const secs=[...new Set(RECS.map(r=>String(r.sector||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));
+  const opts=v=>`<option value="">— بدون قطاع —</option>`+[...new Set([v,...secs].filter(Boolean))].map(s=>`<option value="${esc(s)}"${s===v?' selected':''}>${esc(s)}</option>`).join('');
+  dialog({title:`تصحيح القطاع (${fmt(L.length)})`, wide:true, html:`<p style="margin-top:0">بلاغات حُوّلت في CARE إلى منشأة أخرى (مثلاً من مركز إلى المستشفى)، فتحدّثت المنشأة وبقي القطاع القديم، فكانت تُحسب على القطاع القديم. القطاع المقترح من «ربط المراكز بالقطاعات» أو من بقية بلاغات المنشأة الجديدة، ويمكنك تغييره.</p>
+    <div style="max-height:55vh;overflow:auto"><table class="tbl"><thead><tr><th><input type="checkbox" data-sfall checked></th><th>رقم البلاغ</th><th>التاريخ</th><th>المنشأة السابقة ← الحالية</th><th>القطاع الحالي</th><th>القطاع الصحيح</th></tr></thead><tbody>
+    ${L.map((x,i)=>`<tr><td><input type="checkbox" data-sfi="${i}" checked></td><td dir="ltr">${esc(x.r.no)}</td><td>${esc(String(x.r.date||'').slice(0,10))}</td><td>${esc(x.from)} ← <b>${esc(x.r.center)}</b></td><td style="color:var(--bad)">${esc(x.cur||'—')}</td><td><select class="inp" data-sfs="${i}">${opts(x.exp)}</select></td></tr>`).join('')}</tbody></table></div>`,
+    onOpen:s=>{ s.addEventListener('change',e=>{ if(e.target.matches('[data-sfall]')) s.querySelectorAll('[data-sfi]').forEach(c=>c.checked=e.target.checked); }); },
+    actions:[{label:'تصحيح المحدد',cls:'primary',run:async s=>{ const up=[]; s.querySelectorAll('[data-sfi]').forEach(c=>{ if(!c.checked) return; const i=+c.dataset.sfi, x=L[i], v=s.querySelector(`[data-sfs="${i}"]`).value; if(vNorm(v)===vNorm(x.r.sector)) return; const b={...x.r,sector:v}; delete b._s; delete b._m; up.push(prep(clean(b))); });
+        if(!up.length){ toast('لا يوجد تغيير'); return false; } busy('جارٍ الحفظ…'); try{ await saveRecords(up,{type:'update',note:'تصحيح القطاع بعد تحويل المنشأة'}); } finally{ busy(null); } SFL=null; refresh(true); toast(`صُحّح قطاع ${fmt(up.length)} بلاغ`); }},
+      {label:'تجاهل المحدد',run:s=>{ s.querySelectorAll('[data-sfi]').forEach(c=>{ if(c.checked) SFI.add(L[+c.dataset.sfi].k); }); saveSFI(); SFL=null; refresh(true); }},{label:'إغلاق'}]}); }
+document.addEventListener('click',e=>{ if(e.target.closest('[data-secfix]')) secFixDialog(); });
 function reopenRecs(){ const m=new Map(filtered.map(r=>[keyNo(r.no),r])); return REOPEN.filter(x=>ROSET.mode==='all'||isReopen(x.from,x.to)).map(x=>({...x,r:m.get(x.k)})).filter(x=>x.r).reverse(); }
 function reopenStats(){ const L=reopenRecs(); return {all:L.length,nNew:L.filter(x=>readState(x.r).st!=='read').length}; }
 function reopenTile(){ const u=reopenStats();
@@ -5206,7 +5252,7 @@ async function checkStatusFile(file){
   const fds=res.recs.map(n=>String(n.date||'').slice(0,10)).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).sort(), rng={from:fds[0]||'',to:fds[fds.length-1]||''};
   const fk=new Set(res.recs.map(n=>keyNo(n.no)).filter(Boolean));
   const gone=rng.from?RECS.filter(r=>{ const d=String(r.date||'').slice(0,10); return d&&d>=rng.from&&d<=rng.to&&!fk.has(keyNo(r.no)); }).sort((a,b)=>String(a.date).localeCompare(String(b.date))):[];
-  { const t=new Date().toISOString(); let ch=false; gone.forEach(r=>{ const k=keyNo(r.no); if(k&&!GR[k]){ GR[k]={seen:t,rev:null}; ch=true; } }); if(ch) saveGR(); }
+  goneMark(res.recs, file.name);
   const CC0=new Set(); hits.forEach(h=>h.ch.forEach(c=>CC0.add(c)));
   checkDialog({file,sk,hits,news,gone,rng,same,F:{from:'',to:''},tab:hits.length||!news.length?'chg':'new',sel:CC0});
 }
@@ -5261,7 +5307,7 @@ function checkDialog(S){
         if(a==='all'){ const vis=S.gf==='new'?gone.filter(r=>!grRev(keyNo(r.no))):S.gf==='rev'?gone.filter(r=>grRev(keyNo(r.no))):gone; vis.forEach(r=>G.add(keyNo(r.no))); checkDialog(S); return; } if(a==='none'){ G.clear(); checkDialog(S); return; }
         if(a==='rev'){ if(!G.size) return; grMark([...G],true); toast(`عُلّم ${fmt(G.size)} بلاغ «✓ روجع»`); G.clear(); checkDialog(S); return; }
         const sel=(a==='exc'||a==='del')?gone.filter(r=>G.has(keyNo(r.no))):gone, ks=sel.map(r=>keyNo(r.no));
-        if(a==='view'){ document.getElementById('layer').innerHTML=''; filt={...filt,q:'',from:'',to:'',exc:'show',nos:ks.join(' ')}; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); toast(`تُعرض ${fmt(gone.length)} بلاغ غير موجودة في الملف`); }
+        if(a==='view'){ document.getElementById('layer').innerHTML=''; filt={...filt,q:'',from:'',to:'',exc:'show',nos:ks.join(' '),gone:''}; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); toast(`تُعرض ${fmt(gone.length)} بلاغ غير موجودة في الملف`); }
         if(a==='xlsx'){ busy('جارٍ تجهيز الملف…'); try{ const IC=infoCols(); const HD=['رقم البلاغ','تاريخ البلاغ','المركز','التصنيف',...(sk?[label(sk)]:[]),...IC.map(k=>label(k))]; let x=`<row r="1">${HD.map((h,i)=>cellXml(1,i,h,1)).join('')}</row>`; gone.forEach((r,ri)=>{ const rr=ri+2; x+=`<row r="${rr}">${[r.no,cellText(r,'date'),r.center||'',r.sub||r.main||'',...(sk?[r[sk]||'']:[]),...IC.map(k=>cellText(r,k)||'')].map((c,i)=>cellXml(rr,i,c,2)).join('')}</row>`; }); const blob=await buildXlsx([],{sheets:[['غير موجودة في الملف',sheetDoc(x,[16,20,30,36,...(sk?[24]:[]),...IC.map(()=>50)],`<autoFilter ref="A1:${String.fromCharCode(64+HD.length)}${gone.length+1}"/>`)]]}); busy(null); await saveFile(`غير-موجودة-في-الملف-${stamp()}.xlsx`,blob); }catch(err){ busy(null); toast('تعذر التصدير'); } }
         if(a==='exc'){ if(!ks.length) return; excAdd(ks,'غير موجود في ملف '+file.name); G.clear(); refresh(true); toast(`استُبعد ${fmt(ks.length)} بلاغ — لا تُحسب، ويمكن إرجاعها من «فحص تبعية التجمع ← المستبعدة»`); checkDialog(S); }
         if(a==='del'){ if(!ks.length) return; dialog({title:`حذف ${fmt(sel.length)} بلاغ من القاعدة؟`, body:`هذه البلاغات تاريخها داخل فترة الملف «${file.name}» ولم تَرِد فيه. ستُحذف من التطبيق على هذا الجهاز، ويمكن التراجع بزر «تراجع». إن لم تكن متأكداً فاختر «استبعادها» بدل الحذف.`,
