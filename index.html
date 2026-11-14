@@ -713,7 +713,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '153';
+const APP_VER = '155';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -2175,19 +2175,24 @@ function renderBulk(){
 }
 
 /* ---------- report (preview / png / pdf / html) ---------- */
-function filterDesc(){
-  const out=[];
-  if(filt.from||filt.to) out.push(['الفترة',`${filt.from||'البداية'} إلى ${filt.to||'النهاية'}`]);
+function filterDesc(off){
+  const out=[], OF=new Set(off||[]); const add=(k,a,v)=>{ if(!OF.has(k)) out.push([a,v,k]); };
+  if(filt.from||filt.to) add('dates','الفترة',`${filt.from||'البداية'} إلى ${filt.to||'النهاية'}`);
   const fl=k=>fVals(k).map(v=>fLabel(k,v)).join('، ');
-  if(fVals('month').length) out.push(['الشهر',fl('month')]);
-  if(fVals('sector').length) out.push(['القطاع',fl('sector')]);
-  if(fVals('center').length) out.push(['المركز',fl('center')]);
-  if(fVals('main').length) out.push(['التصنيف الرئيسي',fl('main')]);
-  if(fVals('sub').length) out.push(['التصنيف الفرعي',fl('sub')]);
-  if(filt.q) out.push(['بحث',filt.q]);
-  if(filt.ck) out.push(['المتصل',callerLabel(filt.ck)]);
-  if(filt.emp) out.push(['الموظف',staffLabel(filt.emp)]);
-  if(filt.cl) out.push(['العيادة',filt.cl]);
+  if(fVals('month').length) add('month','الشهر',fl('month'));
+  if(fVals('sector').length) add('sector','القطاع',fl('sector'));
+  if(fVals('center').length) add('center','المركز',fl('center'));
+  if(fVals('main').length) add('main','التصنيف الرئيسي',fl('main'));
+  if(fVals('sub').length) add('sub','التصنيف الفرعي',fl('sub'));
+  try{ activeFilterKeys().forEach(k=>{ if(['month','sector','center','main','sub'].includes(k)||!fVals(k).length) return; add(k,short(k),fText(k)); }); }catch(e){}
+  if(filt.q) add('q','بحث',filt.q);
+  if(filt.ck) add('ck','المتصل',callerLabel(filt.ck));
+  if(filt.emp) add('emp','الموظف',staffLabel(filt.emp));
+  if(filt.cl) add('cl','العيادة',filt.cl);
+  if(filt.sla) add('sla','مستوى الخدمة',filt.sla==='out'?'خارج مستوى الخدمة':'داخل مستوى الخدمة');
+  if(filt.late) add('late','المتأخرة','المتأخرة فقط');
+  if(filt.exc==='show') add('exc','المستبعدة','تُعرض أيضاً'); else if(filt.exc==='only') add('exc','المستبعدة','المستبعدة فقط');
+  if(filt.gone==='only') add('gone','ملف CARE','غير الموجودة فقط'); else if(filt.gone==='hide') add('gone','ملف CARE','بدون غير الموجودة');
   return out;
 }
 // التقرير البسيط: البلاغات لكل شهر (خطي أو أعمدة)
@@ -2311,7 +2316,7 @@ function buildReport(list,opts){
   const tot=total(list); const centers=ordArr(countBy(list,'center'),opts.ordC), mains=active('main')?countBy(list,'main'):[], subs=active('sub')?countBy(list,'sub'):[], sectors=active('sector')?ordArr(countBy(list,'sector').filter(x=>x[0]),opts.ordS,opts.secOrd):[];
   const ds=list.map(r=>r.date).filter(Boolean).sort(); const days=new Set(ds.map(d=>d.slice(0,10))).size;
   const range= ds.length ? `${fmtDate(ds[0]).slice(0,10)} – ${fmtDate(ds[ds.length-1]).slice(0,10)}` : '—';
-  const fd=filterDesc(); const top=opts.top||1e9; const now=new Date();
+  const fd=filterDesc(opts.fltOff); const top=opts.top||1e9; const now=new Date();
   const topCat = subs.length?['أعلى تصنيف فرعي',subs]:['أعلى تصنيف رئيسي',mains];
   const W = opts.orient==='portrait'?724:1052;
   const L1=b.logo?`<div class="lg"><img src="${b.logo}" alt=""></div>`:'', L2=ST.logo2?`<div class="lg"><img src="${ST.logo2}" alt=""></div>`:'';
@@ -2768,6 +2773,64 @@ function cmpWire(s,S){
   s.addEventListener('change',e=>{ const c=e.target.closest('[data-cmpcol]'); if(c){ CMP[c.dataset.cmpcol]=label(c.value)||c.value; saveCmp(); cmpDialog(S); return; } if(e.target.matches('[data-cmpskip]')){ CMP.skipEmpty=e.target.checked?1:0; saveCmp(); cmpDialog(S); return; } if(e.target.matches('[data-cmpterm]')){ CMP.term=e.target.value.trim()||'ضابط الاتصال'; saveCmp(); cmpDialog(S); } });
   s.addEventListener('click',e=>{ const t=e.target.closest('[data-cmptab]'); if(t){ cmpDialog({...S,tab:t.dataset.cmptab}); return; } const g=e.target.closest('[data-cmpg]'); if(g){ cmpDialog({...S,g:g.dataset.cmpg}); return; }
     const tr=e.target.closest('tr[data-cmpopen]'); if(tr){ const r=byId.get(tr.dataset.cmpopen); if(r){ REC_BACK=()=>cmpDialog(S); document.getElementById('layer').innerHTML=''; viewRecord(r); } } }); }
+
+/* ---------- فحص التغييرات: أسماء مراكز مُصحّحة + مراكز بلا قطاع ---------- */
+function ckCols(){ const st=colByLabel('حالة التذكرة')||(statusKeys()||{}).t||roKey()||durStKey()||null;
+  const dec=colByLabel('القرار الأخير من المنطقة')||colByLabel(STAT.src2)||null;
+  const act=colByLabel('الإجراء المتخذ من المنطقة')||colByLabel('إجراء المنطقة')||colByLabel('الإجراء المتخذ من الضابط')||colByLabel(STAT.src1)||null; return {st,dec,act}; }
+function ckNameList(S,tab,inR){ return (tab==='ren'?(S.ren||[]):(S.ns||[])).filter(x=>inR(x.n.date)); }
+function ckNameTab(S,tab,inR){ const L=ckNameList(S,tab,inR), C=ckCols(), G=S.nsel||(S.nsel=new Set()); if(S.ntab!==tab){ S.ntab=tab; G.clear(); }
+  const grp=new Map(); L.forEach(x=>{ const g=tab==='ren'?x.old+' ← '+x.cur:(x.cur||'—')+' · '+(x.sec||'بدون قطاع'); grp.set(g,(grp.get(g)||0)+1); });
+  const GL=[...grp.entries()].sort((a,b)=>b[1]-a[1]); const inDb=L.filter(x=>x.o).length;
+  const head=tab==='ren'?`<div style="padding:10px 12px;border:1px solid var(--line);border-inline-start:4px solid #2B6CB0;border-radius:10px;margin-bottom:10px"><b>بلاغات في الملف اسم مركزها في CARE مختلف عن اسمه في التطبيق</b> (صحّحته قاعدة «تصحيح أسماء المراكز»). يُحفظ الاسم الأصلي في عمود «${esc(OLDC_L)}».</div>`
+    :`<div style="padding:10px 12px;border:1px solid #F0C27A;border-inline-start:4px solid #E8890C;border-radius:10px;margin-bottom:10px"><b>بلاغات الملف التي مركزها بلا قطاع، أو أخذ القطاع الافتراضي «${esc(defSec()||'تجمع مكة الصحي')}».</b><br><span class="hint">اربط هذه المراكز بقطاعاتها من لوحة التحكم ← القوائم والقطاعات ← ربط المراكز بالقطاعات.</span></div>`;
+  if(!L.length) return head+'<p class="hint">لا توجد بلاغات.</p>';
+  const row=x=>{ const r=x.o||x.n; return `<tr ${x.o?`data-nopen="${esc(x.o.id)}" style="cursor:pointer"`:''}>${tab==='ren'&&!VIEWER?`<td>${x.o?`<input type="checkbox" data-nsel="${esc(x.k)}" ${G.has(x.k)?'checked':''}>`:''}</td>`:''}<td dir="ltr" ${x.o?'style="color:var(--accent);text-decoration:underline"':''}>${esc(r.no)}</td><td>${esc(String(r.date||'').slice(0,10))}</td><td>${C.st?esc(cellText(r,C.st)||'—'):'—'}</td><td>${esc(x.old||'—')}</td><td><b>${esc(x.cur||'—')}</b></td>${tab==='ns'?`<td>${esc(x.sec||'بدون قطاع')}</td>`:''}<td>${esc(r.sub||r.main||'')}</td><td class="hint">${x.o?'':'جديد'}</td></tr>`; };
+  return head+`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${GL.slice(0,12).map(([g,n])=>`<span class="badge" style="padding:3px 10px">${esc(g)} · <b>${fmt(n)}</b></span>`).join('')}${GL.length>12?`<span class="hint">+${fmt(GL.length-12)}</span>`:''}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center"><button type="button" class="btn sm" data-nm="view" ${inDb?'':'disabled'}>عرضها في السجلات (${fmt(inDb)})</button><button type="button" class="btn sm" data-nm="xlsx">تصدير Excel (${fmt(L.length)})</button>
+    ${tab==='ren'&&!VIEWER?`<span style="flex-basis:100%;height:0"></span><button type="button" class="btn sm ghost" data-nm="all">تحديد الكل</button><button type="button" class="btn sm ghost" data-nm="none">إلغاء التحديد</button><button type="button" class="btn sm primary" data-nm="rev" ${G.size?'':'disabled'}>↩ تحويل المحددة للمسمى القديم (${fmt(G.size)})</button><label style="display:flex;gap:6px;align-items:center;font-size:12.5px"><input type="checkbox" id="nmStop" ${S.nmStop===false?'':'checked'}> وإيقاف تصحيح هذه الأسماء في الاستيرادات القادمة</label>`:''}</div>
+    <p class="hint" style="margin:0 0 6px">اضغط أي صف لقراءة البلاغ ثم «↩ رجوع للقائمة». «جديد» = في الملف وغير مسجّل في القاعدة بعد.</p>
+    <div style="max-height:46vh;overflow:auto"><table class="tbl"><thead><tr>${tab==='ren'&&!VIEWER?'<th></th>':''}<th>رقم التذكرة</th><th>التاريخ</th><th>الحالة</th><th>المنشأة (القديم)</th><th>المنشأة (الحالي)</th>${tab==='ns'?'<th>القطاع</th>':''}<th>التصنيف</th><th></th></tr></thead><tbody>${L.slice(0,400).map(row).join('')}</tbody></table>${L.length>400?`<p class="hint">يُعرض أول 400 — التصدير يشمل الكل.</p>`:''}</div>`; }
+async function ckNameClick(e,S,sc,inR){ const tab=S.tab; if(tab!=='ren'&&tab!=='ns') return; const L=ckNameList(S,tab,inR), G=S.nsel||(S.nsel=new Set());
+  const st=e.target.closest('#nmStop'); if(st){ S.nmStop=st.checked; return; }
+  const tr=e.target.closest('tr[data-nopen]'); if(tr&&!e.target.closest('input,button,label')){ const r=byId.get(tr.dataset.nopen); if(r){ REC_BACK=()=>checkDialog({...S,tab}); document.getElementById('layer').innerHTML=''; viewRecord(r); } return; }
+  const b=e.target.closest('[data-nm]'); if(!b) return; const a=b.dataset.nm;
+  if(a==='all'){ L.forEach(x=>{ if(x.o) G.add(x.k); }); checkDialog(S); return; } if(a==='none'){ G.clear(); checkDialog(S); return; }
+  if(a==='view'){ const ks=L.filter(x=>x.o).map(x=>x.k); document.getElementById('layer').innerHTML=''; filt={...filt,q:'',from:'',to:'',exc:'show',gone:'',nos:ks.join(' ')}; view='table'; document.querySelectorAll('[data-view]').forEach(v=>v.setAttribute('aria-pressed',v.dataset.view===view)); refresh(); toast(`تُعرض ${fmt(ks.length)} بلاغ`); return; }
+  if(a==='xlsx'){ busy('جارٍ تجهيز الملف…'); try{ const C=ckCols(); const HD=['رقم التذكرة','تاريخ التذكرة','حالة التذكرة','المنشأة (المسمى القديم)','المنشأة (المسمى الحالي)','القطاع','التصنيف الرئيسي','التصنيف الفرعي',C.dec?label(C.dec):'القرار الأخير من المنطقة',C.act?label(C.act):'إجراء المنطقة','في القاعدة'];
+      let x=`<row r="1">${HD.map((h,i)=>cellXml(1,i,h,1)).join('')}</row>`;
+      L.forEach((it,ri)=>{ const r=it.o||it.n, rr=ri+2; x+=`<row r="${rr}">${[r.no,cellText(r,'date'),C.st?cellText(r,C.st)||'':'',it.old||'',it.cur||'',tab==='ns'?(it.sec||'بدون قطاع'):(r.sector||''),r.main||'',r.sub||'',C.dec?cellText(r,C.dec)||'':'',C.act?cellText(r,C.act)||'':'',it.o?'نعم':'جديد'].map((c,i)=>cellXml(rr,i,c,2)).join('')}</row>`; });
+      const blob=await buildXlsx([],{sheets:[[tab==='ren'?'أسماء مصححة':'بلا قطاع',sheetDoc(x,[16,20,20,34,34,30,26,36,45,45,10],`<autoFilter ref="A1:K${L.length+1}"/>`)]]}); busy(null);
+      await saveFile(`${tab==='ren'?'اسماء-مراكز-مصححة':'مراكز-بلا-قطاع'}-${stamp()}.xlsx`,blob); }catch(err){ busy(null); console.error(err); toast('تعذر التصدير'); } return; }
+  if(a==='rev'){ if(VIEWER||!G.size) return; const sel=L.filter(x=>x.o&&G.has(x.k)); const stop=S.nmStop!==false, olds=[...new Set(sel.map(x=>x.old))];
+    dialog({title:`تحويل ${fmt(sel.length)} بلاغ للمسمى القديم؟`, body:`سيعود اسم المركز إلى ما ورد في CARE (${olds.slice(0,4).join('، ')}${olds.length>4?'…':''}) ويُحدَّث القطاع حسبه. ${stop?'وستتوقف قاعدة تصحيح هذه الأسماء، فتبقى بالمسمى القديم في الاستيرادات القادمة.':'قاعدة التصحيح باقية، فستُعاد تسميتها عند الاستيراد القادم.'} يمكن التراجع من «سجل التغييرات».`,
+      actions:[{label:'تحويل',cls:'primary',run:async()=>{ const ok=colByLabel(OLDC_L); const up=sel.map(x=>{ const b={...x.o,center:x.old}; const ns=secExpect(x.old,x.k); if(ns) b.sector=ns; if(ok) b[ok]=''; delete b._s; delete b._m; delete FH[x.k]; return prep(clean(b)); });
+        if(stop){ const on=new Set(olds.map(o=>nrm(o))); FIX=FIX.filter(f=>!(f.k==='center'&&on.has(nrm(f.from)))); saveFix(); } saveFH();
+        busy('جارٍ الحفظ…'); try{ await saveRecords(up,{type:'update',note:'تحويل المركز للمسمى القديم'}); }finally{ busy(null); }
+        S.ren=(S.ren||[]).filter(x=>!G.has(x.k)); G.clear(); refresh(true); toast(`حُوّل ${fmt(up.length)} بلاغ للمسمى القديم`); setTimeout(()=>checkDialog(S),50); }},{label:'إلغاء'}]}); }
+}
+
+/* ---------- دمج أو حذف قطاع خاطئ (مثل «تجمع مكة الصحي١») ---------- */
+function secMergeDialog(pre){ const cnt=new Map(); RECS.forEach(r=>{ const s=String(r.sector||'').trim(); if(s) cnt.set(s,(cnt.get(s)||0)+1); });
+  const maps=new Map(); Object.entries(SECMAP).forEach(([c,s])=>{ if(s) maps.set(s,(maps.get(s)||0)+1); });
+  const all=[...new Set([...cnt.keys(),...maps.keys(),...(defSec()?[defSec()]:[])])].sort((a,b)=>a.localeCompare(b,'ar'));
+  const odd=s=>all.some(o=>o!==s&&nrm(o.replace(/[٠-٩0-9\s]+$/,''))===nrm(s.replace(/[٠-٩0-9\s]+$/,'')));
+  const from=pre&&all.includes(pre)?pre:(all.find(s=>/[٠-٩0-9]$/.test(s)&&odd(s))||all.find(odd)||all[0]||'');
+  const opt=(v,ex)=>all.filter(s=>s!==ex).map(s=>`<option value="${esc(s)}"${s===v?' selected':''}>${esc(s)}</option>`).join('');
+  const tgt0=all.find(s=>s!==from&&nrm(s.replace(/[٠-٩0-9\s]+$/,''))===nrm(from.replace(/[٠-٩0-9\s]+$/,'')))||'';
+  dialog({title:'دمج أو حذف قطاع خاطئ', html:`<p style="margin-top:0">اختر القطاع الخاطئ، والقطاع الصحيح الذي تُنقل إليه بلاغاته. يُستبدل أيضاً في «ربط المراكز بالقطاعات» وفي القطاع الافتراضي، فلا يعود للظهور، وإن ورد بهذا الاسم في ملف CARE يُصحَّح تلقائياً عند الاستيراد.</p>
+    <div class="ctbl-wrap" style="max-height:30vh"><table class="ctbl"><thead><tr><th>القطاع</th><th>البلاغات</th><th>مراكز مربوطة</th></tr></thead><tbody>${all.map(s=>`<tr${/[٠-٩0-9]$/.test(s)&&odd(s)?' style="color:var(--bad)"':''}><td>${esc(s)}${s===defSec()?' <span class="hint">(الافتراضي)</span>':''}</td><td>${fmt(cnt.get(s)||0)}</td><td>${fmt(maps.get(s)||0)}</td></tr>`).join('')}</tbody></table></div>
+    <div style="display:grid;gap:8px;margin-top:10px"><div class="field"><label>القطاع الخاطئ</label><select class="inp" id="smFrom">${all.map(s=>`<option value="${esc(s)}"${s===from?' selected':''}>${esc(s)} (${fmt(cnt.get(s)||0)})</option>`).join('')}</select></div>
+    <div class="field"><label>يُنقل إلى</label><select class="inp" id="smTo"><option value="">— بدون قطاع (حذف) —</option>${opt(tgt0,from)}</select></div></div>`,
+    onOpen:s=>{ s.querySelector('#smFrom').addEventListener('change',e=>secMergeDialog(e.target.value)); },
+    actions:[{label:'دمج',cls:'primary',run:async s=>{ const f=s.querySelector('#smFrom').value, to=s.querySelector('#smTo').value; if(!f||f===to) return false;
+      const up=RECS.filter(r=>String(r.sector||'').trim()===f).map(r=>{ const b={...r,sector:to}; delete b._s; delete b._m; return prep(clean(b)); });
+      let nm=0; Object.keys(SECMAP).forEach(c=>{ if(SECMAP[c]===f){ if(to) SECMAP[c]=to; else delete SECMAP[c]; nm++; } }); if(nm) saveSecmap();
+      if(defSec()===f){ try{ localStorage.setItem(DEFSEC_KEY,to); }catch(e){} }
+      if(to){ FIX=FIX.filter(x=>!(x.k==='sector'&&nrm(x.from)===nrm(f))); FIX.push({k:'sector',from:f,to}); saveFix(); }
+      if(up.length){ busy('جارٍ الحفظ…'); try{ await saveRecords(up,{type:'bulk',note:`دمج القطاع «${f}» في «${to||'بدون قطاع'}»`}); }finally{ busy(null); } }
+      SFL=null; refresh(true); toast(`نُقل ${fmt(up.length)} بلاغ${nm?` و${fmt(nm)} ربط مركز`:''} من «${f}» إلى «${to||'بدون قطاع'}»`); }},{label:'إغلاق'}]}); }
+document.addEventListener('click',e=>{ if(e.target.closest('[data-secmerge]')) secMergeDialog(); });
 
 /* ---------- dialogs ---------- */
 function dialog({title, body, html, actions, wide, onOpen}){
@@ -3352,7 +3415,7 @@ function panelLists(){
         <input class="inp" id="defSec" list="dl-sector" value="${esc(defSec())}" placeholder="اتركه فارغاً لإيقاف التعبئة">
         <span class="hint">أي بلاغ مستورد أو جديد مركزُه غير مربوط بقطاع يُلحق تلقائياً بهذا القطاع.</span>
         <div><button type="button" class="btn" data-applysec="def">إلحاق البلاغات الحالية بدون قطاع (${fmt(RECS.filter(r=>!String(r.sector||'').trim()).length)}) بالقطاع الافتراضي</button></div></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" data-applysec="empty">تطبيق على البلاغات بدون قطاع</button><button type="button" class="btn" data-applysec="all">تطبيق على كل بلاغات هذه المراكز</button></div></div>`:''}`;
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" data-applysec="empty">تطبيق على البلاغات بدون قطاع</button><button type="button" class="btn" data-applysec="all">تطبيق على كل بلاغات هذه المراكز</button><button type="button" class="btn" data-secmerge>🧹 دمج أو حذف قطاع خاطئ</button></div></div>`:''}`;
 }
 function panelLock(){
   const has=!!pinHash();
@@ -3982,7 +4045,7 @@ const condText=cond=>(cond||[]).filter(c=>c&&c.k&&(c.v||[]).length).map(c=>`${la
 const RTPL_KEY='r937-rtpl-v1', RTSEL_KEY='r937-rtsel-v1';
 let RTPL=(()=>{ try{ const v=JSON.parse(localStorage.getItem(RTPL_KEY)||'[]'); return Array.isArray(v)?v:[]; }catch(e){ return []; } })();
 const saveRTPL=()=>{ try{ localStorage.setItem(RTPL_KEY,JSON.stringify(RTPL)); }catch(e){} };
-const SPEC_KEYS=['tblOne','listGrp','listSort','secSeq','ordC','ordS','secOrd','kind','sChart','sTop','sTime','title','orient','paper','margin','top','list','pii','sec','kpis','cols','listCols','showFilters','font','cond'];
+const SPEC_KEYS=['tblOne','listGrp','listSort','secSeq','ordC','ordS','secOrd','kind','sChart','sTop','sTime','title','orient','paper','margin','top','list','pii','sec','kpis','cols','listCols','showFilters','fltOff','font','cond'];
 // إعدادات تقرير كاملة: الافتراضي (PRINT) أو نموذج محفوظ
 function specOf(id){ const t=RTPL.find(x=>x.id===id); const base={...PRINT,sec:{...PRINT.sec}}; if(!t) return base;
   const o={...base}; SPEC_KEYS.forEach(k=>{ if(t[k]!==undefined) o[k]=JSON.parse(JSON.stringify(t[k])); }); o.sec={...DEF_PRINT.sec,...(t.sec||{})}; o.tpl=t.id; o.tplName=t.name; return o; }
@@ -4010,6 +4073,7 @@ function rtplEditor(id,after){
       <p class="hint" style="margin:0">التقرير البسيط في صفحة واحدة: البطاقات المختارة، ثم الخط الزمني، ثم جداول «أعلى» للمركز الصحي والتصنيفات حسب ما تؤشّره في «الأقسام والجداول».</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="hint">الاتجاه</span>${seg('teOr',[['landscape','أفقي'],['portrait','عمودي']],d.orient)}<span class="hint">عناصر الجداول</span>${seg('teTop',[[10,'أعلى 10'],[20,'أعلى 20'],[50,'أعلى 50'],[0,'الكل']],d.top)}</div>
       <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="teFlt" ${d.showFilters?'checked':''}> إظهار الفلاتر المطبقة في الصفحة الأولى</label>
+      ${(()=>{ const all=filterDesc(), OF=new Set(d.fltOff||[]); return `<div id="teFltBox" style="margin-inline-start:26px;display:${d.showFilters?'grid':'none'};gap:4px">${all.length?`<span class="hint">اختر الفلاتر التي تظهر في التقرير:</span>${all.map(([a,v,k])=>`<label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" data-fltk="${esc(k)}" ${OF.has(k)?'':'checked'}> <b>${esc(a)}:</b> <span class="hint">${esc(String(v).slice(0,80))}</span></label>`).join('')}`:'<span class="hint">لا توجد فلاتر مطبقة الآن — طبّق الفلاتر أولاً لتختار منها. ما تلغيه هنا يبقى مخفياً كلما طُبّق.</span>'}</div>`; })()}
       <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="tePii" ${d.pii?'checked':''}> تضمين البيانات الشخصية</label></div>
     <div class="pcard"><h4>البلاغات التي يشملها التقرير</h4><p class="hint" style="margin-top:0">يُطبَّق على نتائج الفلاتر الحالية (الفترة وغيرها). بدون شروط = كل النتائج. الآن: <b>${fmt(pv)}</b> بلاغ من ${fmt(filtered.length)}.</p>
       ${d.cond.map((c,i)=>`<div style="border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:8px"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><select class="inp" data-cck="${i}" style="width:auto">${opt(RC(),c.k)}</select><span class="hint">يساوي</span><b style="flex:1;min-width:120px">${c.v.length?esc(c.v.join('، ')):'<span class="hint">اختر القيم</span>'}</b><button type="button" class="btn sm" data-ccopen="${i}">${openCond===i?'إغلاق القائمة':'اختيار القيم'}</button><button type="button" class="btn sm ghost danger" data-ccdel="${i}">حذف</button></div>
@@ -4059,7 +4123,8 @@ function rtplEditor(id,after){
         if(t.id==='teCq'){ condQ=t.value; clearTimeout(s._q); s._q=setTimeout(re,250); } });
       s.addEventListener('change',e=>{ const t=e.target;
         if(t.id==='tePin') d.pin=t.checked; if(t.name==='teOr') d.orient=t.value; if(t.id==='teTblOne'){ d.tblOne=t.checked?1:0; } if(t.name==='teOrdC'){ d.ordC=t.value; } if(t.name==='teOrdS'){ d.ordS=t.value; re(); } if(t.name==='teKind'){ d.kind=t.value; const sm=t.value==='simple'; s.querySelectorAll('[data-tesec]').forEach(c=>{ c.disabled=(sm&&!SIMPLE_OK.includes(c.dataset.tesec))||!!c.closest('label').title; }); s.querySelectorAll('.simple-note').forEach(n=>n.hidden=!sm); const tl=s.querySelector('#teList'); if(tl) tl.disabled=sm; } if(t.name==='teSChart') d.sChart=t.value; if(t.name==='teSTop') d.sTop=+t.value; if(t.name==='teSTime') d.sTime=t.value; if(t.name==='teTop') d.top=+t.value;
-        if(t.id==='teFlt') d.showFilters=t.checked?1:0; if(t.id==='tePii') d.pii=t.checked; if(t.id==='teList') d.list=t.checked; if(t.name==='teLGrp') d.listGrp=t.value; if(t.id==='teLSort') d.listSort=t.value; if(t.id==='teKpiOn') d.sec.kpi=t.checked?1:0;
+        if(t.id==='teFlt'){ d.showFilters=t.checked?1:0; const fb=s.querySelector('#teFltBox'); if(fb) fb.style.display=t.checked?'grid':'none'; }
+        if(t.dataset.fltk){ const O=new Set(d.fltOff||[]); t.checked?O.delete(t.dataset.fltk):O.add(t.dataset.fltk); d.fltOff=[...O]; } if(t.id==='tePii') d.pii=t.checked; if(t.id==='teList') d.list=t.checked; if(t.name==='teLGrp') d.listGrp=t.value; if(t.id==='teLSort') d.listSort=t.value; if(t.id==='teKpiOn') d.sec.kpi=t.checked?1:0;
         if(t.dataset.tesec) secSet(d.sec,t.dataset.tesec,t.checked);
         if(t.id==='teFam') d.font.fam=t.value; if(t.name==='teFs') d.font.size=t.value?+t.value:'';
         if(t.id==='teKc'||t.id==='teKm') fillKv(s);
@@ -4180,7 +4245,7 @@ document.addEventListener('change',e=>{ if(e.target.id==='exitOn'){ EXIT.on=e.ta
 ['pointerdown','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,()=>exitArm(),{once:true,capture:true}));
 
 /* ---------- print & export ---------- */
-const DEF_PRINT={tblOne:1,listGrp:'',listSort:'',secSeq:null,ordC:'desc',ordS:'desc',secOrd:[],pngQ:3,kind:'full',sChart:'line',sTop:10,sTime:'auto',fmt:'pdf',paper:'A4',orient:'landscape',margin:'normal',top:20,list:true,pii:false,kpis:['total','centers','topCenter','topCat'],cols:[],listCols:null,showFilters:0,sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1}};
+const DEF_PRINT={tblOne:1,listGrp:'',listSort:'',secSeq:null,ordC:'desc',ordS:'desc',secOrd:[],pngQ:3,kind:'full',sChart:'line',sTop:10,sTime:'auto',fmt:'pdf',paper:'A4',orient:'landscape',margin:'normal',top:20,list:true,pii:false,kpis:['total','centers','topCenter','topCat'],cols:[],listCols:null,showFilters:0,fltOff:[],sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1}};
 let PRINT=(()=>{ try{ const o=JSON.parse(localStorage.getItem(PRINT_KEY)||'{}'); return {...DEF_PRINT,...o,sec:{...DEF_PRINT.sec,...(o.sec||{})}}; }catch(e){ return JSON.parse(JSON.stringify(DEF_PRINT)); } })();
 const printOpts=()=>PRINT;
 const PAPER={A4:[595.28,841.89],A3:[841.89,1190.55],Letter:[612,792]};
@@ -4459,7 +4524,7 @@ async function buildReportXlsx(list,o){
   S.heights[4]=5; for(let cc=0;cc<=lastCol;cc++) S.set(4,cc,null,18);
   S.heights[5]=20; S.merge(5,0,5,lastCol,[HF.meta.period?`فترة البيانات: ${range}`:'',HF.meta.date?`تاريخ التقرير: ${iso(new Date())}`:'',HF.meta.prep&&b.preparer?`إعداد: ${b.preparer}`:''].filter(Boolean).join('     ·     '),9);
   let r=6;
-  const fd=filterDesc(); if(o.showFilters&&fd.length){ S.heights[r]=20; S.merge(r,0,r,lastCol,fd.map(([a,v])=>`${a}: ${v}`).join('    |    '),21); r++; }
+  const fd=filterDesc(o.fltOff); if(o.showFilters&&fd.length){ S.heights[r]=20; S.merge(r,0,r,lastCol,fd.map(([a,v])=>`${a}: ${v}`).join('    |    '),21); r++; }
   if((o.cond||[]).length&&condText(o.cond)){ S.heights[r]=20; S.merge(r,0,r,lastCol,'يشمل: '+condText(o.cond),21); r++; }
   r++;
   const secTitle=(row,c0,c1,title,note)=>{ S.heights[row]=22; S.merge(row,c0,row,c1-1,title,11); S.set(row,c1,note||'',23); };
@@ -5106,10 +5171,16 @@ function fhBackfill(){ const rs=FIX.filter(x=>x.k==='center'); if(!rs.length||!M
   MV.forEach(x=>{ if(x[4]!=='center') return; const f=rs.find(r=>nrm(r.from)===nrm(x[6])); if(f&&!FH[x[1]]){ FH[x[1]]=[x[6],x[7]]; n++; } }); if(n) saveFH(); return n; }
 function fhCount(from){ const n=nrm(from), have=new Set(RECS.map(r=>keyNo(r.no))); let c=0; for(const k in FH){ if(nrm(FH[k][0])===n&&have.has(k)) c++; } return c; }
 function fhList(from){ const n=nrm(from); const by=new Map(RECS.map(r=>[keyNo(r.no),r])); const out=[]; for(const k in FH){ if(nrm(FH[k][0])===n&&by.has(k)) out.push([by.get(k),FH[k]]); } return out.sort((a,b)=>String(b[0].date).localeCompare(a[0].date)); }
-function applyFixRec(r){ let c=false; ['center'].forEach(k=>{ if(r[k]!=null){ const v=fixVal(k,r[k]); if(v!==r[k]){ if(k==='center') fhAdd(r.no,r[k],v); r[k]=v; c=true; } } }); return c; }
+function applyFixRec(r){ let c=false; ['center','sector'].forEach(k=>{ if(r[k]!=null){ const v=fixVal(k,r[k]); if(v!==r[k]){ if(k==='center'){ fhAdd(r.no,r[k],v); const ok=oldcKey(true); if(ok) r[ok]=r[k]; } r[k]=v; c=true; } } }); return c; }
+// عمود «المنشأة بالمسمى القديم»: اسم المركز كما ورد في CARE قبل تصحيحه في التطبيق
+const OLDC_L='المنشأة بالمسمى القديم';
+function oldcKey(create){ let k=colByLabel(OLDC_L); if(!k&&create&&!VIEWER&&(create==='force'||Object.keys(FH).length)){ SCHEMA.push({k:'c_'+uid(),l:OLDC_L,type:'text',custom:1,table:1,rep:0,req:0,pii:0,options:[]}); saveSchema(); k=colByLabel(OLDC_L); } return k; }
+async function oldcSync(){ if(VIEWER) return 0; try{ fhBackfill(); }catch(e){} if(!Object.keys(FH).length) return 0; const had=!!colByLabel(OLDC_L), ok=oldcKey(true); if(!ok) return 0;
+  const up=[]; RECS.forEach(r=>{ const h=FH[keyNo(r.no)]; const want=h&&nrm(h[0])!==nrm(r.center)?h[0]:''; if(String(r[ok]||'')!==want){ const b={...r,[ok]:want}; delete b._s; delete b._m; up.push(prep(clean(b))); } });
+  if(up.length) await saveRecords(up,{type:'bulk',note:'تعبئة «'+OLDC_L+'»'}); if(!had||up.length) schemaChanged(); return up.length; }
 async function addFixes(k,froms,to){ to=String(to||'').trim(); if(!to) return 0;
   froms.forEach(f=>{ f=String(f||'').trim(); if(!f||nrm(f)===nrm(to)) return; FIX=FIX.filter(x=>!(x.k===k&&nrm(x.from)===nrm(f))); FIX.push({k,from:f,to}); });
-  saveFix(); const ch=[]; RECS.forEach(r=>{ const v=fixVal(k,r[k]); if(v!==r[k]){ if(k==='center') fhAdd(r.no,r[k],v); ch.push(prep(clean({...r,[k]:v}))); } });
+  saveFix(); const ch=[]; const ok=k==='center'&&RECS.some(r=>fixVal(k,r[k])!==r[k])?oldcKey('force'):null; RECS.forEach(r=>{ const v=fixVal(k,r[k]); if(v!==r[k]){ if(k==='center') fhAdd(r.no,r[k],v); ch.push(prep(clean({...r,[k]:v,...(ok?{[ok]:r[k]}:{})}))); } });
   if(ch.length){ busy('جارٍ التصحيح…'); try{ await applyChange(ch,[],{type:'bulk',note:'تصحيح اسم '+label(k)}); }finally{ busy(null); } }
   return ch.length; }
 function askFixForever(k,olds,to){ olds=[...new Set(olds.filter(o=>o&&nrm(o)!==nrm(to)))]; if(!olds.length||VIEWER) return;
@@ -5250,6 +5321,7 @@ function sameVal(k,a,b){ const x=vNorm(a), y=vNorm(b); if(x===y) return true; if
 function mergeFromFile(o,r,fields){ const base={...o}; delete base._s; delete base._m; const CL=new Set(clearableKeys());
   fields.forEach(k=>{ if(k==='no') return; const v=r[k]; if(v!==undefined && v!==null && String(v).trim()!==''){ if(!sameVal(k,base[k],v)) base[k]=v; } else if(CL.has(k)) base[k]=''; });
   // تغيّرت المنشأة (مثلاً حُوّل البلاغ من مركز إلى المستشفى) ولم يأتِ في الملف قطاع جديد ← يُحدَّث القطاع حسب المنشأة الجديدة
+  { const ok=colByLabel(OLDC_L), h=FH[keyNo(o.no)]; if(ok) base[ok]=h&&nrm(h[0])!==nrm(base.center)?h[0]:(o[ok]&&nrm(o[ok])!==nrm(base.center)?o[ok]:''); }
   if(active('sector') && vNorm(base.center)!==vNorm(o.center) && String(base.center||'').trim() && vNorm(base.sector)===vNorm(o.sector)){ const ns=secExpect(base.center,keyNo(o.no)); base.sector=ns||defSec()||''; }
   return prep(clean(base)); }
 // القطاع المتوقع لمنشأة: من ربط المراكز بالقطاعات، ثم من أكثر قطاع لبقية بلاغات نفس المنشأة (عدا البلاغات المحوّلة إليها)
@@ -5272,7 +5344,7 @@ function secFixList(force){ if(!active('sector')||!MV_READY) return []; const si
 function secFixDialog(){ const L=secFixList(true); if(!L.length){ toast('لا توجد بلاغات تحتاج تصحيح القطاع'); return; }
   const secs=[...new Set(RECS.map(r=>String(r.sector||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));
   const opts=v=>`<option value="">— بدون قطاع —</option>`+[...new Set([v,...secs].filter(Boolean))].map(s=>`<option value="${esc(s)}"${s===v?' selected':''}>${esc(s)}</option>`).join('');
-  dialog({title:`تصحيح القطاع (${fmt(L.length)})`, wide:true, html:`<p style="margin-top:0">بلاغات حُوّلت في CARE إلى منشأة أخرى (مثلاً من مركز إلى المستشفى)، فتحدّثت المنشأة وبقي القطاع القديم، فكانت تُحسب على القطاع القديم. القطاع المقترح من «ربط المراكز بالقطاعات» أو من بقية بلاغات المنشأة الجديدة، ويمكنك تغييره.</p>
+  dialog({title:`تصحيح القطاع (${fmt(L.length)})`, wide:true, html:`<p style="margin-top:0">${(()=>{ const bad=[...new Set(L.map(x=>x.exp).filter(v=>v&&/[٠-٩0-9]$/.test(v)))]; return bad.length?`<span style="display:block;padding:8px 10px;border:1px solid #F0C27A;border-radius:8px;margin-bottom:8px">⚠ القطاع المقترح «${esc(bad.join('، '))}» يبدو اسماً خاطئاً لقطاع. <button type="button" class="btn sm" data-secmerge>🧹 دمجه في القطاع الصحيح</button> ثم ارجع لهذه النافذة.</span>`:''; })()}بلاغات حُوّلت في CARE إلى منشأة أخرى (مثلاً من مركز إلى المستشفى)، فتحدّثت المنشأة وبقي القطاع القديم، فكانت تُحسب على القطاع القديم. القطاع المقترح من «ربط المراكز بالقطاعات» أو من بقية بلاغات المنشأة الجديدة، ويمكنك تغييره.</p>
     <label style="display:flex;gap:8px;align-items:center;margin:4px 0 8px;font-weight:600"><input type="checkbox" data-sfall checked> تحديد الكل</label>
     <div style="max-height:58vh;overflow:auto;display:grid;gap:8px">
     ${L.map((x,i)=>`<div class="sfcard" style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:6px">
@@ -5284,8 +5356,8 @@ function secFixDialog(){ const L=secFixList(true); if(!L.length){ toast('لا ت
     onOpen:s=>{ s.addEventListener('change',e=>{ if(e.target.matches('[data-sfall]')) s.querySelectorAll('[data-sfi]').forEach(c=>c.checked=e.target.checked); });
       s.addEventListener('change',e=>{ const sl=e.target.closest('[data-sfs]'); if(sl){ const b=s.querySelector(`[data-sfnew="${sl.dataset.sfs}"]`); if(b) b.textContent=sl.value||'— بدون قطاع —'; } });
       s.addEventListener('click',e=>{ const tr=e.target.closest('[data-sfopen]'); if(!tr) return; const x=L[+tr.dataset.sfopen]; if(!x) return; REC_BACK=()=>secFixDialog(); document.getElementById('layer').innerHTML=''; viewRecord(x.r); }); },
-    actions:[{label:'تصحيح المحدد',cls:'primary',run:async s=>{ const up=[]; s.querySelectorAll('[data-sfi]').forEach(c=>{ if(!c.checked) return; const i=+c.dataset.sfi, x=L[i], v=s.querySelector(`[data-sfs="${i}"]`).value; if(vNorm(v)===vNorm(x.r.sector)) return; const b={...x.r,sector:v}; delete b._s; delete b._m; up.push(prep(clean(b))); });
-        if(!up.length){ toast('لا يوجد تغيير'); return false; } busy('جارٍ الحفظ…'); try{ await saveRecords(up,{type:'update',note:'تصحيح القطاع بعد تحويل المنشأة'}); } finally{ busy(null); } SFL=null; refresh(true); toast(`صُحّح قطاع ${fmt(up.length)} بلاغ`); }},
+    actions:[{label:'تصحيح المحدد',cls:'primary',run:async s=>{ const up=[]; let kept=0; s.querySelectorAll('[data-sfi]').forEach(c=>{ if(!c.checked) return; const i=+c.dataset.sfi, x=L[i], v=s.querySelector(`[data-sfs="${i}"]`).value; if(vNorm(v)===vNorm(x.r.sector)){ SFI.add(x.k); kept++; return; } const b={...x.r,sector:v}; delete b._s; delete b._m; up.push(prep(clean(b))); });
+        if(kept){ saveSFI(); SFL=null; } if(!up.length){ refresh(true); toast(kept?`اعتُمد القطاع الحالي لـ ${fmt(kept)} بلاغ`:'لا يوجد تغيير'); return kept?undefined:false; } busy('جارٍ الحفظ…'); try{ await saveRecords(up,{type:'update',note:'تصحيح القطاع بعد تحويل المنشأة'}); } finally{ busy(null); } SFL=null; refresh(true); toast(`صُحّح قطاع ${fmt(up.length)} بلاغ`); }},
       {label:'تصدير Excel',run:async s=>{ busy('جارٍ تجهيز الملف…'); try{ const HD=['رقم البلاغ','تاريخ البلاغ','تاريخ التحويل','المنشأة السابقة','المنشأة الحالية','القطاع الحالي (خطأ)','القطاع الصحيح','التصنيف الرئيسي','التصنيف الفرعي','محدد للتصحيح'];
         let x=`<row r="1">${HD.map((h,i)=>cellXml(1,i,h,1)).join('')}</row>`;
         L.forEach((it,ri)=>{ const rr=ri+2, v=s.querySelector(`[data-sfs="${ri}"]`)?.value??it.exp, on=s.querySelector(`[data-sfi="${ri}"]`)?.checked; x+=`<row r="${rr}">${[it.r.no,cellText(it.r,'date'),String(it.t||'').replace('T',' ').slice(0,16),it.from,it.r.center||'',it.cur||'',v||'',it.r.main||'',it.r.sub||'',on?'نعم':'لا'].map((c,i)=>cellXml(rr,i,c,2)).join('')}</row>`; });
@@ -5301,7 +5373,7 @@ function pickStatusFile(){ guard(()=>{ const i=document.createElement('input'); 
 async function checkStatusFile(file){
   const sk=roKey()||durStKey();
   let res; busy('جارٍ فحص الملف…');
-  try{ res=parseRecords(await readXlsx(await file.arrayBuffer())); if(FIX.length) res.recs.forEach(applyFixRec); }catch(e){ busy(null); toast(e.message||'تعذرت قراءة الملف'); return; } busy(null);
+  try{ res=parseRecords(await readXlsx(await file.arrayBuffer())); res.recs.forEach(n=>{ n.__c0=n.center; }); if(FIX.length) res.recs.forEach(applyFixRec); }catch(e){ busy(null); toast(e.message||'تعذرت قراءة الملف'); return; } busy(null);
   const ex=new Map(RECS.map(r=>[keyNo(r.no),r])); const CK=ALLK().filter(k=>k!=='id'&&k!=='no');
   const seen=new Set(), hits=[]; let notIn=0, same=0;
   res.recs.forEach(n=>{ const k=keyNo(n.no); if(!k||seen.has(k)) return; seen.add(k); const o=ex.get(k); if(!o){ notIn++; return; }
@@ -5317,7 +5389,13 @@ async function checkStatusFile(file){
   const gone=rng.from?RECS.filter(r=>{ const d=String(r.date||'').slice(0,10); return d&&d>=rng.from&&d<=rng.to&&!fk.has(keyNo(r.no)); }).sort((a,b)=>String(a.date).localeCompare(String(b.date))):[];
   goneMark(res.recs, file.name);
   const CC0=new Set(); hits.forEach(h=>h.ch.forEach(c=>CC0.add(c)));
-  checkDialog({file,sk,hits,news,gone,rng,same,F:{from:'',to:''},tab:hits.length||!news.length?'chg':'new',sel:CC0});
+  // أسماء صحّحها التطبيق، ومراكز بلا قطاع أو بالقطاع الافتراضي
+  const sr=new Set(), ren=[], ns=[], DS=defSec(), isDef=s=>!String(s||'').trim()||(DS&&nrm(s)===nrm(DS))||/تجمع مكه/.test(nrm(s));
+  res.recs.forEach(n=>{ const k=keyNo(n.no); if(!k||sr.has(k)) return; sr.add(k); const o=ex.get(k)||null; const old=String(n.__c0||'').trim();
+    if(old&&nrm(old)!==nrm(n.center)) ren.push({k,n,o,old,cur:n.center});
+    const sec=o?o.sector:(SECMAP[n.center]||centerToSector(n.center)||''); if(isDef(sec)) ns.push({k,n,o,old:old&&nrm(old)!==nrm(n.center)?old:'',cur:o?o.center:n.center,sec:String(sec||'').trim()}); });
+  ren.sort((a,b)=>String(b.n.date).localeCompare(String(a.n.date))); ns.sort((a,b)=>String(b.n.date).localeCompare(String(a.n.date)));
+  checkDialog({file,sk,hits,news,gone,ren,ns,rng,same,F:{from:'',to:''},tab:hits.length||!news.length?'chg':'new',sel:CC0});
 }
 function checkDialog(S){
   const {file,sk}=S, F=S.F; const inR=d=>{ d=String(d||'').slice(0,10); return (!F.from||(d&&d>=F.from))&&(!F.to||(d&&d<=F.to)); };
@@ -5331,8 +5409,8 @@ function checkDialog(S){
   const html=`<p class="hint" style="margin-top:0">قورنت كل أعمدة الملف «${esc(file.name)}» بالقاعدة <b>بدون استيراد</b>. لم يتغيّر شيء بعد.</p>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px"><b>الفترة (تاريخ البلاغ)</b><span class="hint">من</span><input type="date" class="inp" id="ckFrom" value="${esc(F.from)}" style="width:auto"><span class="hint">إلى</span><input type="date" class="inp" id="ckTo" value="${esc(F.to)}" style="width:auto">${flt?'<button type="button" class="btn sm ghost" id="ckAll">كل الفترات</button>':''}${ds.length?`<span class="hint">تواريخ المتغيّرة والجديدة: ${esc(ds[0].replace(/-/g,'/'))} – ${esc(ds[ds.length-1].replace(/-/g,'/'))}</span>`:''}</div>
     <div class="stats" style="margin-bottom:10px"><div><b style="color:${hits.length?'#E5484D':'inherit'}">${fmt(hits.length)}${of(hits.length,S.hits.length)}</b><span>تذكرة فيها تغيير${sk?` (منها ${fmt(nSt)} تغيّرت حالتها، و<b style="color:#E5484D">${fmt(nRo)} معاد فتحها</b>)`:''}</span></div><div><b style="color:${news.length?'#2B6CB0':'inherit'}">${fmt(news.length)}${of(news.length,S.news.length)}</b><span>بلاغ جديد غير مسجّل في القاعدة</span></div><div><b>${fmt(S.same)}</b><span>بدون أي تغيير</span></div></div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${tb('chg','تذاكر تغيّرت',hits.length)}${tb('new','بلاغات جديدة',news.length)}${tb('gone','غير موجودة في الملف',gone.length)}</div>
-    ${tab==='gone'?(()=>{ const GS=S.gsel||(S.gsel=new Set()), XS=excSet(), byC=countBy(gone,'center'), stK=sk; const nU=gone.filter(r=>!grRev(keyNo(r.no))).length, nR=gone.length-nU;
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${tb('chg','تذاكر تغيّرت',hits.length)}${tb('new','بلاغات جديدة',news.length)}${tb('gone','غير موجودة في الملف',gone.length)}${tb('ren','أسماء مراكز مُصحّحة',(S.ren||[]).filter(x=>inR(x.n.date)).length)}${tb('ns','مراكز بلا قطاع أو «تجمع مكة»',(S.ns||[]).filter(x=>inR(x.n.date)).length)}</div>
+    ${tab==='ren'||tab==='ns'?ckNameTab(S,tab,inR):tab==='gone'?(()=>{ const GS=S.gsel||(S.gsel=new Set()), XS=excSet(), byC=countBy(gone,'center'), stK=sk; const nU=gone.filter(r=>!grRev(keyNo(r.no))).length, nR=gone.length-nU;
       if(!S.gf) S.gf=nU?'new':'all'; const GL=(S.gf==='new'?gone.filter(r=>!grRev(keyNo(r.no))):S.gf==='rev'?gone.filter(r=>grRev(keyNo(r.no))):gone).slice().sort((a,b)=>(grRev(keyNo(a.no))-grRev(keyNo(b.no)))||String(b.date).localeCompare(String(a.date)));
       const gb=(k,l)=>`<button type="button" class="btn sm ${S.gf===k?'primary':''}" data-gf="${k}">${l}</button>`; return `<div style="padding:10px 12px;border:1px solid #F0C27A;border-inline-start:4px solid #E8890C;background:color-mix(in srgb,#E8890C 8%,var(--surface));border-radius:10px;margin-bottom:10px"><b>بلاغات في التطبيق تاريخها داخل فترة الملف (${esc(fmtDate(S.rng.from))} – ${esc(fmtDate(S.rng.to))}) ولم تَرِد فيه.</b><br><span class="hint">قد تكون حُذفت أو أُلغيت في المنصة، أو أن الملف مُصدَّر بفلتر (مراكز أو حالات معيّنة) فلم يشملها. تأكد قبل الحذف.</span></div>
       ${gone.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${byC.slice(0,8).map(([c,n])=>`<span class="badge" style="padding:3px 10px">${esc(c||'—')} · <b>${fmt(n)}</b></span>`).join('')}${byC.length>8?`<span class="hint">+${fmt(byC.length-8)} مركز</span>`:''}</div>
@@ -5375,6 +5453,8 @@ function checkDialog(S){
         if(a==='exc'){ if(!ks.length) return; excAdd(ks,'غير موجود في ملف '+file.name); G.clear(); refresh(true); toast(`استُبعد ${fmt(ks.length)} بلاغ — لا تُحسب، ويمكن إرجاعها من «فحص تبعية التجمع ← المستبعدة»`); checkDialog(S); }
         if(a==='del'){ if(!ks.length) return; dialog({title:`حذف ${fmt(sel.length)} بلاغ من القاعدة؟`, body:`هذه البلاغات تاريخها داخل فترة الملف «${file.name}» ولم تَرِد فيه. ستُحذف من التطبيق على هذا الجهاز، ويمكن التراجع بزر «تراجع». إن لم تكن متأكداً فاختر «استبعادها» بدل الحذف.`,
           actions:[{label:'حذف',cls:'primary danger',run:async()=>{ await removeRecords(sel.map(r=>r.id),'del'); G.clear(); S.gone=(S.gone||[]).filter(r=>!ks.includes(keyNo(r.no))); toast(`حُذف ${fmt(ks.length)} بلاغ`); setTimeout(()=>checkDialog(S),50); }},{label:'إلغاء'}]}); } });
+      sc.addEventListener('click',e=>ckNameClick(e,S,sc,inR));
+      sc.addEventListener('change',e=>{ const t=e.target; if(t.dataset.nsel===undefined) return; const G=S.nsel||(S.nsel=new Set()); t.checked?G.add(t.dataset.nsel):G.delete(t.dataset.nsel); sc.querySelectorAll('[data-nm="rev"]').forEach(b=>{ b.disabled=!G.size; b.textContent=b.textContent.replace(/\(\d[\d,]*\)/,'('+fmt(G.size)+')'); }); });
       sc.addEventListener('click',e=>{ const b=e.target.closest('[data-cktab],#ckAll'); if(!b) return; if(b.id==='ckAll'){ F.from=''; F.to=''; } else S.tab=b.dataset.cktab; checkDialog(S); });
     }});
 }
@@ -5448,7 +5528,7 @@ const mvCut=v=>{ v=String(v??''); return v.length>1500?v.slice(0,1500)+'…':v; 
 async function loadMV(){ try{ const keys=(await dbMetaKeys()).filter(k=>typeof k==='string'&&k.startsWith('mv:')).sort(); let all=[];
     for(const k of keys){ const v=await dbMeta(k); if(Array.isArray(v)&&v.length){ all=all.concat(v); MV_KEYS.add(k); } }
     const old=await dbMeta('movelog'); if(Array.isArray(old)&&old.length){ all=all.concat(old); all.sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0); MV_FULL=true; setTimeout(()=>mvSave(true),3000); }
-    const pend=MV; MV=all; if(pend&&pend.length){ MV=MV.concat(pend).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0); pend.forEach(x=>MV_DIRTY.add(mvMon(x[0]))); } }catch(e){ console.error(e); } MV_READY=true; MV_VER++; }
+    const pend=MV; MV=all; if(pend&&pend.length){ MV=MV.concat(pend).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0); pend.forEach(x=>MV_DIRTY.add(mvMon(x[0]))); } }catch(e){ console.error(e); } MV_READY=true; MV_VER++; setTimeout(()=>{ oldcSync().catch(e=>console.error(e)); },400); }
 async function mvFlush(){ if(!MV_READY&&MV_P) await MV_P; const full=MV_FULL, dirty=MV_DIRTY; MV_FULL=false; MV_DIRTY=new Set(); const by=new Map();
   if(full) MV.forEach(x=>{ const m=mvMon(x[0]); let a=by.get(m); if(!a){ a=[]; by.set(m,a); } a.push(x); });
   else { if(!dirty.size) return; const mins=[...dirty].sort()[0]; dirty.forEach(m=>by.set(m,[])); for(let i=MV.length-1;i>=0;i--){ const m=mvMon(MV[i][0]); if(m<mins) break; const a=by.get(m); if(a) a.push(MV[i]); } by.forEach(a=>a.reverse()); }
