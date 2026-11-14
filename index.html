@@ -597,6 +597,7 @@ body.dash-full .actionbar{display:none}
           <button type="button" data-more="panel"><span>لوحة التحكم</span><span>الشاشة، التنبيهات، السجل، الأعمدة</span></button>
           <button type="button" data-more="moves"><span>حركة البلاغات</span><span>كل تغيير على البلاغات، تصدير واستيراد</span></button>
           <button type="button" data-more="brand"><span>الهوية والتقارير</span><span>الشعار، الجهة، المُعدّ</span></button>
+          <button type="button" data-more="bridge"><span>إرسال للتقرير</span><span>أرقام فترتين لنموذج التقرير</span></button>
           <hr>
           <button type="button" data-more="restore"><span>استعادة بيانات الملف الأصلي</span></button>
           <button type="button" data-more="clear"><span>مسح كل البلاغات</span></button>
@@ -711,7 +712,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '145';
+const APP_VER = '146';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -2078,6 +2079,7 @@ function renderSide(){
     ${item('add','بلاغ جديد','data-sact="new"')}
     ${item('imp','استيراد Excel','data-sact="imp"')}
     ${item('exp','طباعة وتصدير','data-sact="exp"')}
+    ${item('exp','إرسال للتقرير','data-sact="bridge"')}
     ${item('ver','التحقق من بلاغ','data-sact="ver"')}
     ${item('panel','لوحة التحكم','data-sact="panel"')}
     <div class="sf">${esc(brand().preparer?`إعداد: ${brand().preparer}`:'')}<span style="opacity:.7"> · الإصدار ${APP_VER}</span></div>`;
@@ -2092,7 +2094,7 @@ document.addEventListener('click',e=>{
   if(b.dataset.sact){ const a=b.dataset.sact; if(!sidePinned()) closeSide();
     if(a==='alerts') alertsDialog(); if(a==='new') document.getElementById('btnNew').click(); if(a==='imp') document.getElementById('btnImport').click();
     if(a==='exp') setTimeout(()=>{ const x=document.getElementById('btnExport'); x.scrollIntoView({block:'nearest'}); x.click(); },50);
-    if(a==='ver') document.getElementById('btnVerify').click(); if(a==='panel') document.getElementById('btnPanel').click(); }
+    if(a==='bridge') bridgeDialog(); if(a==='ver') document.getElementById('btnVerify').click(); if(a==='panel') document.getElementById('btnPanel').click(); }
 });
 // السحب من حافة الشاشة اليمنى لفتح القائمة، وإلى اليمين لإغلاقها
 (()=>{ let sx=null, sy=0, mode='';
@@ -2592,11 +2594,119 @@ function renderViewerBar(){ if(!VIEWER) return; const app=document.getElementByI
 document.getElementById('moreMenu').addEventListener('click',e=>{
   const b=e.target.closest('[data-more]'); if(!b) return; closeMenus();
   if(b.dataset.more==='moves'){ moveDialog(); return; }
+  if(b.dataset.more==='bridge'){ bridgeDialog(); return; }
   if(b.dataset.more==='brand'){ guard(brandDialog); return; }
   if(b.dataset.more==='panel'){ guard(()=>controlPanel('home')); return; }
   if(b.dataset.more==='restore') guard(()=>dialog({title:'استعادة بيانات الملف الأصلي؟', body:`ستُستبدل كل البلاغات الحالية (${fmt(RECS.length)}) ببلاغات الملف الأصلي (${fmt((SEED||[]).length)}). يُنصح بتصدير نسخة احتياطية أولاً.`, actions:[{label:'استعادة',cls:'primary',run:async()=>{ await replaceAll(seedRecords(),'restore'); toast('استُعيدت بيانات الملف الأصلي'); }},{label:'إلغاء'}]}));
   if(b.dataset.more==='clear') guard(()=>dialog({title:'مسح كل البلاغات؟', body:`سيُحذف ${fmt(RECS.length)} بلاغ من هذا الجهاز. لا يمكن التراجع إلا بنسخة احتياطية.`, actions:[{label:'مسح الكل',cls:'primary danger',run:async()=>{ await replaceAll([],'clear'); toast('مُسحت القاعدة'); }},{label:'إلغاء'}]}));
 });
+
+/* ---------- إرسال الأرقام إلى «نموذج تقرير بلاغات 937» ---------- */
+const BRIDGE_KEY='r937-bridge-v1';
+const brShort = s => String(s||'').replace(/^\s*المراكز\s+(الصحية\s+)?التابعة\s+(ل|الى|إلى)\s*/,'').replace(/^\s*مستشفى\s+/,'').trim();
+function brPeriodRecs(sector, from, to){
+  return RECS.filter(r=>{ const d=String(r.date||'').slice(0,10); if(!d||d<from||d>to) return false; if(sector && r.sector!==sector) return false; return true; });
+}
+function brCount(list, k, top){
+  const m=new Map(); list.forEach(r=>{ const v=String(r[k]||'').trim(); if(!v) return; m.set(v,(m.get(v)||0)+1); });
+  let rows=[...m].map(([name,count])=>({name,count})).sort((a,b)=>b.count-a.count);
+  if(top) rows=rows.slice(0,top);
+  return rows;
+}
+function brSla(list, k, top){
+  const sk=slaKey(); if(!sk) return {summary:{}, rows:[]};
+  const m=new Map(); let tin=0, tall=0;
+  list.forEach(r=>{ const s=slaState(r,sk); if(!s) return; const v=String(r[k]||'').trim(); if(!v) return;
+    const e=m.get(v)||{i:0,n:0}; e.n++; if(s==='in') e.i++; m.set(v,e); tall++; if(s==='in') tin++; });
+  let rows=[...m].map(([name,e])=>({name,pct:Math.round(e.i/e.n*1e6)/1e6,_n:e.n}));
+  if(top) rows=rows.sort((a,b)=>b._n-a._n).slice(0,top);
+  rows.sort((a,b)=>a.pct-b.pct); rows.forEach(r=>delete r._n);
+  return {summary: tall?{overall:Math.round(tin/tall*1e4)/1e4}:{}, rows};
+}
+function brBuild(o){
+  const P=[brPeriodRecs(o.sector,o.a.from,o.a.to), brPeriodRecs(o.sector,o.b.from,o.b.to)];
+  const sec={};
+  const put=(key,fn)=>{ sec[key]={p:P.map(fn)}; };
+  const names=(rows)=>rows.map(r=>({name:r.name}));
+  if(o.type==='weekly'){
+    put('hospital-count', l=>({summary:{}, rows:brCount(l,'sector').map(r=>({...r,name:brShort(r.name)||r.name}))}));
+    put('hospital-sat',   l=>({summary:{}, rows:names(brCount(l,'sector')).map(r=>({name:brShort(r.name)||r.name}))}));
+    put('hospital-sl',    l=>{ const s=brSla(l,'sector'); s.rows.forEach(r=>r.name=brShort(r.name)||r.name); return s; });
+    put('facility-count', l=>({summary:{}, rows:brCount(l,'center',o.top)}));
+    put('facility-sat',   l=>({summary:{}, rows:names(brCount(l,'center',o.top))}));
+    put('facility-sl',    l=>brSla(l,'center',o.top));
+  }else{
+    put('facility-count', l=>({summary:{}, rows:brCount(l,'center')}));
+    put('facility-sat',   l=>({summary:{}, rows:names(brCount(l,'center'))}));
+    put('facility-sl',    l=>brSla(l,'center'));
+  }
+  put('category-count', l=>({summary:{}, rows:brCount(l,'sub',o.top)}));
+  put('category-sat',   l=>({summary:{}, rows:names(brCount(l,'sub',o.top))}));
+  put('category-sl',    l=>brSla(l,'sub',o.top));
+  const fmtR=p=>`${p.from.replace(/-/g,'/')} – ${p.to.replace(/-/g,'/')}`;
+  return {
+    kind:'r937-report-bridge', v:1, made:new Date().toISOString(), app:APP_VER,
+    counts:P.map(l=>l.length), sla:!!slaKey(),
+    report:{ name:o.name, type:o.type, source:'db',
+      periods:[{label:o.a.label,date:fmtR(o.a)},{label:o.b.label,date:fmtR(o.b)}], sections:sec }
+  };
+}
+function brDefaults(){
+  let saved={}; try{ saved=JSON.parse(localStorage.getItem(BRIDGE_KEY)||'{}'); }catch(e){}
+  const ds=RECS.map(r=>String(r.date||'').slice(0,10)).filter(Boolean).sort();
+  const last=ds.length?new Date(ds[ds.length-1]+'T00:00:00'):new Date();
+  const q=Math.floor(last.getMonth()/3);
+  const qS=(y,qq)=>{ while(qq<0){qq+=4;y--;} return new Date(y,qq*3,1); };
+  const qE=(y,qq)=>{ const s=qS(y,qq); return new Date(s.getFullYear(),s.getMonth()+3,0); };
+  const QN=['الربع الأول','الربع الثاني','الربع الثالث','الربع الرابع'];
+  const y=last.getFullYear();
+  return {type:'hospital', sector:'', top:12,
+    a:{label:QN[(q+3)%4], from:iso(qS(y,q-1)), to:iso(qE(y,q-1))},
+    b:{label:QN[q], from:iso(qS(y,q)), to:iso(qE(y,q))}, ...saved};
+}
+function bridgeDialog(){
+  if(!RECS.length){ toast('لا توجد بلاغات في القاعدة بعد'); return; }
+  const d=brDefaults();
+  const sectors=[...new Set(RECS.map(r=>String(r.sector||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));
+  const opt=(v,l,sel)=>`<option value="${esc(v)}"${sel?' selected':''}>${esc(l)}</option>`;
+  const per=(k,p,t)=>`<fieldset style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0;display:grid;gap:8px">
+    <legend style="padding:0 6px;font-weight:600">${t}</legend>
+    <div class="field"><label>اسم الفترة</label><input class="inp" data-br="${k}.label" value="${esc(p.label)}"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><div class="field" style="flex:1 1 130px"><label>من</label><input class="inp" type="date" data-br="${k}.from" value="${esc(p.from)}"></div>
+    <div class="field" style="flex:1 1 130px"><label>إلى</label><input class="inp" type="date" data-br="${k}.to" value="${esc(p.to)}"></div></div></fieldset>`;
+  const slaNote = slaKey() ? `<span style="color:var(--good)">✓ عمود مستوى الخدمة موجود، وستُحسب نسبته تلقائياً.</span>`
+    : `<span style="color:var(--warn)">لا يوجد عمود «${esc(SLA.label)}» في القاعدة، فستصل جداول مستوى الخدمة فارغة.</span>`;
+  dialog({title:'إرسال الأرقام إلى نموذج التقرير', wide:true, html:`<div style="display:grid;gap:12px">
+    <p style="margin:0;color:var(--muted)">يُنشأ ملف صغير فيه الأرقام المحسوبة فقط (دون أسماء المتصلين أو الهويات). افتحه في «نموذج تقرير بلاغات 937» من زر «استيراد من القاعدة»، فيُضاف تقريراً جديداً دون المساس بالتقارير السابقة.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div class="field" style="flex:1 1 160px"><label>نوع التقرير</label><select class="inp" data-br="type">${opt('hospital','تقرير مستشفى',d.type!=='weekly')}${opt('weekly','التقرير الأسبوعي (كل المستشفيات)',d.type==='weekly')}</select></div>
+      <div class="field" style="flex:2 1 220px" data-brsec><label>المستشفى (القطاع)</label><select class="inp" data-br="sector">${opt('','كل القطاعات',!d.sector)}${sectors.map(s=>opt(s,s,s===d.sector)).join('')}</select></div>
+      <div class="field" style="flex:0 1 110px"><label>عدد التصانيف</label><input class="inp" type="number" min="3" max="50" data-br="top" value="${esc(d.top)}"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px">${per('a',d.a,'الفترة السابقة')}${per('b',d.b,'الفترة الحالية')}</div>
+    <div style="font-size:13px">${slaNote}<br><span style="color:var(--muted)">أقسام رضا المستفيد تصل بأسماء المراكز والتصانيف، وتُعبّأ نسبها يدوياً في التقرير.</span></div>
+    <div id="brPrev" style="font-size:13px;color:var(--muted)"></div></div>`,
+    onOpen:sc=>{
+      const read=()=>{ const o={a:{},b:{}}; sc.querySelectorAll('[data-br]').forEach(i=>{ const [x,y]=i.dataset.br.split('.'); if(y) o[x][y]=i.value.trim(); else o[x]=i.value; }); o.top=Math.max(3,Math.min(50,+o.top||12)); return o; };
+      const upd=()=>{ const o=read(); sc.querySelector('[data-brsec]').style.opacity=o.type==='weekly'?.45:1; sc.querySelector('[data-br="sector"]').disabled=o.type==='weekly';
+        const ok=o.a.from&&o.a.to&&o.b.from&&o.b.to;
+        const sec=o.type==='weekly'?'':o.sector;
+        sc.querySelector('#brPrev').textContent = ok ? `البلاغات المطابقة: ${o.a.label||'السابقة'} ${fmt(brPeriodRecs(sec,o.a.from,o.a.to).length)} · ${o.b.label||'الحالية'} ${fmt(brPeriodRecs(sec,o.b.from,o.b.to).length)}` : 'حدّد تاريخ البداية والنهاية للفترتين'; };
+      sc.addEventListener('input',upd); sc.addEventListener('change',upd); sc._brRead=read; upd();
+    },
+    actions:[{label:'حفظ ملف التقرير',cls:'primary',run:async sc=>{
+      const o=sc._brRead();
+      if(!(o.a.from&&o.a.to&&o.b.from&&o.b.to)){ toast('حدّد تواريخ الفترتين'); return false; }
+      if(o.a.from>o.a.to||o.b.from>o.b.to){ toast('تاريخ البداية بعد تاريخ النهاية'); return false; }
+      if(o.type==='weekly') o.sector='';
+      try{ localStorage.setItem(BRIDGE_KEY,JSON.stringify({type:o.type,sector:o.sector,top:o.top,a:o.a,b:o.b})); }catch(e){}
+      o.name = o.type==='weekly' ? `الأسبوعي ${o.b.from.slice(5).replace('-','/')}` : (brShort(o.sector)||'كل القطاعات');
+      const out=brBuild(o);
+      if(!out.counts[0]&&!out.counts[1]){ toast('لا توجد بلاغات في الفترتين المحددتين'); return false; }
+      const fn=`تقرير-937-${o.name.replace(/[\\/:*?"<>|\s]+/g,'-')}-${stamp()}.json`;
+      await saveFile(fn,new Blob([JSON.stringify(out)],{type:'application/json'}));
+    }},{label:'إلغاء'}]});
+}
 
 /* ---------- dialogs ---------- */
 function dialog({title, body, html, actions, wide, onOpen}){
