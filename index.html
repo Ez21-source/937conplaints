@@ -598,6 +598,7 @@ body.dash-full .actionbar{display:none}
           <button type="button" data-more="moves"><span>حركة البلاغات</span><span>كل تغيير على البلاغات، تصدير واستيراد</span></button>
           <button type="button" data-more="brand"><span>الهوية والتقارير</span><span>الشعار، الجهة، المُعدّ</span></button>
           <button type="button" data-more="bridge"><span>إرسال للتقرير</span><span>أرقام فترتين لنموذج التقرير</span></button>
+          <button type="button" data-more="cmp2"><span>مقارنة عمودين</span><span>ضابط الاتصال: القرار الأخير × حالة التذكرة</span></button>
           <hr>
           <button type="button" data-more="restore"><span>استعادة بيانات الملف الأصلي</span></button>
           <button type="button" data-more="clear"><span>مسح كل البلاغات</span></button>
@@ -712,7 +713,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '152';
+const APP_VER = '153';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -2084,6 +2085,7 @@ function renderSide(){
     ${item('imp','استيراد Excel','data-sact="imp"')}
     ${item('exp','طباعة وتصدير','data-sact="exp"')}
     ${item('exp','إرسال للتقرير','data-sact="bridge"')}
+    ${item('exp','مقارنة عمودين','data-sact="cmp2"')}
     ${item('ver','التحقق من بلاغ','data-sact="ver"')}
     ${item('panel','لوحة التحكم','data-sact="panel"')}
     <div class="sf">${esc(brand().preparer?`إعداد: ${brand().preparer}`:'')}<span style="opacity:.7"> · الإصدار ${APP_VER}</span></div>`;
@@ -2098,7 +2100,7 @@ document.addEventListener('click',e=>{
   if(b.dataset.sact){ const a=b.dataset.sact; if(!sidePinned()) closeSide();
     if(a==='alerts') alertsDialog(); if(a==='new') document.getElementById('btnNew').click(); if(a==='imp') document.getElementById('btnImport').click();
     if(a==='exp') setTimeout(()=>{ const x=document.getElementById('btnExport'); x.scrollIntoView({block:'nearest'}); x.click(); },50);
-    if(a==='bridge') bridgeDialog(); if(a==='ver') document.getElementById('btnVerify').click(); if(a==='panel') document.getElementById('btnPanel').click(); }
+    if(a==='bridge') bridgeDialog(); if(a==='cmp2') cmpDialog(); if(a==='ver') document.getElementById('btnVerify').click(); if(a==='panel') document.getElementById('btnPanel').click(); }
 });
 // السحب من حافة الشاشة اليمنى لفتح القائمة، وإلى اليمين لإغلاقها
 (()=>{ let sx=null, sy=0, mode='';
@@ -2599,6 +2601,7 @@ document.getElementById('moreMenu').addEventListener('click',e=>{
   const b=e.target.closest('[data-more]'); if(!b) return; closeMenus();
   if(b.dataset.more==='moves'){ moveDialog(); return; }
   if(b.dataset.more==='bridge'){ bridgeDialog(); return; }
+  if(b.dataset.more==='cmp2'){ cmpDialog(); return; }
   if(b.dataset.more==='brand'){ guard(brandDialog); return; }
   if(b.dataset.more==='panel'){ guard(()=>controlPanel('home')); return; }
   if(b.dataset.more==='restore') guard(()=>dialog({title:'استعادة بيانات الملف الأصلي؟', body:`ستُستبدل كل البلاغات الحالية (${fmt(RECS.length)}) ببلاغات الملف الأصلي (${fmt((SEED||[]).length)}). يُنصح بتصدير نسخة احتياطية أولاً.`, actions:[{label:'استعادة',cls:'primary',run:async()=>{ await replaceAll(seedRecords(),'restore'); toast('استُعيدت بيانات الملف الأصلي'); }},{label:'إلغاء'}]}));
@@ -2718,6 +2721,53 @@ function bridgeDialog(){
       await saveFile(fn,new Blob([JSON.stringify(out)],{type:'application/json'}));
     }},{label:'إلغاء'}]});
 }
+
+/* ---------- مقارنة عمودين (ضابط الاتصال: القرار الأخير من المنطقة × حالة التذكرة) ---------- */
+const CMP_KEY='r937-cmp2-v1';
+let CMP=(()=>{ try{ return {a:'القرار الأخير من المنطقة',b:'حالة التذكرة',term:'ضابط الاتصال',skipEmpty:1,...JSON.parse(localStorage.getItem(CMP_KEY)||'{}')}; }catch(e){ return {a:'القرار الأخير من المنطقة',b:'حالة التذكرة',term:'ضابط الاتصال',skipEmpty:1}; } })();
+const saveCmp=()=>{ try{ localStorage.setItem(CMP_KEY,JSON.stringify(CMP)); }catch(e){} };
+function cmpHas(v,term){ const s=' '+nrm(v)+' ', ws=nrm(term).split(' ').filter(Boolean).map(w=>w.replace(/^ال/,'')); return !!ws.length && ws.every(w=>s.includes(w)); }
+function cmpData(){ const ka=colByLabel(CMP.a)||(SCHEMA.find(c=>c.k===CMP.a)?CMP.a:null), kb=colByLabel(CMP.b)||(SCHEMA.find(c=>c.k===CMP.b)?CMP.b:null);
+  if(!ka||!kb) return {ka,kb,ok:false};
+  const R=filtered, both=[], onlyA=[], onlyB=[], diff=[], same=[], pairs=new Map();
+  R.forEach(r=>{ const va=String(cellText(r,ka)||'').trim(), vb=String(cellText(r,kb)||'').trim(); const ha=cmpHas(va,CMP.term), hb=cmpHas(vb,CMP.term);
+    if(ha&&hb) both.push(r); else if(ha) onlyA.push(r); else if(hb) onlyB.push(r);
+    if(CMP.skipEmpty&&(!va||!vb)) return; if(nrm(va)===nrm(vb)) same.push(r); else { diff.push(r); const pk=(va||'—')+'\u0001'+(vb||'—'); pairs.set(pk,(pairs.get(pk)||0)+1); } });
+  return {ka,kb,ok:true,R,both,onlyA,onlyB,diff,same,sB:new Set(both),sA:new Set(onlyA),sOB:new Set(onlyB),pairs:[...pairs.entries()].map(([k,n])=>{ const [a,b]=k.split('\u0001'); return {a,b,n}; }).sort((x,y)=>y.n-x.n)}; }
+function cmpWhere(D,r){ return D.sB.has(r)?'في العمودين':D.sA.has(r)?'في '+label(D.ka)+' فقط':D.sOB.has(r)?'في '+label(D.kb)+' فقط':''; }
+function cmpDialog(S){ S=S||{tab:'off',g:'all'}; const D=cmpData(); const cols=SCHEMA.filter(c=>!c.removed);
+  const colSel=(id,cur)=>`<select class="inp" data-cmpcol="${id}">${cols.map(c=>`<option value="${esc(c.k)}"${(colByLabel(cur)||cur)===c.k?' selected':''}>${esc(c.l)}</option>`).join('')}</select>`;
+  const setup=`<details ${D.ok?'':'open'} style="border:1px solid var(--line);border-radius:10px;padding:8px 12px"><summary style="cursor:pointer;font-weight:600">الإعدادات: ${esc(D.ka?label(D.ka):CMP.a)} × ${esc(D.kb?label(D.kb):CMP.b)} · «${esc(CMP.term)}»</summary>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin-top:8px"><div class="field"><label>العمود الأول</label>${colSel('a',CMP.a)}</div><div class="field"><label>العمود الثاني</label>${colSel('b',CMP.b)}</div><div class="field"><label>العبارة المطلوبة</label><input class="inp" data-cmpterm value="${esc(CMP.term)}"></div></div>
+    <label style="display:flex;gap:6px;align-items:center;margin-top:6px;font-size:13px"><input type="checkbox" data-cmpskip ${CMP.skipEmpty?'checked':''}> في «الاختلافات»: تجاهل البلاغات التي أحد العمودين فيها فارغ</label></details>`;
+  if(!D.ok){ dialog({title:'مقارنة عمودين',wide:true,html:setup+`<p style="color:var(--bad)">لم يُعثر على ${!D.ka?`«${esc(CMP.a)}»`:''} ${!D.kb?`«${esc(CMP.b)}»`:''} — اختر العمودين من الإعدادات.</p>`,onOpen:s=>cmpWire(s,S),actions:[{label:'إغلاق'}]}); return; }
+  const LA=label(D.ka), LB=label(D.kb), off=D.both.length+D.onlyA.length+D.onlyB.length;
+  const G={all:[...D.both,...D.onlyA,...D.onlyB],both:D.both,a:D.onlyA,b:D.onlyB};
+  const list=S.tab==='off'?(G[S.g]||G.all):D.diff; const LL=list.slice(0,400);
+  const tb=(k,l)=>`<button type="button" class="btn sm${S.tab===k?' primary':''}" data-cmptab="${k}">${l}</button>`;
+  const gb=(k,l,n)=>`<button type="button" class="btn sm${S.g===k?' primary':''}" data-cmpg="${k}">${l} (${fmt(n)})</button>`;
+  const row=r=>`<tr data-cmpopen="${esc(r.id)}" style="cursor:pointer"><td dir="ltr" style="color:var(--accent);text-decoration:underline">${esc(r.no)}</td><td>${esc(String(r.date||'').slice(0,10))}</td><td>${esc(r.center||'')}</td><td>${esc(cellText(r,D.ka)||'—')}</td><td>${esc(cellText(r,D.kb)||'—')}</td>${S.tab==='off'?`<td><b>${esc(cmpWhere(D,r))}</b></td>`:''}</tr>`;
+  const html=setup+`<p class="hint" style="margin:8px 0">النطاق: البلاغات الظاهرة حسب الفلاتر الحالية (${fmt(D.R.length)} بلاغ).</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${tb('off',`«${esc(CMP.term)}» (${fmt(off)})`)}${tb('diff',`الاختلافات (${fmt(D.diff.length)})`)}</div>
+    ${S.tab==='off'?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${gb('all','الكل',off)}${gb('both','في العمودين',D.both.length)}${gb('a','في '+esc(LA)+' فقط',D.onlyA.length)}${gb('b','في '+esc(LB)+' فقط',D.onlyB.length)}</div>`
+      :`<p class="hint" style="margin:0 0 6px">متطابق: ${fmt(D.same.length)} · مختلف: ${fmt(D.diff.length)}</p>${D.pairs.length?`<div style="max-height:160px;overflow:auto;margin-bottom:8px"><table class="tbl"><thead><tr><th>${esc(LA)}</th><th>${esc(LB)}</th><th>العدد</th></tr></thead><tbody>${D.pairs.slice(0,60).map(x=>`<tr><td>${esc(x.a)}</td><td>${esc(x.b)}</td><td>${fmt(x.n)}</td></tr>`).join('')}</tbody></table></div>`:''}`}
+    <div style="max-height:45vh;overflow:auto">${LL.length?`<table class="tbl"><thead><tr><th>رقم البلاغ</th><th>التاريخ</th><th>المركز</th><th>${esc(LA)}</th><th>${esc(LB)}</th>${S.tab==='off'?'<th>المكان</th>':''}</tr></thead><tbody>${LL.map(row).join('')}</tbody></table>${list.length>LL.length?`<p class="hint">يُعرض أول ${fmt(LL.length)} — التصدير يشمل الكل.</p>`:''}`:'<p class="hint">لا توجد بلاغات.</p>'}</div>`;
+  dialog({title:'مقارنة عمودين',wide:true,html,onOpen:s=>cmpWire(s,S),actions:[
+    {label:`عرضها في السجلات (${fmt(list.length)})`,run:()=>{ if(!list.length){ toast('لا توجد بلاغات'); return false; } filt={...filt,q:'',nos:list.map(r=>keyNo(r.no)).join(' ')}; view='table'; document.querySelectorAll('[data-view]').forEach(v=>v.setAttribute('aria-pressed',v.dataset.view===view)); refresh(); toast(`تُعرض ${fmt(list.length)} بلاغ`); }},
+    {label:'تصدير Excel',run:async()=>{ busy('جارٍ تجهيز الملف…'); try{ const IC=infoCols().filter(k=>k!==D.ka&&k!==D.kb);
+      const mk=(L,extraH,extraF)=>{ const HD=['رقم البلاغ','تاريخ البلاغ','القطاع','المركز','التصنيف الرئيسي','التصنيف الفرعي',LA,LB,extraH,...IC.map(k=>label(k))]; let x=`<row r="1">${HD.map((h,i)=>cellXml(1,i,h,1)).join('')}</row>`;
+        L.forEach((r,ri)=>{ const rr=ri+2; x+=`<row r="${rr}">${[r.no,cellText(r,'date'),r.sector||'',r.center||'',r.main||'',r.sub||'',cellText(r,D.ka)||'',cellText(r,D.kb)||'',extraF(r),...IC.map(k=>cellText(r,k)||'')].map((c,i)=>cellXml(rr,i,c,2)).join('')}</row>`; });
+        const col=n=>{ let s=''; n++; while(n){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26); } return s; };
+        return sheetDoc(x,[16,20,30,30,24,34,30,30,22,...IC.map(()=>45)],`<autoFilter ref="A1:${col(HD.length-1)}${L.length+1}"/>`); };
+      const offL=[...D.both,...D.onlyA,...D.onlyB];
+      let px=`<row r="1">${[LA,LB,'العدد'].map((h,i)=>cellXml(1,i,h,1)).join('')}</row>`; D.pairs.forEach((p,ri)=>{ const rr=ri+2; px+=`<row r="${rr}">${[p.a,p.b,p.n].map((c,i)=>cellXml(rr,i,c,2)).join('')}</row>`; });
+      const blob=await buildXlsx([],{sheets:[[String(CMP.term).slice(0,28)||'العبارة',mk(offL,`مكان «${CMP.term}»`,r=>cmpWhere(D,r))],['الاختلافات',mk(D.diff,'المقارنة',()=> 'مختلف')],['ملخص الاختلافات',sheetDoc(px,[40,40,10],'')]]});
+      busy(null); await saveFile(`مقارنة-${String(CMP.term).replace(/\s+/g,'-')}-${stamp()}.xlsx`,blob); }catch(err){ busy(null); console.error(err); toast('تعذر التصدير'); } return false; }},
+    {label:'إغلاق'}]}); }
+function cmpWire(s,S){
+  s.addEventListener('change',e=>{ const c=e.target.closest('[data-cmpcol]'); if(c){ CMP[c.dataset.cmpcol]=label(c.value)||c.value; saveCmp(); cmpDialog(S); return; } if(e.target.matches('[data-cmpskip]')){ CMP.skipEmpty=e.target.checked?1:0; saveCmp(); cmpDialog(S); return; } if(e.target.matches('[data-cmpterm]')){ CMP.term=e.target.value.trim()||'ضابط الاتصال'; saveCmp(); cmpDialog(S); } });
+  s.addEventListener('click',e=>{ const t=e.target.closest('[data-cmptab]'); if(t){ cmpDialog({...S,tab:t.dataset.cmptab}); return; } const g=e.target.closest('[data-cmpg]'); if(g){ cmpDialog({...S,g:g.dataset.cmpg}); return; }
+    const tr=e.target.closest('tr[data-cmpopen]'); if(tr){ const r=byId.get(tr.dataset.cmpopen); if(r){ REC_BACK=()=>cmpDialog(S); document.getElementById('layer').innerHTML=''; viewRecord(r); } } }); }
 
 /* ---------- dialogs ---------- */
 function dialog({title, body, html, actions, wide, onOpen}){
