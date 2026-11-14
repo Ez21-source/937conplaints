@@ -713,7 +713,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '156';
+const APP_VER = '157';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -2832,6 +2832,38 @@ function secMergeDialog(pre){ const cnt=new Map(); RECS.forEach(r=>{ const s=Str
       SFL=null; refresh(true); toast(`نُقل ${fmt(up.length)} بلاغ${nm?` و${fmt(nm)} ربط مركز`:''} من «${f}» إلى «${to||'بدون قطاع'}»`); }},{label:'إغلاق'}]}); }
 document.addEventListener('click',e=>{ if(e.target.closest('[data-secmerge]')) secMergeDialog(); });
 
+/* ---------- فحص التغييرات: تبويب «خارج التجمع» (مدمج من «فحص تبعية التجمع») مع المراجعة ---------- */
+function ckCluTab(S,inR){ const all=(S.clu||[]).filter(x=>inR(x.n.date)), G=S.csel||(S.csel=new Set()), XS=excSet();
+  const nU=all.filter(x=>!crRev(x.k)).length, nR=all.length-nU; if(!S.cf) S.cf=nU?'new':'all';
+  const L=(S.cf==='new'?all.filter(x=>!crRev(x.k)):S.cf==='rev'?all.filter(x=>crRev(x.k)):all).slice().sort((a,b)=>(crRev(a.k)-crRev(b.k))||String(b.n.date).localeCompare(String(a.n.date)));
+  const byW=new Map(), byC=new Map(); all.forEach(x=>{ byW.set(x.who,(byW.get(x.who)||0)+1); const c=(x.o||x.n).center||'—'; byC.set(c,(byC.get(c)||0)+1); });
+  const top=M=>[...M.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8).map(([w,n])=>`<span class="badge" style="padding:3px 10px">${esc(w)} · <b>${fmt(n)}</b></span>`).join('');
+  const fb=(k,l)=>`<button type="button" class="btn sm ${S.cf===k?'primary':''}" data-cf="${k}">${l}</button>`; const nX=all.filter(x=>XS.has(x.k)).length;
+  const head=`<div style="padding:10px 12px;border:1px solid var(--line);border-inline-start:4px solid #7C3AED;border-radius:10px;margin-bottom:10px"><b>بلاغات الملف التي تذكر إفادتها أن المركز لا يتبع تجمع ${esc(CLU.own)}</b> (الأعمدة: ${esc(cluCols().map(k=>label(k)).join('، ')||'—')}).<br><span class="hint">المستبعد منها: ${fmt(nX)} · المستبعدة لا تُحسب في الأرقام وتبقى محفوظة.</span> <button type="button" class="btn sm ghost" data-cm="cfg">⚙ إعدادات الفحص والمستبعدة</button></div>`;
+  if(!all.length) return head+'<p class="ro-empty" style="padding:14px;text-align:center">لا توجد بلاغات خارج التجمع في هذا الملف ✓</p>';
+  return head+`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">${top(byW)}</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${top(byC)}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"><button type="button" class="btn sm" data-cm="view" ${all.some(x=>x.o)?'':'disabled'}>عرضها في السجلات</button><button type="button" class="btn sm" data-cm="xlsx">تصدير Excel</button></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center">${fb('new',`🆕 لم تُراجَع (${fmt(nU)})`)}${fb('rev',`✓ روجعت (${fmt(nR)})`)}${fb('all',`الكل (${fmt(all.length)})`)}<button type="button" class="btn sm" data-cm="rev" ${G.size?'':'disabled'}>✓ تعليم المحددة كمراجَعة (${fmt(G.size)})</button></div>
+    <p class="hint" style="margin:0 0 6px">اضغط أي صف لقراءة البلاغ (يُعلَّم «✓ روجع» تلقائياً) ثم «↩ رجوع للقائمة». بعد التأكد أشّر البلاغات واستبعدها.</p>
+    ${!VIEWER?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center"><button type="button" class="btn sm ghost" data-cm="all">تحديد الكل</button><button type="button" class="btn sm ghost" data-cm="none">إلغاء التحديد</button><button type="button" class="btn sm primary" data-cm="exc" ${G.size?'':'disabled'}>🚫 استبعاد المحددة (${fmt(G.size)})</button></div>`:''}
+    <div class="ctbl-wrap" style="max-height:40vh"><table class="ctbl"><thead><tr>${!VIEWER?'<th></th>':''}<th>رقم البلاغ</th><th>التاريخ</th><th>المركز</th><th>الجهة المذكورة</th><th style="min-width:240px">المقطع</th><th>المراجعة</th></tr></thead><tbody>${L.slice(0,400).map(x=>{ const r=x.o||x.n, g=CR[x.k]||{}, rv=!!g.rev, ex=XS.has(x.k);
+      return `<tr ${x.o?`data-copen="${esc(x.o.id)}" style="cursor:pointer;${rv?'opacity:.62':'background:color-mix(in srgb,#7C3AED 9%,transparent)'}"`:''} title="اضغط لقراءة البلاغ">${!VIEWER?`<td>${x.o&&!ex?`<input type="checkbox" data-csel="${esc(x.k)}" ${G.has(x.k)?'checked':''}>`:''}</td>`:''}<td><b dir="ltr">${esc(r.no)}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(r.date))}</td><td>${esc(r.center||'')}</td><td>${esc(x.who)}</td><td style="font-size:12.5px">${esc(x.snip)}</td><td style="white-space:nowrap">${rv?`<span class="badge" style="background:color-mix(in srgb,#22A06B 18%,transparent);color:#1E8A5A;font-weight:700">✓ روجع ${esc(dm(g.rev))}</span>`:`<span class="badge" style="background:#7C3AED;color:#fff;font-weight:700">جديد</span> <span class="hint">ظهر ${esc(dm(g.seen))}</span>`}${ex?' <span class="hint">· مستبعد</span>':''}${x.o?'':' <span class="hint">· غير مسجّل</span>'}</td></tr>`; }).join('')}</tbody></table></div>${L.length>400?'<p class="hint">يظهر أول 400 — صدّر Excel للكل.</p>':''}`; }
+async function ckCluClick(e,S,sc,inR){ if(S.tab!=='clu') return; const all=(S.clu||[]).filter(x=>inR(x.n.date)), G=S.csel||(S.csel=new Set());
+  const f=e.target.closest('[data-cf]'); if(f){ S.cf=f.dataset.cf; checkDialog(S); return; }
+  const tr=e.target.closest('tr[data-copen]'); if(tr&&!e.target.closest('input,button,label')){ const r=byId.get(tr.dataset.copen); if(r){ REC_BACK=()=>checkDialog({...S,tab:'clu'}); REC_REV={is:crRev,mark:crMark}; document.getElementById('layer').innerHTML=''; viewRecord(r); } return; }
+  const b=e.target.closest('[data-cm]'); if(!b) return; const a=b.dataset.cm, XS=excSet();
+  if(a==='cfg'){ document.getElementById('layer').innerHTML=''; cluDialog(); return; }
+  if(a==='all'){ const sh=S.cf==='new'?all.filter(x=>!crRev(x.k)):S.cf==='rev'?all.filter(x=>crRev(x.k)):all; sh.forEach(x=>{ if(x.o&&!XS.has(x.k)) G.add(x.k); }); checkDialog(S); return; }
+  if(a==='none'){ G.clear(); checkDialog(S); return; }
+  if(a==='rev'){ crMark([...G],true); G.clear(); checkDialog(S); toast('عُلّمت كمراجَعة'); return; }
+  if(a==='view'){ const ks=all.filter(x=>x.o).map(x=>x.k); document.getElementById('layer').innerHTML=''; filt={...filt,q:'',from:'',to:'',exc:'show',gone:'',nos:ks.join(' ')}; view='table'; document.querySelectorAll('[data-view]').forEach(v=>v.setAttribute('aria-pressed',v.dataset.view===view)); refresh(); toast(`تُعرض ${fmt(ks.length)} بلاغ`); return; }
+  if(a==='exc'){ if(VIEWER||!G.size) return; const sel=all.filter(x=>G.has(x.k)); dialog({title:`استبعاد ${fmt(sel.length)} بلاغ؟`,body:'لن تُحسب في الأرقام والتقارير والتصدير، وتبقى محفوظة ويمكن إرجاعها من «⚙ إعدادات الفحص والمستبعدة ← المستبعدة».',actions:[{label:'استبعاد',cls:'primary',run:()=>{ sel.forEach(x=>excAdd([x.k],'خارج التجمع: '+x.who)); crMark(sel.map(x=>x.k),true); G.clear(); refresh(true); toast(`استُبعد ${fmt(sel.length)} بلاغ`); setTimeout(()=>checkDialog(S),50); }},{label:'إلغاء',run:()=>{ setTimeout(()=>checkDialog(S),0); }}]}); return; }
+  if(a==='xlsx'){ busy('جارٍ تجهيز الملف…'); try{ const IC=infoCols(); const HD=['رقم البلاغ','تاريخ البلاغ','المركز','القطاع','التصنيف الفرعي','الجهة المذكورة','العمود','المقطع','المراجعة','مستبعد',...IC.map(k=>label(k))];
+      let x=`<row r="1">${HD.map((h,i)=>cellXml(1,i,h,1)).join('')}</row>`;
+      all.forEach((it,ri)=>{ const r=it.o||it.n, rr=ri+2; x+=`<row r="${rr}">${[r.no,cellText(r,'date'),r.center||'',r.sector||'',r.sub||'',it.who,label(it.col),it.snip,crRev(it.k)?'روجع':'لم يُراجَع',XS.has(it.k)?'نعم':'لا',...IC.map(k=>cellText(it.n,k)||cellText(r,k)||'')].map((c,i)=>cellXml(rr,i,c,2)).join('')}</row>`; });
+      const blob=await buildXlsx([],{sheets:[['خارج التجمع',sheetDoc(x,[16,20,30,30,36,26,22,60,14,10,...IC.map(()=>45)],'')]]}); busy(null); await saveFile(`خارج-التجمع-${stamp()}.xlsx`,blob); }catch(err){ busy(null); console.error(err); toast('تعذر التصدير'); } return; }
+}
+
 /* ---------- dialogs ---------- */
 function dialog({title, body, html, actions, wide, onOpen}){
   const layer=document.getElementById('layer');
@@ -2998,7 +3030,7 @@ function importSummary(eid){
       s.querySelector('#isLate')?.addEventListener('click',()=>{ document.getElementById('layer').innerHTML=''; lateDialog(); });
       s.addEventListener('click',ev=>{ const t=ev.target.closest('[data-imp]'); if(!t) return; filt={...filt,q:'',from:'',to:'',impk:e.id+'|'+t.dataset.imp}; document.getElementById('layer').innerHTML=''; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); toast('أزل الفلتر من الوسم أعلى النتائج للرجوع'); }); }});
 }
-let REC_BACK=null, REC_GONE=false;
+let REC_BACK=null, REC_GONE=false, REC_REV=null;
 // تظليل اسم الموظف داخل نص البلاغ حيث ورد
 function markPhrase(root,ph){ if(!root||!ph) return; const ws=String(ph).split(/\s+/).filter(Boolean).map(w=>w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').split('').join('[\u064B-\u0652\u0640]*')); if(!ws.length) return;
   const re=new RegExp(ws.join('[\\s\\u064B-\\u0652\\u0640]+'),'g'); const tw=document.createTreeWalker(root,NodeFilter.SHOW_TEXT); const nodes=[]; while(tw.nextNode()) nodes.push(tw.currentNode);
@@ -3016,9 +3048,12 @@ function goneMark(fileRecs, fname){ const fds=fileRecs.map(n=>String(n.date||'')
   gone.forEach(r=>{ const k=keyNo(r.no); if(!k) return; const g=GR[k]; if(!g){ GR[k]={seen:t,rev:null,gone:true,f:fname||''}; ch=true; } else if(g.gone===false){ GR[k]={...g,gone:true,f:fname||'',rev:null,seen:t}; ch=true; } });
   fk.forEach(k=>{ const g=GR[k]; if(g&&g.gone!==false){ GR[k]={...g,gone:false,back:t}; ch=true; } });
   if(ch) saveGR(); return gone; }
+const CR_KEY='r937-clurev-v1'; let CR=(()=>{ try{ return JSON.parse(localStorage.getItem(CR_KEY)||'{}')||{}; }catch(e){ return {}; } })();
+const saveCR=()=>{ try{ localStorage.setItem(CR_KEY,JSON.stringify(CR)); }catch(e){} };
+const crRev=k=>!!(CR[k]&&CR[k].rev); function crMark(ks,on){ const t=new Date().toISOString(); ks.forEach(k=>{ CR[k]={...(CR[k]||{seen:t}),rev:on?t:null}; }); saveCR(); }
 const grRev=k=>!!(GR[k]&&GR[k].rev); function grMark(ks,on){ const t=new Date().toISOString(); ks.forEach(k=>{ GR[k]={...(GR[k]||{seen:t}),rev:on?t:null}; }); saveGR(); }
 const dm=t=>{ if(!t) return ''; const d=new Date(t), z=n=>String(n).padStart(2,'0'); return `${z(d.getDate())}/${z(d.getMonth()+1)} ${z(d.getHours())}:${z(d.getMinutes())}`; };
-function viewRecord(r){ const back=REC_BACK, fromGone=REC_GONE; REC_BACK=null; REC_GONE=false; if(fromGone&&r){ const k=keyNo(r.no); if(!grRev(k)) grMark([k],true); }
+function viewRecord(r){ const back=REC_BACK, RV=REC_REV||(REC_GONE?{is:grRev,mark:grMark}:null), fromGone=!!RV; REC_BACK=null; REC_GONE=false; REC_REV=null; if(RV&&r){ const k=keyNo(r.no); if(!RV.is(k)) RV.mark([k],true); }
   const unseen0=r?readState(r):{st:'read',n:0}; const chNote=r?changesHTML(r,unseen0.st==='upd'?unseen0.n:0):'';
   if(r && readState(r).st!=='read'){ markSeen(r); const tr=document.querySelector(`tr[data-id="${r.id}"]`); if(tr){ tr.classList.remove('unread'); const c=tr.querySelector('td.ms'); if(c) c.innerHTML=envHTML(r)+(revTotal(r)?`<span class="revc" title="عدد مرات تحديث البلاغ من الاستيراد">↻ ${fmt(revTotal(r))}</span>`:''); } setTimeout(()=>{ const rb=document.querySelector('.readbar'); if(rb&&view==='table') renderView(); },400); }
   const cs=cols();
@@ -3039,7 +3074,7 @@ function viewRecord(r){ const back=REC_BACK, fromGone=REC_GONE; REC_BACK=null; R
   const durNote=DUR.on?`<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="hint">المدة الزمنية للإغلاق:</span>${durBadge(r)}</div>`:'';
   dialog({title:`البلاغ ${r.no||''}${revTotal(r)?` · ↻ ${fmt(revTotal(r))} ${revTotal(r)===1?'تحديث':'تحديثات'}`:''}`, html:durNote+chNote+kwNote+note+staffNote+clNote+html, wide:true, onOpen:s=>{ try{ s.querySelectorAll('[data-stmark]').forEach(b=>markPhrase(s.querySelector('dl.ro'),b.dataset.stmark)); }catch(e){} const b=s.querySelector('#seeCaller'); if(b) b.onclick=()=>{ document.getElementById('layer').innerHTML=''; showCaller(ck); }; s.querySelectorAll('[data-seestaff]').forEach(x=>x.onclick=()=>{ document.getElementById('layer').innerHTML=''; showStaff(x.dataset.seestaff); }); s.querySelectorAll('[data-seecl]').forEach(x=>x.onclick=()=>{ document.getElementById('layer').innerHTML=''; showClinic(x.dataset.seecl); }); }, actions:[
     ...(back?[{label:'↩ رجوع للقائمة',run:()=>{ setTimeout(back,0); }}]:[]),
-    ...(fromGone&&r?[{label:'↺ إلغاء «روجع»',run:()=>{ grMark([keyNo(r.no)],false); toast('أُعيد إلى «لم تُراجَع»'); if(back) setTimeout(back,0); }}]:[]),
+    ...(fromGone&&r?[{label:'↺ إلغاء «روجع»',run:()=>{ RV.mark([keyNo(r.no)],false); toast('أُعيد إلى «لم تُراجَع»'); if(back) setTimeout(back,0); }}]:[]),
     ...(VIEWER||!r?[]:(()=>{ let ex=false; try{ ex=excSet().has(keyNo(r.no)); }catch(e){}
       return ex?[{label:'↩ إرجاع من الاستبعاد',run:()=>{ excBack([keyNo(r.no)]); refresh(true); toast('أُرجع البلاغ — يُحسب من جديد'); if(back) setTimeout(back,0); }}]
                :[{label:'🚫 استبعاد',run:()=>{ dialog({title:`استبعاد البلاغ ${r.no}؟`,body:'لن يُحسب في الأرقام والتقارير، ويبقى محفوظاً ويمكن إرجاعه من «فحص تبعية التجمع ← المستبعدة».',actions:[{label:'استبعاد',cls:'primary',run:()=>{ excAdd([keyNo(r.no)],'يدوي بعد المراجعة'); refresh(true); toast('استُبعد البلاغ'); if(back) setTimeout(back,0); }},{label:'إلغاء',run:()=>{ setTimeout(()=>{ REC_BACK=back; viewRecord(r); },0); }}]}); return false; }}]; })()),
@@ -5395,8 +5430,12 @@ async function checkStatusFile(file){
     if(old&&nrm(old)!==nrm(n.center)) ren.push({k,n,o,old,cur:n.center});
     const sec=o?o.sector:(SECMAP[n.center]||centerToSector(n.center)||''); if(isDef(sec)) ns.push({k,n,o,old:old&&nrm(old)!==nrm(n.center)?old:'',cur:o?o.center:n.center,sec:String(sec||'').trim()}); });
   if(!VIEWER&&ren.length){ try{ await oldcSync(); }catch(e){ console.error(e); } }
+  // خارج التجمع: إفادات الملف (الأحدث) تذكر أن المركز لا يتبع تجمعنا
+  const clu=[]; { const su=new Map(); res.recs.forEach(n=>{ const k=keyNo(n.no); if(k&&!su.has(k)) su.set(k,n); }); const tN=new Date().toISOString(); let cch=false;
+    cluScan([...su.values()]).forEach(h=>{ const k=keyNo(h.r.no), o=ex.get(k)||null; clu.push({k,n:h.r,o,who:h.who,snip:h.snip,col:h.k}); if(!CR[k]){ CR[k]={seen:tN,rev:null}; cch=true; } }); if(cch) saveCR();
+    clu.sort((a,b)=>String(b.n.date).localeCompare(String(a.n.date))); }
   ren.sort((a,b)=>String(b.n.date).localeCompare(String(a.n.date))); ns.sort((a,b)=>String(b.n.date).localeCompare(String(a.n.date)));
-  checkDialog({file,sk,hits,news,gone,ren,ns,rng,same,F:{from:'',to:''},tab:hits.length||!news.length?'chg':'new',sel:CC0});
+  checkDialog({file,sk,hits,news,gone,ren,ns,clu,rng,same,F:{from:'',to:''},tab:hits.length||!news.length?'chg':'new',sel:CC0});
 }
 function checkDialog(S){
   const {file,sk}=S, F=S.F; const inR=d=>{ d=String(d||'').slice(0,10); return (!F.from||(d&&d>=F.from))&&(!F.to||(d&&d<=F.to)); };
@@ -5410,8 +5449,8 @@ function checkDialog(S){
   const html=`<p class="hint" style="margin-top:0">قورنت كل أعمدة الملف «${esc(file.name)}» بالقاعدة <b>بدون استيراد</b>. لم يتغيّر شيء بعد.</p>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px"><b>الفترة (تاريخ البلاغ)</b><span class="hint">من</span><input type="date" class="inp" id="ckFrom" value="${esc(F.from)}" style="width:auto"><span class="hint">إلى</span><input type="date" class="inp" id="ckTo" value="${esc(F.to)}" style="width:auto">${flt?'<button type="button" class="btn sm ghost" id="ckAll">كل الفترات</button>':''}${ds.length?`<span class="hint">تواريخ المتغيّرة والجديدة: ${esc(ds[0].replace(/-/g,'/'))} – ${esc(ds[ds.length-1].replace(/-/g,'/'))}</span>`:''}</div>
     <div class="stats" style="margin-bottom:10px"><div><b style="color:${hits.length?'#E5484D':'inherit'}">${fmt(hits.length)}${of(hits.length,S.hits.length)}</b><span>تذكرة فيها تغيير${sk?` (منها ${fmt(nSt)} تغيّرت حالتها، و<b style="color:#E5484D">${fmt(nRo)} معاد فتحها</b>)`:''}</span></div><div><b style="color:${news.length?'#2B6CB0':'inherit'}">${fmt(news.length)}${of(news.length,S.news.length)}</b><span>بلاغ جديد غير مسجّل في القاعدة</span></div><div><b>${fmt(S.same)}</b><span>بدون أي تغيير</span></div></div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${tb('chg','تذاكر تغيّرت',hits.length)}${tb('new','بلاغات جديدة',news.length)}${tb('gone','غير موجودة في الملف',gone.length)}${tb('ren','أسماء مراكز مُصحّحة',(S.ren||[]).filter(x=>inR(x.n.date)).length)}${tb('ns','مراكز بلا قطاع أو «تجمع مكة»',(S.ns||[]).filter(x=>inR(x.n.date)).length)}</div>
-    ${tab==='ren'||tab==='ns'?ckNameTab(S,tab,inR):tab==='gone'?(()=>{ const GS=S.gsel||(S.gsel=new Set()), XS=excSet(), byC=countBy(gone,'center'), stK=sk; const nU=gone.filter(r=>!grRev(keyNo(r.no))).length, nR=gone.length-nU;
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${tb('chg','تذاكر تغيّرت',hits.length)}${tb('new','بلاغات جديدة',news.length)}${tb('gone','غير موجودة في الملف',gone.length)}${tb('ren','أسماء مراكز مُصحّحة',(S.ren||[]).filter(x=>inR(x.n.date)).length)}${tb('ns','مراكز بلا قطاع أو «تجمع مكة»',(S.ns||[]).filter(x=>inR(x.n.date)).length)}${tb('clu','خارج التجمع',(S.clu||[]).filter(x=>inR(x.n.date)).length)}</div>
+    ${tab==='clu'?ckCluTab(S,inR):tab==='ren'||tab==='ns'?ckNameTab(S,tab,inR):tab==='gone'?(()=>{ const GS=S.gsel||(S.gsel=new Set()), XS=excSet(), byC=countBy(gone,'center'), stK=sk; const nU=gone.filter(r=>!grRev(keyNo(r.no))).length, nR=gone.length-nU;
       if(!S.gf) S.gf=nU?'new':'all'; const GL=(S.gf==='new'?gone.filter(r=>!grRev(keyNo(r.no))):S.gf==='rev'?gone.filter(r=>grRev(keyNo(r.no))):gone).slice().sort((a,b)=>(grRev(keyNo(a.no))-grRev(keyNo(b.no)))||String(b.date).localeCompare(String(a.date)));
       const gb=(k,l)=>`<button type="button" class="btn sm ${S.gf===k?'primary':''}" data-gf="${k}">${l}</button>`; return `<div style="padding:10px 12px;border:1px solid #F0C27A;border-inline-start:4px solid #E8890C;background:color-mix(in srgb,#E8890C 8%,var(--surface));border-radius:10px;margin-bottom:10px"><b>بلاغات في التطبيق تاريخها داخل فترة الملف (${esc(fmtDate(S.rng.from))} – ${esc(fmtDate(S.rng.to))}) ولم تَرِد فيه.</b><br><span class="hint">قد تكون حُذفت أو أُلغيت في المنصة، أو أن الملف مُصدَّر بفلتر (مراكز أو حالات معيّنة) فلم يشملها. تأكد قبل الحذف.</span></div>
       ${gone.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${byC.slice(0,8).map(([c,n])=>`<span class="badge" style="padding:3px 10px">${esc(c||'—')} · <b>${fmt(n)}</b></span>`).join('')}${byC.length>8?`<span class="hint">+${fmt(byC.length-8)} مركز</span>`:''}</div>
@@ -5454,7 +5493,8 @@ function checkDialog(S){
         if(a==='exc'){ if(!ks.length) return; excAdd(ks,'غير موجود في ملف '+file.name); G.clear(); refresh(true); toast(`استُبعد ${fmt(ks.length)} بلاغ — لا تُحسب، ويمكن إرجاعها من «فحص تبعية التجمع ← المستبعدة»`); checkDialog(S); }
         if(a==='del'){ if(!ks.length) return; dialog({title:`حذف ${fmt(sel.length)} بلاغ من القاعدة؟`, body:`هذه البلاغات تاريخها داخل فترة الملف «${file.name}» ولم تَرِد فيه. ستُحذف من التطبيق على هذا الجهاز، ويمكن التراجع بزر «تراجع». إن لم تكن متأكداً فاختر «استبعادها» بدل الحذف.`,
           actions:[{label:'حذف',cls:'primary danger',run:async()=>{ await removeRecords(sel.map(r=>r.id),'del'); G.clear(); S.gone=(S.gone||[]).filter(r=>!ks.includes(keyNo(r.no))); toast(`حُذف ${fmt(ks.length)} بلاغ`); setTimeout(()=>checkDialog(S),50); }},{label:'إلغاء'}]}); } });
-      sc.addEventListener('click',e=>ckNameClick(e,S,sc,inR));
+      sc.addEventListener('click',e=>ckNameClick(e,S,sc,inR)); sc.addEventListener('click',e=>ckCluClick(e,S,sc,inR));
+      sc.addEventListener('change',e=>{ const t=e.target; if(t.dataset.csel===undefined) return; const G=S.csel||(S.csel=new Set()); t.checked?G.add(t.dataset.csel):G.delete(t.dataset.csel); sc.querySelectorAll('[data-cm="exc"],[data-cm="rev"]').forEach(b=>{ b.disabled=!G.size; b.textContent=b.textContent.replace(/\(\d[\d,]*\)/,'('+fmt(G.size)+')'); }); });
       sc.addEventListener('change',e=>{ const t=e.target; if(t.dataset.nsel===undefined) return; const G=S.nsel||(S.nsel=new Set()); t.checked?G.add(t.dataset.nsel):G.delete(t.dataset.nsel); sc.querySelectorAll('[data-nm="rev"]').forEach(b=>{ b.disabled=!G.size; b.textContent=b.textContent.replace(/\(\d[\d,]*\)/,'('+fmt(G.size)+')'); }); });
       sc.addEventListener('click',e=>{ const b=e.target.closest('[data-cktab],#ckAll'); if(!b) return; if(b.id==='ckAll'){ F.from=''; F.to=''; } else S.tab=b.dataset.cktab; checkDialog(S); });
     }});
