@@ -713,7 +713,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '157';
+const APP_VER = '158';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -2236,13 +2236,21 @@ function rptTable(list,label,tot,limit){
   return `<table class="rpt"><thead><tr><th></th><th>${label}</th><th style="text-align:center">العدد</th><th style="text-align:center">النسبة</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="5">لا توجد بيانات</td></tr>'}</tbody></table>`;
 }
 // جدول المركز مع مدة الإغلاق: العدد ثم 24 ساعة / 48 ساعة / أكثر من 48 ساعة
-function rptDurTable(arr,lab,list,limit,key){ key=key||'center'; const L=durLabels(), m=new Map(); list.forEach(r=>{ const d=durInfo(r); if(d.st==='none') return; const c=r[key]||''; const o=m.get(c)||{g:0,o:0,r:0}; o[d.lvl]++; m.set(c,o); });
-  const C={g:'#22A06B',o:'#E8890C',r:'#E5484D'}, cell=(n,l)=>`<td class="n" style="color:${C[l]};font-weight:700">${n?fmt(n):'–'}</td>`;
-  const shown=arr.slice(0,limit), rest=arr.slice(limit);
-  let rows=shown.map(([v,n],i)=>{ const o=m.get(v||'')||{g:0,o:0,r:0}; return `<tr><td class="r">${i+1}</td><td>${esc(v||'—')}</td><td class="n">${fmt(n)}</td>${cell(o.g,'g')}${cell(o.o,'o')}${cell(o.r,'r')}</tr>`; }).join('');
-  if(rest.length){ const t={n:0,g:0,o:0,r:0}; rest.forEach(([v,n])=>{ const o=m.get(v||'')||{g:0,o:0,r:0}; t.n+=n; t.g+=o.g; t.o+=o.o; t.r+=o.r; }); rows+=`<tr><td class="r"></td><td>أخرى (${fmt(rest.length)})</td><td class="n">${fmt(t.n)}</td>${cell(t.g,'g')}${cell(t.o,'o')}${cell(t.r,'r')}</tr>`; }
-  const th=(l,t)=>`<th style="text-align:center;background:${C[l]};color:#fff;border-radius:6px 6px 0 0;white-space:nowrap;padding:4px 8px">${esc(t)}</th>`;
-  return `<table class="rpt"><thead><tr><th></th><th>${lab}</th><th style="text-align:center">العدد</th>${th('g',L.g)}${th('o',L.o)}${th('r',L.r)}</tr></thead><tbody>${rows||'<tr><td colspan="6">لا توجد بيانات</td></tr>'}</tbody></table>`; }
+let RPT_VM={dur:'n',sla:'pct'};
+function rptDurTable(arr,lab,list,limit,key){ key=key||'center'; const L=durLabels(), m=new Map(), sk=slaKey(), SL=RPT_VM.sla&&sk?RPT_VM.sla:'', DV=RPT_VM.dur||'n';
+  list.forEach(r=>{ const c=r[key]||''; let o=m.get(c); if(!o){ o={g:0,o:0,r:0,i:0,x:0}; m.set(c,o); } const d=durInfo(r); if(d.st!=='none') o[d.lvl]++; if(SL){ const s=slaState(r,sk); if(s==='in') o.i++; else if(s==='out') o.x++; } });
+  const C={g:'#22A06B',o:'#E8890C',r:'#E5484D',i:'#1E6FD9',x:'#7A2E8F'}; const HD=hasDur(list);
+  const pc=(a,b)=>b?pctF(a*100/b,0)+'%':'–';
+  const val=(n,base,mode)=>mode==='pct'?pc(n,base):mode==='both'?(n?`${fmt(n)} <small style="opacity:.75;font-weight:600">(${pc(n,base)})</small>`:'–'):(n?fmt(n):'–');
+  const cell=(o,l)=>{ const bd=o.g+o.o+o.r, bs=o.i+o.x; const isS=l==='i'||l==='x'; return `<td class="n" style="color:${C[l]};font-weight:700;white-space:nowrap">${val(o[l],isS?bs:bd,isS?SL:DV)}</td>`; };
+  const cells=o=>(HD?cell(o,'g')+cell(o,'o')+cell(o,'r'):'')+(SL?cell(o,'i')+cell(o,'x'):'');
+  const Z={g:0,o:0,r:0,i:0,x:0}, shown=arr.slice(0,limit), rest=arr.slice(limit);
+  let rows=shown.map(([v,n],i)=>{ const o=m.get(v||'')||Z; return `<tr><td class="r">${i+1}</td><td>${esc(v||'—')}</td><td class="n">${fmt(n)}</td>${cells(o)}</tr>`; }).join('');
+  if(rest.length){ const t={...Z}; let tn=0; rest.forEach(([v,n])=>{ const o=m.get(v||'')||Z; tn+=n; for(const q in t) t[q]+=o[q]; }); rows+=`<tr><td class="r"></td><td>أخرى (${fmt(rest.length)})</td><td class="n">${fmt(tn)}</td>${cells(t)}</tr>`; }
+  const th=(l,tx)=>`<th style="text-align:center;background:${C[l]};color:#fff;border-radius:6px 6px 0 0;white-space:nowrap;padding:4px 8px">${esc(tx)}</th>`;
+  const sfx=(mode)=>mode==='pct'?' %':'';
+  return `<table class="rpt"><thead><tr><th></th><th>${lab}</th><th style="text-align:center">العدد</th>${HD?th('g',L.g+sfx(DV))+th('o',L.o+sfx(DV))+th('r',L.r+sfx(DV)):''}${SL?th('i','داخل مستوى الخدمة'+sfx(SL))+th('x','خارج مستوى الخدمة'+sfx(SL)):''}</tr></thead><tbody>${rows||`<tr><td colspan="${3+(HD?3:0)+(SL?2:0)}">لا توجد بيانات</td></tr>`}</tbody></table>`; }
+const rptDT=list=>hasDur(list)||!!(RPT_VM.sla&&slaKey()&&list.some(r=>slaState(r)));
 const hasDur=list=>{ try{ return list.some(r=>durInfo(r).st!=='none'); }catch(e){ return false; } };
 // قائمة البلاغات في التقرير: تجميع (قطاع/مركز/تصنيف) + ترتيب + مدة ملونة
 const LGRP_OPTS=[['','بدون'],['sector','القطاع'],['center','المركز الصحي'],['main','التصنيف الرئيسي'],['sub','التصنيف الفرعي']];
@@ -2308,6 +2316,7 @@ function simplePicks(sec){ const on=k=>secOn(sec,k); return {cdur:(sec||{}).cdur
 function secChecks(sec,attr,simple){ return `<div class="checks secbox">${secItems().map(([k,l,why])=>`<label title="${esc(why)}"><input type="checkbox" ${attr}="${k}" ${secOn(sec,k)&&!why?'checked':''} ${why||(simple&&!SIMPLE_OK.includes(k))?'disabled':''}>${esc(l)}${why?` <span class="hint">(${esc(why)})</span>`:''}</label>`).join('')}</div><p class="hint simple-note" ${simple?'':'hidden'} style="color:var(--warn,#B7791F);margin:4px 0 0">${SIMPLE_NOTE}</p>`; }
 function buildReport(list,opts){
   opts={list:false,pii:false,top:20,orient:'landscape',sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1},...opts};
+  RPT_VM={dur:opts.durVal||'n',sla:opts.slaCol===undefined?'pct':opts.slaCol};
   const RON=((opts.sec||{}).roNote!==0), LISTON=!!opts.list&&opts.kind!=='simple'; let SS=null; if(opts.kind==='simple'){ SS=simplePicks(opts.sec||{}); opts={...opts,sec:{kpi:(opts.sec||{}).kpi===0?0:1},cols:[],list:false}; }
   const b=brand(), ST0=opts.style||RSTYLE, ST=opts.kind==='simple'?{...ST0,cover:{...(ST0.cover||{}),on:0}}:ST0, c=rsColors(ST); list=condFilter(list,opts.cond); const RF=rFont(opts,ST);
   const el=document.createElement('div'); el.className='rp'+(opts.orient==='portrait'?' portrait':'');
@@ -2341,8 +2350,8 @@ function buildReport(list,opts){
     (NT.list||[]).forEach(x=>{ if(x&&x.on!==0&&String(x.t||'').trim()) out.push(esc(String(x.t).trim()).replace(/\n/g,'<br>')); });
     if(out.length) h+=`<div class="blk">${out.map(box).join('')}</div>`; }
   if(SS){ const LAND=opts.orient!=='portrait', n=+opts.sTop||10;
-    const T=[]; const tb=(arr,lab,key)=>T.push(`<div class="rp-sec"><h4>أعلى ${fmt(Math.min(n,arr.length))} · ${esc(lab)}<small>من ${fmt(arr.length)}</small></h4><div class="rp-body">${key&&SS.cdur&&hasDur(list)?rptDurTable(arr,lab,list,n,key):rptTable(arr,lab,tot,n)}</div></div>`);
-    if(SS.center){ if(SS.cdur&&hasDur(list)) T.push(`<div class="rp-sec"><h4>أعلى ${fmt(Math.min(n,centers.length))} · المركز الصحي<small>من ${fmt(centers.length)}</small></h4><div class="rp-body">${rptDurTable(centers,'المركز الصحي',list,n)}</div></div>`); else tb(centers,'المركز الصحي'); } if(SS.cm) tb(mains,label('main'),'main'); if(SS.cs) tb(subs,short('sub'),'sub');
+    const T=[]; const tb=(arr,lab,key)=>T.push(`<div class="rp-sec"><h4>أعلى ${fmt(Math.min(n,arr.length))} · ${esc(lab)}<small>من ${fmt(arr.length)}</small></h4><div class="rp-body">${key&&SS.cdur&&rptDT(list)?rptDurTable(arr,lab,list,n,key):rptTable(arr,lab,tot,n)}</div></div>`);
+    if(SS.center){ if(SS.cdur&&rptDT(list)) T.push(`<div class="rp-sec"><h4>أعلى ${fmt(Math.min(n,centers.length))} · المركز الصحي<small>من ${fmt(centers.length)}</small></h4><div class="rp-body">${rptDurTable(centers,'المركز الصحي',list,n)}</div></div>`); else tb(centers,'المركز الصحي'); } if(SS.cm) tb(mains,label('main'),'main'); if(SS.cs) tb(subs,short('sub'),'sub');
     let chart='', dense=false; if(SS.daily){ const TS=timeSeries(list,opts.sTime), ms=TS.pts; dense=ms.length>13; const side=LAND&&T.length===1;
       chart=`<div class="rp-sec"><h4><span>عدد البلاغات لكل ${TS.unit==='day'?'يوم':'شهر'}${TS.sparse?' <span style="font-weight:400;font-size:.8em;opacity:.75">(الأيام التي فيها بلاغات فقط)</span>':''}</span><small>${esc(range)}</small></h4><div class="rp-body">${monthChartSVG(ms,opts.sChart==='bar'?'bar':'line',c.bar,side?(dense?610:560):W,T.length>1&&LAND?190:0)}</div></div>`; }
     if(chart&&LAND&&T.length===1) h+=`<div class="blk"><div style="display:grid;grid-template-columns:${dense?'1.45fr 1fr':'1.2fr 1fr'};gap:12px;align-items:start">${chart}${T[0]}</div></div>`;
@@ -2350,9 +2359,9 @@ function buildReport(list,opts){
   const _S={}; let _m=h.length; const _cut=k=>{ _S[k]=h.slice(_m); h=h.slice(0,_m); };
   if(opts.sec.daily){ const TS=timeSeries(list,opts.sTime); h+=`<div class="blk"><div class="rp-sec"><h4><span>عدد البلاغات لكل ${TS.unit==='day'?'يوم':'شهر'}${TS.sparse?' <span style="font-weight:400;font-size:.8em;opacity:.75">(الأيام التي فيها بلاغات فقط)</span>':''}</span><small>${esc(range)}</small></h4><div class="rp-body">${monthChartSVG(TS.pts,opts.sChart==='bar'?'bar':'line',c.bar,W)}</div></div></div>`; }
   _cut('daily');
-  if(opts.sec.center) h+=`<div class="blk"><div class="rp-sec"><h4>البلاغات حسب المركز الصحي<small>${fmt(centers.length)} مركز${opts.ordC&&opts.ordC!=='desc'?' · '+ORD_LBL[opts.ordC]:''}</small></h4><div class="rp-body">${opts.sec.cdur!==0&&hasDur(list)?rptDurTable(centers,'المركز الصحي',list,top):rptTable(centers,'المركز الصحي',tot,top)}</div></div></div>`;
+  if(opts.sec.center) h+=`<div class="blk"><div class="rp-sec"><h4>البلاغات حسب المركز الصحي<small>${fmt(centers.length)} مركز${opts.ordC&&opts.ordC!=='desc'?' · '+ORD_LBL[opts.ordC]:''}</small></h4><div class="rp-body">${opts.sec.cdur!==0&&rptDT(list)?rptDurTable(centers,'المركز الصحي',list,top):rptTable(centers,'المركز الصحي',tot,top)}</div></div></div>`;
   _cut('center');
-  if(opts.sec.cats && ((active('main')&&opts.sec.cm!==0)||(active('sub')&&opts.sec.cs!==0))){ const DD=opts.sec.cdur!==0&&hasDur(list), parts=[]; if(active('main')&&opts.sec.cm!==0) parts.push(`<div class="rp-sec"><h4>حسب ${esc(label('main'))}<small>${fmt(mains.length)} تصنيف</small></h4><div class="rp-body">${DD?rptDurTable(mains,label('main'),list,top,'main'):rptTable(mains,label('main'),tot,top)}</div></div>`); if(active('sub')&&opts.sec.cs!==0) parts.push(`<div class="rp-sec"><h4>حسب ${esc(short('sub'))}<small>${fmt(subs.length)} تصنيف</small></h4><div class="rp-body">${DD?rptDurTable(subs,short('sub'),list,top,'sub'):rptTable(subs,short('sub'),tot,top)}</div></div>`); h+=DD?parts.map(x=>`<div class="blk">${x}</div>`).join(''):`<div class="blk"><div class="${parts.length>1?'rp-two':''}">${parts.join('')}</div></div>`; }
+  if(opts.sec.cats && ((active('main')&&opts.sec.cm!==0)||(active('sub')&&opts.sec.cs!==0))){ const DD=opts.sec.cdur!==0&&rptDT(list), parts=[]; if(active('main')&&opts.sec.cm!==0) parts.push(`<div class="rp-sec"><h4>حسب ${esc(label('main'))}<small>${fmt(mains.length)} تصنيف</small></h4><div class="rp-body">${DD?rptDurTable(mains,label('main'),list,top,'main'):rptTable(mains,label('main'),tot,top)}</div></div>`); if(active('sub')&&opts.sec.cs!==0) parts.push(`<div class="rp-sec"><h4>حسب ${esc(short('sub'))}<small>${fmt(subs.length)} تصنيف</small></h4><div class="rp-body">${DD?rptDurTable(subs,short('sub'),list,top,'sub'):rptTable(subs,short('sub'),tot,top)}</div></div>`); h+=DD?parts.map(x=>`<div class="blk">${x}</div>`).join(''):`<div class="blk"><div class="${parts.length>1?'rp-two':''}">${parts.join('')}</div></div>`; }
   _cut('cats');
   if(opts.sec.callers && (active('caller')||active('nid'))){ const gs=repeatGroups(list,Math.max(2,RPT.min)); if(gs.length){ const lim=Math.min(opts.top||1e9,gs.length); const max=gs[0].n;
     h+=`<div class="blk"><div class="rp-sec"><h4>المتصلون الأكثر تكراراً<small>${fmt(gs.length)} متصل لهم ${Math.max(2,RPT.min)} بلاغات فأكثر · ${fmt(gs.reduce((s,g)=>s+g.n,0))} بلاغ</small></h4><div class="rp-body"><table class="rpt"><thead><tr><th></th><th>المتصل</th><th style="text-align:center">البلاغات</th><th>المراكز</th><th>أكثر تصنيف</th><th>آخر بلاغ</th><th></th></tr></thead><tbody>${gs.slice(0,lim).map((g,i)=>`<tr><td class="r">${i+1}</td><td>${opts.pii?esc(g.name||g.nid):`متصل ${i+1}`}</td><td class="n">${fmt(g.n)}</td><td>${esc(g.centers.map(c=>c[0]).slice(0,2).join('، '))}${g.centers.length>2?` +${g.centers.length-2}`:''}</td><td>${esc(g.sub)}</td><td class="p" style="width:auto">${esc(fmtDate(g.last).slice(0,10))}</td><td class="bar"><div class="barline"><span style="width:${(g.n/max*100).toFixed(1)}%"></span></div></td></tr>`).join('')}</tbody></table>${opts.pii?'':'<p style="margin:6px 0 0;font-size:11px;color:var(--rp-mut)">الأسماء مخفية. اختر «تضمين اسم المتصل ورقم الهوية» عند التصدير لإظهارها.</p>'}</div></div></div>`; } }
@@ -2366,7 +2375,7 @@ function buildReport(list,opts){
   _cut('staff');
   (opts.cols||[]).forEach(k=>{ if(!col(k)) return; const arr=countBy(list,null,r=>rpg(r,k)||'—'); h+=`<div class="blk"><div class="rp-sec"><h4>حسب ${esc(label(k))}<small>${fmt(arr.length)}</small></h4><div class="rp-body">${rptTable(arr,label(k),tot,top)}</div></div></div>`; });
   _cut('cols');
-  if(opts.sec.sector && sectors.length) h+=`<div class="blk"><div class="rp-sec"><h4>حسب القطاع<small>${fmt(sectors.length)} قطاع${opts.ordS&&opts.ordS!=='desc'?' · '+ORD_LBL[opts.ordS]:''}</small></h4><div class="rp-body">${opts.sec.cdur!==0&&hasDur(list)?rptDurTable(sectors,'القطاع',list,top,'sector'):rptTable(sectors,'القطاع',tot,top)}</div></div></div>`;
+  if(opts.sec.sector && sectors.length) h+=`<div class="blk"><div class="rp-sec"><h4>حسب القطاع<small>${fmt(sectors.length)} قطاع${opts.ordS&&opts.ordS!=='desc'?' · '+ORD_LBL[opts.ordS]:''}</small></h4><div class="rp-body">${opts.sec.cdur!==0&&rptDT(list)?rptDurTable(sectors,'القطاع',list,top,'sector'):rptTable(sectors,'القطاع',tot,top)}</div></div></div>`;
   _cut('sector');
   { const Q=secSeqOf(opts), ONE=['sector','center','cats'];
     if(opts.tblOne!==0&&ONE.filter(k=>_S[k]).length>1){ const first=Q.find(k=>ONE.includes(k)&&_S[k]); const grp=`<div class="blk blk-one">${Q.filter(k=>ONE.includes(k)).map(k=>(_S[k]||'').replace(/<div class="blk">/g,'<div class="blk-in">')).join('')}</div>`;
@@ -4080,7 +4089,7 @@ const condText=cond=>(cond||[]).filter(c=>c&&c.k&&(c.v||[]).length).map(c=>`${la
 const RTPL_KEY='r937-rtpl-v1', RTSEL_KEY='r937-rtsel-v1';
 let RTPL=(()=>{ try{ const v=JSON.parse(localStorage.getItem(RTPL_KEY)||'[]'); return Array.isArray(v)?v:[]; }catch(e){ return []; } })();
 const saveRTPL=()=>{ try{ localStorage.setItem(RTPL_KEY,JSON.stringify(RTPL)); }catch(e){} };
-const SPEC_KEYS=['tblOne','listGrp','listSort','secSeq','ordC','ordS','secOrd','kind','sChart','sTop','sTime','title','orient','paper','margin','top','list','pii','sec','kpis','cols','listCols','showFilters','fltOff','font','cond'];
+const SPEC_KEYS=['durVal','slaCol','tblOne','listGrp','listSort','secSeq','ordC','ordS','secOrd','kind','sChart','sTop','sTime','title','orient','paper','margin','top','list','pii','sec','kpis','cols','listCols','showFilters','fltOff','font','cond'];
 // إعدادات تقرير كاملة: الافتراضي (PRINT) أو نموذج محفوظ
 function specOf(id){ const t=RTPL.find(x=>x.id===id); const base={...PRINT,sec:{...PRINT.sec}}; if(!t) return base;
   const o={...base}; SPEC_KEYS.forEach(k=>{ if(t[k]!==undefined) o[k]=JSON.parse(JSON.stringify(t[k])); }); o.sec={...DEF_PRINT.sec,...(t.sec||{})}; o.tpl=t.id; o.tplName=t.name; return o; }
@@ -4121,6 +4130,9 @@ function rtplEditor(id,after){
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px"><span class="hint">من عمود:</span><select class="inp" id="teKc" style="width:auto">${opt(RC(),'sub')}</select><select class="inp" id="teKm" style="width:auto">${opt(Object.entries(KPI_MODES),'top')}</select><select class="inp" id="teKv" style="width:auto;max-width:220px"></select><button type="button" class="btn sm" id="teKcAdd">إضافة</button></div></div>
     <div class="pcard"><h4>الأقسام والجداول</h4>${secChecks(d.sec,'data-tesec',d.kind==='simple')}
       <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="teTblOne" ${d.tblOne!==0?'checked':''}> <b>جداول القطاع والمركز والتصنيف في صفحة واحدة</b></label>
+      <div style="display:grid;gap:6px;margin-top:10px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="min-width:150px">أعمدة المدة (24/48/أكثر):</b><div class="seg">${[['n','العدد'],['pct','النسبة'],['both','العدد والنسبة']].map(([v,l])=>`<label><input type="radio" name="teDurVal" value="${v}" ${(d.durVal||'n')===v?'checked':''}><span>${l}</span></label>`).join('')}</div></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="min-width:150px">داخل/خارج مستوى الخدمة:</b><div class="seg">${[['','بدون'],['n','العدد'],['pct','النسبة'],['both','العدد والنسبة']].map(([v,l])=>`<label><input type="radio" name="teSlaCol" value="${v}" ${(d.slaCol===undefined?'pct':d.slaCol)===v?'checked':''}><span>${l}</span></label>`).join('')}</div>${slaKey()?'':'<span class="hint">لا يوجد عمود «مستوى الخدمة» في بياناتك</span>'}</div>
+        <span class="hint">تظهر في جداول القطاع والمركز والتصنيف عند تفعيل أعمدة المدة. النسبة من البلاغات التي لها قيمة في كل عمود.</span></div>
       <p class="hint" style="margin:2px 0 0">تُجمع الجداول الثلاثة في صفحة واحدة بصفوف مضغوطة، وتُصغَّر قليلاً إن لزم لتتسع. الأنسب مع «أعلى 10».</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px"><b>ترتيب جدول المركز</b>${seg('teOrdC',[['desc','الأكثر أولاً'],['asc','الأقل أولاً'],['name','أبجدي']],d.ordC||'desc')}</div>
       ${active('sector')?`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px"><b>ترتيب جدول القطاع</b>${seg('teOrdS',[['desc','الأكثر أولاً'],['asc','الأقل أولاً'],['name','أبجدي'],['custom','ترتيبي (يدوي)']],d.ordS||'desc')}</div>
@@ -4157,7 +4169,7 @@ function rtplEditor(id,after){
       s.addEventListener('input',e=>{ const t=e.target; if(t.id==='teName') d.name=t.value; if(t.id==='teTitle') d.title=t.value; if(t.id==='teFc'){ d.font.color=t.value; }
         if(t.id==='teCq'){ condQ=t.value; clearTimeout(s._q); s._q=setTimeout(re,250); } });
       s.addEventListener('change',e=>{ const t=e.target;
-        if(t.id==='tePin') d.pin=t.checked; if(t.name==='teOr') d.orient=t.value; if(t.id==='teTblOne'){ d.tblOne=t.checked?1:0; } if(t.name==='teOrdC'){ d.ordC=t.value; } if(t.name==='teOrdS'){ d.ordS=t.value; re(); } if(t.name==='teKind'){ d.kind=t.value; const sm=t.value==='simple'; s.querySelectorAll('[data-tesec]').forEach(c=>{ c.disabled=(sm&&!SIMPLE_OK.includes(c.dataset.tesec))||!!c.closest('label').title; }); s.querySelectorAll('.simple-note').forEach(n=>n.hidden=!sm); const tl=s.querySelector('#teList'); if(tl) tl.disabled=sm; } if(t.name==='teSChart') d.sChart=t.value; if(t.name==='teSTop') d.sTop=+t.value; if(t.name==='teSTime') d.sTime=t.value; if(t.name==='teTop') d.top=+t.value;
+        if(t.id==='tePin') d.pin=t.checked; if(t.name==='teOr') d.orient=t.value; if(t.id==='teTblOne'){ d.tblOne=t.checked?1:0; } if(t.name==='teDurVal'){ d.durVal=t.value; } if(t.name==='teSlaCol'){ d.slaCol=t.value; } if(t.name==='teOrdC'){ d.ordC=t.value; } if(t.name==='teOrdS'){ d.ordS=t.value; re(); } if(t.name==='teKind'){ d.kind=t.value; const sm=t.value==='simple'; s.querySelectorAll('[data-tesec]').forEach(c=>{ c.disabled=(sm&&!SIMPLE_OK.includes(c.dataset.tesec))||!!c.closest('label').title; }); s.querySelectorAll('.simple-note').forEach(n=>n.hidden=!sm); const tl=s.querySelector('#teList'); if(tl) tl.disabled=sm; } if(t.name==='teSChart') d.sChart=t.value; if(t.name==='teSTop') d.sTop=+t.value; if(t.name==='teSTime') d.sTime=t.value; if(t.name==='teTop') d.top=+t.value;
         if(t.id==='teFlt'){ d.showFilters=t.checked?1:0; const fb=s.querySelector('#teFltBox'); if(fb) fb.style.display=t.checked?'grid':'none'; }
         if(t.dataset.fltk){ const O=new Set(d.fltOff||[]); t.checked?O.delete(t.dataset.fltk):O.add(t.dataset.fltk); d.fltOff=[...O]; } if(t.id==='tePii') d.pii=t.checked; if(t.id==='teList') d.list=t.checked; if(t.name==='teLGrp') d.listGrp=t.value; if(t.id==='teLSort') d.listSort=t.value; if(t.id==='teKpiOn') d.sec.kpi=t.checked?1:0;
         if(t.dataset.tesec) secSet(d.sec,t.dataset.tesec,t.checked);
@@ -4280,7 +4292,7 @@ document.addEventListener('change',e=>{ if(e.target.id==='exitOn'){ EXIT.on=e.ta
 ['pointerdown','keydown','touchstart'].forEach(ev=>document.addEventListener(ev,()=>exitArm(),{once:true,capture:true}));
 
 /* ---------- print & export ---------- */
-const DEF_PRINT={tblOne:1,listGrp:'',listSort:'',secSeq:null,ordC:'desc',ordS:'desc',secOrd:[],pngQ:3,kind:'full',sChart:'line',sTop:10,sTime:'auto',fmt:'pdf',paper:'A4',orient:'landscape',margin:'normal',top:20,list:true,pii:false,kpis:['total','centers','topCenter','topCat'],cols:[],listCols:null,showFilters:0,fltOff:[],sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1}};
+const DEF_PRINT={durVal:'n',slaCol:'pct',tblOne:1,listGrp:'',listSort:'',secSeq:null,ordC:'desc',ordS:'desc',secOrd:[],pngQ:3,kind:'full',sChart:'line',sTop:10,sTime:'auto',fmt:'pdf',paper:'A4',orient:'landscape',margin:'normal',top:20,list:true,pii:false,kpis:['total','centers','topCenter','topCat'],cols:[],listCols:null,showFilters:0,fltOff:[],sec:{kpi:1,daily:1,center:1,cats:1,sector:1,callers:1,staff:1,clinics:1}};
 let PRINT=(()=>{ try{ const o=JSON.parse(localStorage.getItem(PRINT_KEY)||'{}'); return {...DEF_PRINT,...o,sec:{...DEF_PRINT.sec,...(o.sec||{})}}; }catch(e){ return JSON.parse(JSON.stringify(DEF_PRINT)); } })();
 const printOpts=()=>PRINT;
 const PAPER={A4:[595.28,841.89],A3:[841.89,1190.55],Letter:[612,792]};
