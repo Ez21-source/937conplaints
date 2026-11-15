@@ -713,7 +713,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '158';
+const APP_VER = '159';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -2239,7 +2239,7 @@ function rptTable(list,label,tot,limit){
 let RPT_VM={dur:'n',sla:'pct'};
 function rptDurTable(arr,lab,list,limit,key){ key=key||'center'; const L=durLabels(), m=new Map(), sk=slaKey(), SL=RPT_VM.sla&&sk?RPT_VM.sla:'', DV=RPT_VM.dur||'n';
   list.forEach(r=>{ const c=r[key]||''; let o=m.get(c); if(!o){ o={g:0,o:0,r:0,i:0,x:0}; m.set(c,o); } const d=durInfo(r); if(d.st!=='none') o[d.lvl]++; if(SL){ const s=slaState(r,sk); if(s==='in') o.i++; else if(s==='out') o.x++; } });
-  const C={g:'#22A06B',o:'#E8890C',r:'#E5484D',i:'#1E6FD9',x:'#7A2E8F'}; const HD=hasDur(list);
+  const C={g:'#22A06B',o:'#E8890C',r:'#E5484D',i:'#15803D',x:'#B91C1C'}; const HD=hasDur(list);
   const pc=(a,b)=>b?pctF(a*100/b,0)+'%':'–';
   const val=(n,base,mode)=>mode==='pct'?pc(n,base):mode==='both'?(n?`${fmt(n)} <small style="opacity:.75;font-weight:600">(${pc(n,base)})</small>`:'–'):(n?fmt(n):'–');
   const cell=(o,l)=>{ const bd=o.g+o.o+o.r, bs=o.i+o.x; const isS=l==='i'||l==='x'; return `<td class="n" style="color:${C[l]};font-weight:700;white-space:nowrap">${val(o[l],isS?bs:bd,isS?SL:DV)}</td>`; };
