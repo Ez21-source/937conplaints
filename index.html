@@ -713,7 +713,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '159';
+const APP_VER = '160';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -2674,6 +2674,39 @@ function brBuild(o){
       periods:[{label:o.a.label,date:fmtR(o.a)},{label:o.b.label,date:fmtR(o.b)}], sections:sec }
   };
 }
+/* التقرير الربعي: لكل ربع ولكل قطاع ومركز وتصنيف فرعي: عدد البلاغات، وعدد ما أُغلق خلال 24 ساعة وما تجاوزها.
+   مدة الإغلاق من إعدادات «المدة الزمنية للإغلاق». المفتوح الذي تجاوز 24 ساعة يُحسب «أكثر من 24 ساعة»،
+   والمفتوح الذي لم يتجاوزها لا يدخل في المدة بعد، والمعاد فتحه حسب إعداد القاعدة. الرضا لا يوجد في القاعدة فيُعبّأ في التقرير. */
+function brQuarterly(o){
+  const T1=+DUR.t1||24; let durAny=false;
+  const cls=r=>{ const d=durInfo(r); if(!d||d.st==='none') return null; if(d.st==='open' && d.h<=T1) return null; durAny=true; return d.h>T1?'o':'w'; };
+  const blank=()=>({count:0,over:0,within:0});
+  const add=(e,c)=>{ e.count++; if(c==='o') e.over++; else if(c==='w') e.within++; };
+  const out=o.quarters.map(q=>{
+    const base={label:q.label, date:q.on?`${q.from.replace(/-/g,'/')} – ${q.to.replace(/-/g,'/')}`:'', show:!!q.show, sum:{}, hos:[], cats:[]};
+    if(!q.on) return base;
+    const L=brPeriodRecs('',q.from,q.to,o.off), H=new Map(), C=new Map(), tot=blank();
+    L.forEach(r=>{ const c=cls(r); add(tot,c);
+      const hn=String(r.sector||'').trim()||'غير محدد'; let h=H.get(hn); if(!h){ h={...blank(),cen:new Map()}; H.set(hn,h); } add(h,c);
+      const cn=String(r.center||'').trim(); if(cn){ let ce=h.cen.get(cn); if(!ce){ ce=blank(); h.cen.set(cn,ce); } add(ce,c); }
+      const sn=String(r.sub||'').trim(); if(sn){ let ce=C.get(sn); if(!ce){ ce=blank(); C.set(sn,ce); } add(ce,c); } });
+    base.n=L.length; base.sum={count:tot.count, over:tot.over, within:tot.within};
+    base.hos=[...H].sort((a,b)=>b[1].count-a[1].count).map(([name,h])=>({name:brShort(name)||name, count:h.count, over:h.over, within:h.within,
+      centers:[...h.cen].sort((a,b)=>b[1].count-a[1].count).map(([n,e])=>({name:n,...e}))}));
+    base.cats=[...C].sort((a,b)=>b[1].count-a[1].count).slice(0,o.top).map(([n,e])=>({name:n,...e}));
+    return base; });
+  if(!durAny) out.forEach(q=>{ const z=e=>{ e.over=null; e.within=null; }; if(q.sum.count!=null) z(q.sum); q.hos.forEach(h=>{ z(h); h.centers.forEach(z); }); q.cats.forEach(z); });
+  return { kind:'r937-report-bridge', v:2, made:new Date().toISOString(), app:APP_VER, dur:durAny, t1:T1,
+    counts:out.map(q=>q.n||0), report:{ name:o.name, type:'quarterly', source:'db', qs:out } };
+}
+function brQDefaults(){
+  const ds=RECS.map(r=>String(r.date||'').slice(0,10)).filter(Boolean).sort();
+  const last=ds.length?new Date(ds[ds.length-1]+'T00:00:00'):new Date();
+  const QN=['الربع الأول','الربع الثاني','الربع الثالث','الربع الرابع'];
+  let y=last.getFullYear(), q=Math.floor(last.getMonth()/3); const L=[];
+  for(let i=0;i<4;i++){ const s=new Date(y,q*3,1), e=new Date(y,q*3+3,0); L.unshift({label:`${QN[q]} ${y}`, from:iso(s), to:iso(e)}); q--; if(q<0){ q=3; y--; } }
+  return L.map((x,i)=>{ const n=brPeriodRecs('',x.from,x.to,[]).length; return {...x, on:n>0, show:i>0}; });
+}
 function brDefaults(){
   let saved={}; try{ saved=JSON.parse(localStorage.getItem(BRIDGE_KEY)||'{}'); }catch(e){}
   const ds=RECS.map(r=>String(r.date||'').slice(0,10)).filter(Boolean).sort();
@@ -2683,7 +2716,7 @@ function brDefaults(){
   const qE=(y,qq)=>{ const s=qS(y,qq); return new Date(s.getFullYear(),s.getMonth()+3,0); };
   const QN=['الربع الأول','الربع الثاني','الربع الثالث','الربع الرابع'];
   const y=last.getFullYear();
-  return {type:'hospital', sector:'', top:12, off:[],
+  return {type:'hospital', sector:'', top:12, off:[], quarters:brQDefaults(),
     a:{label:QN[(q+3)%4], from:iso(qS(y,q-1)), to:iso(qE(y,q-1))},
     b:{label:QN[q], from:iso(qS(y,q)), to:iso(qE(y,q))}, ...saved};
 }
@@ -2703,19 +2736,32 @@ function bridgeDialog(){
   dialog({title:'إرسال الأرقام إلى نموذج التقرير', wide:true, html:`<div style="display:grid;gap:12px">
     <p style="margin:0;color:var(--muted)">يُنشأ ملف صغير فيه الأرقام المحسوبة فقط (دون أسماء المتصلين أو الهويات). افتحه في «نموذج تقرير بلاغات 937» من زر «استيراد من القاعدة»، فيُضاف تقريراً جديداً دون المساس بالتقارير السابقة.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <div class="field" style="flex:1 1 160px"><label>نوع التقرير</label><select class="inp" data-br="type">${opt('hospital','تقرير مستشفى',d.type!=='weekly')}${opt('weekly','التقرير الأسبوعي (كل المستشفيات)',d.type==='weekly')}</select></div>
+      <div class="field" style="flex:1 1 160px"><label>نوع التقرير</label><select class="inp" data-br="type">${opt('hospital','تقرير مستشفى',d.type!=='weekly')}${opt('weekly','التقرير الأسبوعي (كل المستشفيات)',d.type==='weekly')}${opt('quarterly','التقرير الربعي (أربعة أرباع، كل المستشفيات)',d.type==='quarterly')}</select></div>
       <div class="field" style="flex:2 1 220px" data-brsec><label>المستشفى (القطاع)</label><select class="inp" data-br="sector">${opt('','كل القطاعات',!d.sector)}${sectors.map(s=>opt(s,s,s===d.sector)).join('')}</select></div>
       <div class="field" style="flex:0 1 110px"><label>عدد التصانيف</label><input class="inp" type="number" min="3" max="50" data-br="top" value="${esc(d.top)}"></div>
     </div>
     <div data-broffbox style="border:1px solid var(--line);border-radius:10px;padding:10px 12px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px"><b style="font-size:13px">القطاعات المشمولة</b><span style="color:var(--muted);font-size:12px">ألغِ تحديد أي قطاع لا تريده أن يظهر في التقرير</span><span style="margin-inline-start:auto;display:flex;gap:6px"><button type="button" class="btn sm" data-broffall="1">الكل</button><button type="button" class="btn sm" data-broffall="0">لا شيء</button></span></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:2px 12px;max-height:190px;overflow:auto">${sectors.map(s=>`<label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" data-broff="${esc(s)}"${OFF.has(s)?'':' checked'}><span style="flex:1">${esc(s)}</span><span style="color:var(--muted);font-size:11.5px">${fmt(SC.get(s))}</span></label>`).join('')}</div></div>
     <div style="font-size:12.5px;color:var(--muted)">البلاغات المستبعدة (من «فحص تبعية التجمع ← المستبعدة») لا تدخل في الأرقام المرسلة.</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px">${per('a',d.a,'الفترة السابقة')}${per('b',d.b,'الفترة الحالية')}</div>
+    <div data-brab style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px">${per('a',d.a,'الفترة السابقة')}${per('b',d.b,'الفترة الحالية')}</div>
+    <div data-brqbox hidden style="display:grid;gap:8px"><div style="font-size:13px;color:var(--muted)">أربعة أرباع بالترتيب. الربع غير المحدد «من القاعدة» يصل فارغاً لتُعبّأ أرقامه يدوياً في التقرير (مثل الربع الرابع 2025). والربع «للمقارنة فقط» لا يظهر في الإنفوجرافيك، ويُقارن به الربع الذي بعده.</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px">${(d.quarters||brQDefaults()).map((q,i)=>`<fieldset style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0;display:grid;gap:6px"><legend style="padding:0 6px;font-weight:600">الربع ${i+1}</legend>
+        <div class="field"><label>الاسم</label><input class="inp" data-brq="${i}.label" value="${esc(q.label)}"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><div class="field" style="flex:1 1 120px"><label>من</label><input class="inp" type="date" data-brq="${i}.from" value="${esc(q.from)}"></div><div class="field" style="flex:1 1 120px"><label>إلى</label><input class="inp" type="date" data-brq="${i}.to" value="${esc(q.to)}"></div></div>
+        <label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" data-brq="${i}.on" ${q.on?'checked':''}> أرقامه من القاعدة <span data-brqn="${i}" style="color:var(--muted);font-size:12px"></span></label>
+        <label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" data-brq="${i}.show" ${q.show?'checked':''}> يظهر في الإنفوجرافيك</label></fieldset>`).join('')}</div>
+      <div style="font-size:12.5px;color:var(--muted)">مدة الإغلاق: «أكثر من ${+DUR.t1||24} ساعة» و«خلال ${+DUR.t1||24} ساعة» حسب إعدادات «المدة الزمنية للإغلاق». البلاغ المفتوح الذي تجاوز ${+DUR.t1||24} ساعة يُحسب «أكثر من ${+DUR.t1||24} ساعة»، والمعاد فتحه حسب إعداد القاعدة. متوسط الرضا لا يوجد في القاعدة فيُعبّأ في التقرير.</div></div>
     <div style="font-size:13px">${slaNote}<br><span style="color:var(--muted)">أقسام رضا المستفيد تصل بأسماء المراكز والتصانيف، وتُعبّأ نسبها يدوياً في التقرير.</span></div>
     <div id="brPrev" style="font-size:13px;color:var(--muted)"></div></div>`,
     onOpen:sc=>{
-      const read=()=>{ const o={a:{},b:{}}; sc.querySelectorAll('[data-br]').forEach(i=>{ const [x,y]=i.dataset.br.split('.'); if(y) o[x][y]=i.value.trim(); else o[x]=i.value; }); o.top=Math.max(3,Math.min(50,+o.top||12)); o.off=[...sc.querySelectorAll('[data-broff]')].filter(i=>!i.checked).map(i=>i.dataset.broff); return o; };
-      const upd=()=>{ const o=read(); sc.querySelector('[data-brsec]').style.opacity=o.type==='weekly'?.45:1; sc.querySelector('[data-br="sector"]').disabled=o.type==='weekly'; sc.querySelector('[data-broffbox]').hidden=!(o.type==='weekly'||!o.sector);
+      const read=()=>{ const o={a:{},b:{},quarters:[0,1,2,3].map(()=>({}))}; sc.querySelectorAll('[data-br]').forEach(i=>{ const [x,y]=i.dataset.br.split('.'); if(y) o[x][y]=i.value.trim(); else o[x]=i.value; });
+        sc.querySelectorAll('[data-brq]').forEach(i=>{ const [x,y]=i.dataset.brq.split('.'); o.quarters[+x][y]= i.type==='checkbox'?i.checked:i.value.trim(); }); o.top=Math.max(3,Math.min(50,+o.top||12)); o.off=[...sc.querySelectorAll('[data-broff]')].filter(i=>!i.checked).map(i=>i.dataset.broff); return o; };
+      const upd=()=>{ const o=read(); const QQ=o.type==='quarterly', all=o.type==='weekly'||QQ;
+        sc.querySelector('[data-brab]').hidden=QQ; sc.querySelector('[data-brqbox]').hidden=!QQ; sc.querySelector('[data-brqbox]').style.display=QQ?'grid':'none';
+        if(QQ){ o.quarters.forEach((q,i)=>{ const el=sc.querySelector(`[data-brqn="${i}"]`); if(el) el.textContent = q.on&&q.from&&q.to ? `(${fmt(brPeriodRecs('',q.from,q.to,o.off).length)} بلاغ)` : ''; });
+          sc.querySelector('[data-brsec]').style.opacity=.45; sc.querySelector('[data-br="sector"]').disabled=true; sc.querySelector('[data-broffbox]').hidden=false;
+          sc.querySelector('#brPrev').textContent='يُرسل كل القطاعات المحددة، وتحت كل قطاع كل مراكزه، وأعلى التصانيف الفرعية حسب «عدد التصانيف».'; return; }
+        sc.querySelector('[data-brsec]').style.opacity=all?.45:1; sc.querySelector('[data-br="sector"]').disabled=all; sc.querySelector('[data-broffbox]').hidden=!(all||!o.sector);
         const ok=o.a.from&&o.a.to&&o.b.from&&o.b.to;
         const sec=o.type==='weekly'?'':o.sector;
         sc.querySelector('#brPrev').textContent = ok ? `البلاغات المطابقة: ${o.a.label||'السابقة'} ${fmt(brPeriodRecs(sec,o.a.from,o.a.to,o.off).length)} · ${o.b.label||'الحالية'} ${fmt(brPeriodRecs(sec,o.b.from,o.b.to,o.off).length)}` : 'حدّد تاريخ البداية والنهاية للفترتين'; };
@@ -2723,11 +2769,22 @@ function bridgeDialog(){
     },
     actions:[{label:'حفظ ملف التقرير',cls:'primary',run:async sc=>{
       const o=sc._brRead();
+      if(o.type==='quarterly'){
+        const bad=o.quarters.find(q=>q.on&&(!q.from||!q.to||q.from>q.to)); if(bad){ toast(`حدّد تاريخي «${bad.label||'الربع'}» بشكل صحيح`); return false; }
+        if(sectors.length && o.off.length>=sectors.length){ toast('اختر قطاعاً واحداً على الأقل'); return false; }
+        try{ const prev=JSON.parse(localStorage.getItem(BRIDGE_KEY)||'{}'); localStorage.setItem(BRIDGE_KEY,JSON.stringify({...prev,type:o.type,top:o.top,off:o.off,quarters:o.quarters})); }catch(e){}
+        const shown=o.quarters.filter(q=>q.show).map(q=>q.label);
+        o.name=`التقرير الربعي ${shown.length?shown[shown.length-1]:''}`.trim();
+        const out=brQuarterly(o);
+        if(!out.counts.some(Boolean) && !o.quarters.some(q=>!q.on)){ toast('لا توجد بلاغات في الأرباع المحددة'); return false; }
+        const fn=`تقرير-937-ربعي-${stamp()}.json`;
+        await saveFile(fn,new Blob([JSON.stringify(out)],{type:'application/json'}));
+        return; }
       if(!(o.a.from&&o.a.to&&o.b.from&&o.b.to)){ toast('حدّد تواريخ الفترتين'); return false; }
       if(o.a.from>o.a.to||o.b.from>o.b.to){ toast('تاريخ البداية بعد تاريخ النهاية'); return false; }
       if(o.type==='weekly') o.sector=''; if(o.sector) o.off=[];
       if(!o.sector && sectors.length && o.off.length>=sectors.length){ toast('اختر قطاعاً واحداً على الأقل'); return false; }
-      try{ localStorage.setItem(BRIDGE_KEY,JSON.stringify({type:o.type,sector:o.sector,top:o.top,off:o.off,a:o.a,b:o.b})); }catch(e){}
+      try{ const prev=JSON.parse(localStorage.getItem(BRIDGE_KEY)||'{}'); localStorage.setItem(BRIDGE_KEY,JSON.stringify({...prev,type:o.type,sector:o.sector,top:o.top,off:o.off,a:o.a,b:o.b})); }catch(e){}
       o.name = o.type==='weekly' ? `الأسبوعي ${o.b.from.slice(5).replace('-','/')}` : (brShort(o.sector)||'كل القطاعات');
       const out=brBuild(o);
       if(!out.counts[0]&&!out.counts[1]){ toast('لا توجد بلاغات في الفترتين المحددتين'); return false; }
