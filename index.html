@@ -713,7 +713,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '166';
+const APP_VER = '168';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -1866,12 +1866,12 @@ function durPeriods(){ const ds=filtered.map(r=>r.date).filter(Boolean).sort(); 
   return {C,P,lbl,hasPrev:base.some(r=>r.date&&r.date.slice(0,10)<a)}; }
 function d48Tile(){ const L=durLabels(); let o=0,c=0; filtered.forEach(r=>{ const d=durI(r); if(d.st!=='none'&&d.lvl==='r'){ if(d.st==='open') o++; else c++; } });
   return `<div role="button" tabindex="0" class="kpi" data-dgo="d48" style="cursor:pointer;${o?'border-color:color-mix(in srgb,#E5484D 55%,var(--line))':''}"><span class="lbl">${esc(L.r)}</span><span class="val" style="${o?'color:#E5484D':''}">${fmt(o)}</span><span class="sub">مفتوح تجاوز ${+DUR.t2||48} ساعة</span>${c?`<span class="sub">+ ${fmt(c)} محلول تجاوزها</span>`:''}</div>`; }
-function durTile(){ const L=durLabels(), P=durPeriods(); const cnt=a=>{ const o={g:0,o:0,r:0,n:0,ro:0}; a.forEach(r=>{ const d=durI(r); if(d.st!=='none'){ o[d.lvl]++; o.n++; if(d.ro) o.ro++; } }); return o; };
+function durTile(){ const L=durLabels(), P=durPeriods(); const cnt=a=>{ const o={g:0,o:0,r:0,n:0,ro:0,ne:0}; a.forEach(r=>{ const d=durI(r); if(d.st!=='none'){ o[d.lvl]++; o.n++; if(d.ro) o.ro++; } else if(d.noEnd) o.ne++; }); return o; };
   const F=cnt(filtered), Cc=P?cnt(P.C):null, Pc=P?cnt(P.P):null;
   const arr=k=>{ if(!P||!P.hasPrev||!Pc[k]) return ''; const c=Cc[k], p=Pc[k]; if(c===p) return `<span class="kd" title="لم يتغيّر عن الفترة السابقة">=</span>`; const up=c>p, pc=Math.abs((c-p)/p*100).toFixed(0); const cls=k==='g'?(up?'g':'b'):(up?'b':'g');
     return `<span class="kd ${cls}" title="${esc(P.lbl)}: ${fmt(c)} · الفترة السابقة: ${fmt(p)}">${up?'▲':'▼'} ${pc}%</span>`; };
   const row=k=>`<div class="kdur" data-durf="${k}" title="اضغط لعرض البلاغات"><span><span class="dur dur-${k}">${esc(L[k])}</span> <b>${fmt(F[k])}</b> <span class="kp">${pct(F[k],F.n)}</span></span>${arr(k)}</div>`;
-  return `<div class="kpi"><span class="lbl">المدة الزمنية للإغلاق</span>${F.n?row('g')+row('o')+row('r'):'<span class="sub">لا توجد بلاغات معروفة المدة</span>'}${F.n&&P&&P.hasPrev?`<span class="kp" style="color:var(--muted);display:block;margin-top:4px" title="${esc(P.lbl)}: ${fmt(Cc.g)} · ${fmt(Cc.o)} · ${fmt(Cc.r)} — الفترة السابقة: ${fmt(Pc.g)} · ${fmt(Pc.o)} · ${fmt(Pc.r)} (24 · 48 · أكثر من 48)">السابقة: ${fmt(Pc.g)} · ${fmt(Pc.o)} · ${fmt(Pc.r)}</span>`:''}${F.ro?`<span class="kp" data-dgo="reopendlg" style="color:#E5484D;display:block;margin-top:2px;cursor:pointer">↺ منها ${fmt(F.ro)} ${F.ro===1?'بلاغ معاد فتحه تُحسب مدته':'بلاغاً معاد فتحه تُحسب مدتها'} من إعادة الفتح</span>`:''}</div>`; }
+  return `<div class="kpi"><span class="lbl">المدة الزمنية للإغلاق</span>${F.n?row('g')+row('o')+row('r'):'<span class="sub">لا توجد بلاغات معروفة المدة</span>'}${F.ne?`<span class="kp" style="color:var(--warn);display:block;margin-top:4px" title="حالتها ليست مفتوحة ولا يوجد لها تاريخ حل، فلا تدخل في المدة">غير مفتوحة وبلا تاريخ حل: ${fmt(F.ne)}</span>`:''}${F.n&&P&&P.hasPrev?`<span class="kp" style="color:var(--muted);display:block;margin-top:4px" title="${esc(P.lbl)}: ${fmt(Cc.g)} · ${fmt(Cc.o)} · ${fmt(Cc.r)} — الفترة السابقة: ${fmt(Pc.g)} · ${fmt(Pc.o)} · ${fmt(Pc.r)} (24 · 48 · أكثر من 48)">السابقة: ${fmt(Pc.g)} · ${fmt(Pc.o)} · ${fmt(Pc.r)}</span>`:''}${F.ro?`<span class="kp" data-dgo="reopendlg" style="color:#E5484D;display:block;margin-top:2px;cursor:pointer">↺ منها ${fmt(F.ro)} ${F.ro===1?'بلاغ معاد فتحه تُحسب مدته':'بلاغاً معاد فتحه تُحسب مدتها'} من إعادة الفتح</span>`:''}</div>`; }
 function showDurList(lv,title){ const list=filtered.filter(r=>{ const d=durInfo(r); return d.st!=='none'&&d.lvl===lv; }); if(!list.length){ toast('لا توجد بلاغات'); return; }
   filt={...filt,nos:list.map(r=>keyNo(r.no)).join(' ')}; sort={k:'__dur',dir:-1}; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); toast(`${title}: ${fmt(list.length)} بلاغ، مرتبة من الأطول مدة`); }
 document.addEventListener('click',e=>{ const r=e.target.closest('[data-durf]'); if(r){ const L=durLabels(); showDurList(r.dataset.durf,L[r.dataset.durf]); } });
@@ -2679,10 +2679,19 @@ function brBuild(o){
    والمفتوح الذي لم يتجاوزها لا يدخل في المدة بعد، والمعاد فتحه حسب إعداد القاعدة. الرضا لا يوجد في القاعدة فيُعبّأ في التقرير. */
 // v166: المفتوح = «حالة التذكرة» تساوي حالة المعالجة في إعدادات المدة (مثل «تحت المعالجة - ضابط الاتصال»)، وعمره من تاريخ الإنشاء
 // والمغلق = غير ذلك وله تاريخ حل؛ وما لا حالة مفتوحة له ولا تاريخ حل لا يدخل في المدة
-const brOpenSt=r=>{ const k=durStKey(), want=nrm(DUR.stVal||''); return !!(k&&want&&nrm(r[k]||'')===want); };
+// المطابقة تتجاهل المسافات والشرطات والهمزات، فـ«تحت المعالجة - ضابط الاتصال» = «تحت المعالجة ضابط الإتصال»
+const brStK=v=>nrm(v).replace(/[^\p{L}\p{N}]+/gu,'');
+const brOpenSt=r=>durOpenBy(r)===true;
+// فحص: أين البلاغات التي حالتها مفتوحة؟
+function brOpenDiag(o){ const k=colByLabel(DUR.openCol1)||durStKey(); if(!k) return `<div style="margin-top:4px;color:var(--warn)">عمود «${esc(DUR.openCol1)}» غير موجود في القاعدة بهذا الاسم.</div>`;
+  const T2=Math.max((+DUR.t1||24)+1,+DUR.t2||48), Q=(o.quarters||[]).filter(q=>q.on&&q.from&&q.to), inQ=r=>{ const d=String(r.date||'').slice(0,10); return Q.some(q=>d>=q.from&&d<=q.to); };
+  const all=RECS.filter(brOpenSt), q=all.filter(inQ), inc=new Set(); Q.forEach(x=>brPeriodRecs('',x.from,x.to,o.off).forEach(r=>{ if(brOpenSt(r)) inc.add(r); }));
+  const young=[...inc].filter(r=>{ const d=anyDate(r.date); return d&&(Date.now()-d.getTime())/3600000<=T2; }).length;
+  const vals=new Map(); Q.forEach(x=>brPeriodRecs('',x.from,x.to,o.off).forEach(r=>{ const v=String(r[k]??'').trim()||'(فارغ)'; vals.set(v,(vals.get(v)||0)+1); }));
+  return `<div style="margin-top:6px">المفتوحة حسب الإعداد في كل القاعدة: <b>${fmt(all.length)}</b> · تاريخ إنشائها داخل الأرباع المحددة: <b>${fmt(q.length)}</b> · بعد القطاعات غير المحددة والمستبعدة: <b>${fmt(inc.size)}</b>${young?` · عمرها 48 ساعة أو أقل: ${fmt(young)}`:''}</div>
+    <div style="margin-top:4px;color:var(--muted)">قيم «${esc(DUR.openCol1)}» في الأرباع المحددة: ${[...vals].sort((a,b)=>b[1]-a[1]).slice(0,8).map(([v,n])=>`<span style="white-space:nowrap">${esc(v)} <b>${fmt(n)}</b></span>`).join(' · ')}</div>`; }
 function brCls(r,T1,T2,SK){
-  if(brOpenSt(r)){ const st=anyDate(r.date); if(!st) return null; const h=(Date.now()-st.getTime())/3600000; return h>T2?'op':null; }
-  const d=durInfo(r); if(!d||d.st!=='closed') return null;
+  const d=durInfo(r); if(!d) return null; if(d.st==='open') return d.h>T2?'op':null; if(d.st!=='closed') return null;
   if(d.h<=T1) return 'w'; if(d.h<=T2) return 'o'; return (SK&&slaState(r,SK)==='in')?'rs':'r'; }
 // البلاغات التي تُحسب «مفتوحة أكثر من 48 ساعة» في الأرباع المحددة: لا يوجد لها تاريخ حل وعمرها تجاوز T2
 function brOpenLate(o){ const T1=+DUR.t1||24, T2=Math.max(T1+1,+DUR.t2||48), seen=new Set(), out=[];
@@ -2810,8 +2819,8 @@ function bridgeDialog(){
           sc.querySelector('#brPrev').textContent='يُرسل كل القطاعات المحددة، وتحت كل قطاع كل مراكزه وأعلى 10 تصانيف فرعية له، وأعلى التصانيف الفرعية للربع كله حسب «عدد التصانيف».';
           const L=brOpenLate(o), T2=Math.max((+DUR.t1||24)+1,+DUR.t2||48), ek=[DUR.endCol,DUR.endCol2].filter(Boolean).map(x=>`«${esc(x)}»`).join(' و');
           sc.querySelector('[data-brqchk]').innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>مفتوحة أكثر من ${T2} ساعة في الأرباع المحددة: ${fmt(L.length)}</b>${L.length?`<button type="button" class="btn sm" data-brqshow>عرض هذه البلاغات وأعمدتها</button>`:''}</div>
-            <div style="color:var(--muted);margin-top:4px">تُحسب مفتوحة لأن «${esc(DUR.stCol)}» فيها «${esc(DUR.stVal)}»، وعمرها من تاريخ الإنشاء تجاوز ${T2} ساعة، حتى لو كان فيها تاريخ حل. وهذا ما في عمودي تاريخ الحل لها:</div>
-            ${L.length?brEndDiag(L):''}
+            <div style="color:var(--muted);margin-top:4px">تُحسب مفتوحة حسب «متى يكون البلاغ مفتوحاً» في إعدادات المدة (${DUR.openMode==='and'?'الشرطان معاً':'أحد الشرطين يكفي'})، وعمرها من تاريخ الإنشاء تجاوز ${T2} ساعة، حتى لو كان فيها تاريخ حل.</div>
+            ${L.length?brEndDiag(L):''}${brOpenDiag(o)}
             ${L.length?brStatusBreak(L).map(([l,a])=>`<div style="margin-top:4px">حالتها في عمود «${esc(l)}»: ${a.map(([v,n])=>`<span style="white-space:nowrap">${esc(v)} <b>${fmt(n)}</b></span>`).join(' · ')}</div>`).join(''):''}`;
           sc._brLate=L; return; }
         sc.querySelector('[data-brsec]').style.opacity=all?.45:1; sc.querySelector('[data-br="sector"]').disabled=all; sc.querySelector('[data-broffbox]').hidden=!(all||!o.sector);
@@ -5241,7 +5250,8 @@ function genAction(b){
 
 /* ---------- المدة الزمنية للإغلاق ---------- */
 const DUR_KEY='r937-dur-v1';
-const DEF_DUR={on:1,start:'created',stCol:'حالة التذكرة',stVal:'تحت المعالجة - ضابط الاتصال',endCol:'تاريخ الحل',endCol2:'تاريخ الحل من المنسق',active:'hours',openShow:'hours',roMode:'b',t1:24,t2:48};
+const DEF_DUR={on:1,start:'created',stCol:'حالة التذكرة',stVal:'تحت المعالجة - ضابط الاتصال',endCol:'تاريخ الحل',endCol2:'تاريخ الحل من المنسق',active:'hours',openShow:'hours',roMode:'b',t1:24,t2:48,
+  openOn:1,openMode:'or',openCol1:'حالة التذكرة',openSt:['تحت المعالجة ( ضابط الاتصال ) - شكوى أفراد'],openCol2:'القرار الأخير من المنطقة',openDec:['ارسال إلى ضابط الاتصال','لم يتم الحل - اعادة الى ضابط الاتصال','ارسال الى ضابط الاتصال']};
 let DUR=(()=>{ try{ return {...DEF_DUR,...JSON.parse(localStorage.getItem(DUR_KEY)||'{}')}; }catch(e){ return {...DEF_DUR}; } })();
 const saveDur=()=>{ try{ localStorage.setItem(DUR_KEY,JSON.stringify(DUR)); }catch(e){} };
 const durEndKey=()=>colByLabel(DUR.endCol), durEndKey2=()=>DUR.endCol2?colByLabel(DUR.endCol2):null, durStKey=()=>colByLabel(DUR.stCol);
@@ -5258,7 +5268,7 @@ function durStart(r){
 // المدة = من البداية حتى «تاريخ الحل» (أو «تاريخ الحل من المنسق» إن كان الأول فارغاً)، وللمفتوح حتى الآن
 function durLvl(h){ return h<=(+DUR.t1||24)?'g':h<=(+DUR.t2||48)?'o':'r'; }
 let DIC=new WeakMap(), DIC_SIG='';
-function durInfo(r){ const mn=Math.floor(Date.now()/60000), sig=LOG_VER+'|'+MV_VER+'|'+REOPEN.length+'|'+RECS.length+'|'+DUR.start+'|'+DUR.stVal+'|'+DUR.stCol+'|'+DUR.endCol+'|'+DUR.endCol2+'|'+DUR.t1+'|'+DUR.t2+'|'+DUR.roMode;
+function durInfo(r){ const mn=Math.floor(Date.now()/60000), sig=LOG_VER+'|'+MV_VER+'|'+REOPEN.length+'|'+RECS.length+'|'+DUR.start+'|'+DUR.stVal+'|'+DUR.stCol+'|'+DUR.endCol+'|'+DUR.endCol2+'|'+DUR.t1+'|'+DUR.t2+'|'+DUR.roMode+'|'+durOpenRule().sig;
   if(sig!==DIC_SIG){ DIC=new WeakMap(); DIC_SIG=sig; } let x=DIC.get(r); if(x&&x.st==='open'&&x._m!==mn) x=null; // المغلق لا يتغير مع الوقت؛ المفتوح فقط يُحدَّث كل دقيقة
   if(!x){ x=durInfo0(r); if(x.st==='open') x={...x,_m:mn}; DIC.set(r,x); } return x; }
 // البلاغ المعاد فتحه: وقت إعادة الفتح الحقيقي غير موجود في الملف (يُعرف بوقت الاستيراد/الفحص)
@@ -5269,9 +5279,23 @@ function durInfo0(r){ const ci=roCycles(r); if(ci){ const L=ci.cyc[ci.cyc.length
     if(L&&L.open) return {st:'none',roP:1,...RA};
     if(L&&L.h!=null) return {st:'closed',h:L.h,lvl:durLvl(L.h),...RA}; }
   return durBase(r); }
+/* v168: متى يكون البلاغ مفتوحاً — بقيم «حالة التذكرة» و«القرار الأخير من المنطقة» المحددة في الإعدادات (أحدهما يكفي، أو الاثنان معاً)
+   المطابقة تتجاهل المسافات والأقواس والشرطات والهمزات. يرجع null إذا لم يكن في البلاغ أي من العمودين (ملف قديم) */
+const durVK=v=>nrm(v).replace(/[^\p{L}\p{N}]+/gu,'');
+let DOR_C=null;
+function durOpenRule(){ const sig=JSON.stringify([DUR.openOn,DUR.openMode,DUR.openCol1,DUR.openCol2,DUR.openSt,DUR.openDec,SCHEMA.length]);
+  if(DOR_C&&DOR_C.sig===sig) return DOR_C;
+  DOR_C={sig,on:!!DUR.openOn,and:DUR.openMode==='and',k1:colByLabel(DUR.openCol1),k2:colByLabel(DUR.openCol2),S1:new Set((DUR.openSt||[]).map(durVK).filter(Boolean)),S2:new Set((DUR.openDec||[]).map(durVK).filter(Boolean))}; return DOR_C; }
+function durOpenBy(r){ const R=durOpenRule(); if(!R.on) return null;
+  const h1=!!(R.k1&&R.S1.size&&r[R.k1]!==undefined), h2=!!(R.k2&&R.S2.size&&r[R.k2]!==undefined); if(!h1&&!h2) return null;
+  const a=h1&&R.S1.has(durVK(r[R.k1]??'')), b=h2&&R.S2.has(durVK(r[R.k2]??''));
+  return R.and ? ((h1?a:true)&&(h2?b:true)) : (a||b); }
 function durBase(r){
+  const ob=durOpenBy(r);
+  if(ob===true){ const st=durStart(r)||anyDate(r.date); if(!st) return {st:'none'}; const h=Math.max(0,(Date.now()-st.getTime())/3600000); return {st:'open',h,lvl:durLvl(h)}; }
   const ek=durEndKey(), ek2=durEndKey2(); const end=(ek?anyDate(r[ek]):null)||(ek2?anyDate(r[ek2]):null);
   if(end){ const st=durStart(r)||anyDate(r.date); if(!st) return {st:'none'}; const h=Math.max(0,(end.getTime()-st.getTime())/3600000); return {st:'closed',h,lvl:durLvl(h)}; }
+  if(ob===false) return {st:'none',noEnd:1}; // ليس مفتوحاً حسب حالته ولا تاريخ حل له: مدته غير معروفة
   // بلاغ لم يأتِ من ملف فيه «تاريخ الحل» ولا «حالة التذكرة» (من ملف قديم): لا نعرف حالته
   const sk=durStKey(); if((!ek || r[ek]===undefined) && (!ek2 || r[ek2]===undefined) && !(sk && String(r[sk]??'').trim())) return {st:'none'};
   const st=durStart(r); if(!st) return {st:'none'};
@@ -5297,9 +5321,18 @@ function panelDur(){
       <label class="opt"><input type="radio" name="duStart" value="status" ${DUR.start==='status'?'checked':''}><span>عندما تكون حالة التذكرة<small>يُعرف وقتها من أول استيراد ظهرت فيه التذكرة بهذه الحالة؛ وإن كانت بها من البداية فمن تاريخ الإنشاء.</small></span></label>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-inline-start:28px"><span class="hint">عمود الحالة</span><select class="inp" id="duStCol" style="width:auto">${cols.map(l=>`<option ${l===DUR.stCol?'selected':''}>${esc(l)}</option>`).join('')}</select><span class="hint">القيمة</span>${vals.length?`<select class="inp" id="duStVal" style="width:auto">${[...new Set([DUR.stVal,...vals])].map(v=>`<option ${v===DUR.stVal?'selected':''}>${esc(v)}</option>`).join('')}</select>`:`<input class="inp" id="duStVal" value="${esc(DUR.stVal)}" style="width:auto">`}</div>
     </div></div>
+    <div style="margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:10px 12px"><b>متى يكون البلاغ مفتوحاً</b>
+      <label class="opt" style="margin-top:6px"><input type="checkbox" id="duOpOn" ${DUR.openOn?'checked':''}><span>بقيم الأعمدة التالية<small>البلاغ المفتوح تُحسب مدته من الإنشاء حتى الآن ولو كان فيه تاريخ حل. وإن ألغيته يُعدّ مفتوحاً كل بلاغ ليس له تاريخ حل.</small></span></label>
+      ${DUR.openOn?`<div class="seg" style="margin:6px 0"><label><input type="radio" name="duOpMode" value="or" ${DUR.openMode!=='and'?'checked':''}><span>أحد الشرطين يكفي</span></label><label><input type="radio" name="duOpMode" value="and" ${DUR.openMode==='and'?'checked':''}><span>الشرطان معاً</span></label></div>
+      ${[['1','openCol1','openSt'],['2','openCol2','openDec']].map(([n,ck,vk])=>{ const k=colByLabel(DUR[ck]); const V=k?countBy(RECS,k).filter(x=>x[0]):[]; const SEL=new Set((DUR[vk]||[]).map(durVK));
+        const extra=(DUR[vk]||[]).filter(v=>!V.some(x=>durVK(x[0])===durVK(v)));
+        return `<div style="margin-top:8px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="hint">العمود ${n}</span><select class="inp" id="duOpCol${n}" style="width:auto">${cols.map(l=>`<option ${l===DUR[ck]?'selected':''}>${esc(l)}</option>`).join('')}</select><span class="hint">${SEL.size} قيمة محددة</span></div>
+          <div style="max-height:170px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px 8px;margin-top:4px">${V.length?V.map(([v,c])=>`<label class="opt" style="padding:3px 0"><input type="checkbox" data-duov="${vk}" value="${esc(v)}" ${SEL.has(durVK(v))?'checked':''}><span>${esc(v)} <span class="hint">(${fmt(c)})</span></span></label>`).join(''):`<span class="hint">${k?'لا توجد قيم':'هذا العمود غير موجود في القاعدة'}</span>`}
+          ${extra.map(v=>`<label class="opt" style="padding:3px 0"><input type="checkbox" data-duov="${vk}" value="${esc(v)}" checked><span>${esc(v)} <span class="hint">(غير موجودة في البيانات الحالية)</span></span></label>`).join('')}</div></div>`; }).join('')}`:''}
+    </div>
     <div style="margin-top:10px"><b>وينتهي عند</b> <select class="inp" id="duEnd" style="width:auto">${cols.map(l=>`<option ${l===DUR.endCol?'selected':''}>${esc(l)}</option>`).join('')}</select>
       <span class="hint">وإن كان فارغاً فعند</span> <select class="inp" id="duEnd2" style="width:auto"><option value="" ${!DUR.endCol2?'selected':''}>— لا شيء —</option>${cols.map(l=>`<option ${l===DUR.endCol2?'selected':''}>${esc(l)}</option>`).join('')}</select>
-      <p class="hint" style="margin:4px 0 0">${ek?'المحلول: تُحسب المدة الفعلية حتى تاريخ الحل. المفتوح (العمودان فارغان): تُحسب حتى الآن وتتغير تلقائياً.':'<span style="color:var(--bad)">هذا العمود غير موجود في القاعدة بعد — استورد ملف Care الذي يحتويه وأضِفه عند ظهور نافذة الأعمدة الجديدة.</span>'}</p></div>
+      <p class="hint" style="margin:4px 0 0">${ek?'المحلول: تُحسب المدة الفعلية حتى تاريخ الحل. المفتوح (حسب «متى يكون البلاغ مفتوحاً»، أو العمودان فارغان إن لم يُحدد): تُحسب حتى الآن وتتغير تلقائياً.':'<span style="color:var(--bad)">هذا العمود غير موجود في القاعدة بعد — استورد ملف Care الذي يحتويه وأضِفه عند ظهور نافذة الأعمدة الجديدة.</span>'}</p></div>
     <div style="margin-top:10px"><b>التصنيف والألوان (بالساعات)</b>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px"><span class="hint">حتى</span><input class="inp" type="number" min="1" id="duT1" value="${+DUR.t1||24}" style="width:80px"><span class="hint">ساعة أو أقل =</span><span class="dur dur-g">${durLabels().g}</span></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px"><span class="hint">أكثر من ذلك حتى</span><input class="inp" type="number" min="2" id="duT2" value="${+DUR.t2||48}" style="width:80px"><span class="hint">ساعة =</span><span class="dur dur-o">${durLabels().o}</span></div>
@@ -5314,6 +5347,10 @@ function panelDur(){
   </div>`;
 }
 function durChange(t){
+  if(t.id==='duOpOn'){ DUR.openOn=t.checked?1:0; saveDur(); refresh(true); return 'redraw'; }
+  if(t.name==='duOpMode'){ DUR.openMode=t.value; saveDur(); refresh(true); return 'redraw'; }
+  if(t.id==='duOpCol1'||t.id==='duOpCol2'){ DUR[t.id==='duOpCol1'?'openCol1':'openCol2']=t.value; saveDur(); refresh(true); return 'redraw'; }
+  if(t.dataset&&t.dataset.duov){ const k=t.dataset.duov, A=(DUR[k]||[]).filter(v=>durVK(v)!==durVK(t.value)); if(t.checked) A.push(t.value); DUR[k]=A; saveDur(); refresh(true); return 'redraw'; }
   if(t.id==='duOn') DUR.on=t.checked?1:0; else if(t.name==='duStart') DUR.start=t.value; else if(t.id==='duStCol'){ DUR.stCol=t.value; saveDur(); refresh(true); return 'redraw'; }
   else if(t.id==='duStVal') DUR.stVal=t.value; else if(t.id==='duEnd'){ DUR.endCol=t.value; saveDur(); refresh(true); return 'redraw'; } else if(t.id==='duEnd2'){ DUR.endCol2=t.value; saveDur(); refresh(true); return 'redraw'; }
   else if(t.id==='duT1'){ DUR.t1=Math.max(1,+t.value||24); saveDur(); refresh(true); return 'redraw'; } else if(t.id==='duT2'){ DUR.t2=Math.max((+DUR.t1||24)+1,+t.value||48); saveDur(); refresh(true); return 'redraw'; } else if(t.name==='duAct') DUR.active=t.value; else if(t.name==='duOpen'){ DUR.openShow=t.value; saveDur(); refresh(true); return 'redraw'; } else if(t.name==='duRo'){ DUR.roMode=t.value; saveDur(); refresh(true); toast(t.value==='a'?'المعاد فتحه يُحسب من تاريخ الإنشاء':'المعاد فتحه يُكتب «معاد فتحه» حتى يُغلق'); return 'redraw'; }
