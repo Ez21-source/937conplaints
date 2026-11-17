@@ -713,7 +713,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '160';
+const APP_VER = '161';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -2683,30 +2683,36 @@ function brQuarterly(o){
   const blank=()=>({count:0,over:0,within:0});
   const add=(e,c)=>{ e.count++; if(c==='o') e.over++; else if(c==='w') e.within++; };
   const out=o.quarters.map(q=>{
-    const base={label:q.label, date:q.on?`${q.from.replace(/-/g,'/')} – ${q.to.replace(/-/g,'/')}`:'', show:!!q.show, sum:{}, hos:[], cats:[]};
+    const base={label:q.label, y:q.y, n:q.n, date:q.on?`${q.from.replace(/-/g,'/')} – ${q.to.replace(/-/g,'/')}`:'', show:!!q.show, sum:{}, hos:[], cats:[]};
     if(!q.on) return base;
     const L=brPeriodRecs('',q.from,q.to,o.off), H=new Map(), C=new Map(), tot=blank();
     L.forEach(r=>{ const c=cls(r); add(tot,c);
       const hn=String(r.sector||'').trim()||'غير محدد'; let h=H.get(hn); if(!h){ h={...blank(),cen:new Map()}; H.set(hn,h); } add(h,c);
       const cn=String(r.center||'').trim(); if(cn){ let ce=h.cen.get(cn); if(!ce){ ce=blank(); h.cen.set(cn,ce); } add(ce,c); }
       const sn=String(r.sub||'').trim(); if(sn){ let ce=C.get(sn); if(!ce){ ce=blank(); C.set(sn,ce); } add(ce,c); } });
-    base.n=L.length; base.sum={count:tot.count, over:tot.over, within:tot.within};
+    base.recs=L.length; base.sum={count:tot.count, over:tot.over, within:tot.within};
     base.hos=[...H].sort((a,b)=>b[1].count-a[1].count).map(([name,h])=>({name:brShort(name)||name, count:h.count, over:h.over, within:h.within,
       centers:[...h.cen].sort((a,b)=>b[1].count-a[1].count).map(([n,e])=>({name:n,...e}))}));
     base.cats=[...C].sort((a,b)=>b[1].count-a[1].count).slice(0,o.top).map(([n,e])=>({name:n,...e}));
     return base; });
   if(!durAny) out.forEach(q=>{ const z=e=>{ e.over=null; e.within=null; }; if(q.sum.count!=null) z(q.sum); q.hos.forEach(h=>{ z(h); h.centers.forEach(z); }); q.cats.forEach(z); });
   return { kind:'r937-report-bridge', v:2, made:new Date().toISOString(), app:APP_VER, dur:durAny, t1:T1,
-    counts:out.map(q=>q.n||0), report:{ name:o.name, type:'quarterly', source:'db', qs:out } };
+    counts:out.map(q=>q.recs||0), report:{ name:o.name, type:'quarterly', source:'db', qs:out } };
 }
+const BRQN=['الربع الأول','الربع الثاني','الربع الثالث','الربع الرابع'];
+const brQKey=(y,n)=>`${y}-${n}`;
+function brQMake(y,n,extra){ const st=new Date(y,(n-1)*3,1), en=new Date(y,n*3,0); return {k:brQKey(y,n), y, n, label:`${BRQN[n-1]} ${y}`, from:iso(st), to:iso(en), on:true, show:true, ...(extra||{})}; }
+function brQOfDate(d){ return {y:d.getFullYear(), n:Math.floor(d.getMonth()/3)+1}; }
+function brQCounts(){ const m=new Map(), XS=excSet(); RECS.forEach(r=>{ if(XS.size&&XS.has(keyNo(r.no))) return; const d=String(r.date||'').slice(0,10); if(!d) return; const k=brQKey(+d.slice(0,4), Math.floor((+d.slice(5,7)-1)/3)+1); m.set(k,(m.get(k)||0)+1); }); return m; }
+// الافتراضي: آخر أربعة أرباع مكتملة، وأولها للمقارنة فقط
 function brQDefaults(){
-  const ds=RECS.map(r=>String(r.date||'').slice(0,10)).filter(Boolean).sort();
-  const last=ds.length?new Date(ds[ds.length-1]+'T00:00:00'):new Date();
-  const QN=['الربع الأول','الربع الثاني','الربع الثالث','الربع الرابع'];
-  let y=last.getFullYear(), q=Math.floor(last.getMonth()/3); const L=[];
-  for(let i=0;i<4;i++){ const s=new Date(y,q*3,1), e=new Date(y,q*3+3,0); L.unshift({label:`${QN[q]} ${y}`, from:iso(s), to:iso(e)}); q--; if(q<0){ q=3; y--; } }
-  return L.map((x,i)=>{ const n=brPeriodRecs('',x.from,x.to,[]).length; return {...x, on:n>0, show:i>0}; });
+  let {y,n}=brQOfDate(new Date()); n--; if(n<1){ n=4; y--; }
+  const C=brQCounts(), L=[];
+  for(let i=0;i<4;i++){ L.unshift(brQMake(y,n)); n--; if(n<1){ n=4; y--; } }
+  return L.map((q,i)=>({...q, on:(C.get(q.k)||0)>0, show:i>0}));
 }
+// أرباع محفوظة من إصدار سابق بلا مفتاح: يُستنتج من تاريخ البداية
+function brQNorm(L){ return (L||[]).map(q=>{ if(q.k) return q; const d=new Date((q.from||'')+'T00:00:00'); if(isNaN(d)) return null; const {y,n}=brQOfDate(d); return {...q,k:brQKey(y,n),y,n}; }).filter(Boolean); }
 function brDefaults(){
   let saved={}; try{ saved=JSON.parse(localStorage.getItem(BRIDGE_KEY)||'{}'); }catch(e){}
   const ds=RECS.map(r=>String(r.date||'').slice(0,10)).filter(Boolean).sort();
@@ -2744,21 +2750,39 @@ function bridgeDialog(){
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:2px 12px;max-height:190px;overflow:auto">${sectors.map(s=>`<label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" data-broff="${esc(s)}"${OFF.has(s)?'':' checked'}><span style="flex:1">${esc(s)}</span><span style="color:var(--muted);font-size:11.5px">${fmt(SC.get(s))}</span></label>`).join('')}</div></div>
     <div style="font-size:12.5px;color:var(--muted)">البلاغات المستبعدة (من «فحص تبعية التجمع ← المستبعدة») لا تدخل في الأرقام المرسلة.</div>
     <div data-brab style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px">${per('a',d.a,'الفترة السابقة')}${per('b',d.b,'الفترة الحالية')}</div>
-    <div data-brqbox hidden style="display:grid;gap:8px"><div style="font-size:13px;color:var(--muted)">أربعة أرباع بالترتيب. الربع غير المحدد «من القاعدة» يصل فارغاً لتُعبّأ أرقامه يدوياً في التقرير (مثل الربع الرابع 2025). والربع «للمقارنة فقط» لا يظهر في الإنفوجرافيك، ويُقارن به الربع الذي بعده.</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px">${(d.quarters||brQDefaults()).map((q,i)=>`<fieldset style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0;display:grid;gap:6px"><legend style="padding:0 6px;font-weight:600">الربع ${i+1}</legend>
-        <div class="field"><label>الاسم</label><input class="inp" data-brq="${i}.label" value="${esc(q.label)}"></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap"><div class="field" style="flex:1 1 120px"><label>من</label><input class="inp" type="date" data-brq="${i}.from" value="${esc(q.from)}"></div><div class="field" style="flex:1 1 120px"><label>إلى</label><input class="inp" type="date" data-brq="${i}.to" value="${esc(q.to)}"></div></div>
-        <label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" data-brq="${i}.on" ${q.on?'checked':''}> أرقامه من القاعدة <span data-brqn="${i}" style="color:var(--muted);font-size:12px"></span></label>
-        <label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" data-brq="${i}.show" ${q.show?'checked':''}> يظهر في الإنفوجرافيك</label></fieldset>`).join('')}</div>
-      <div style="font-size:12.5px;color:var(--muted)">مدة الإغلاق: «أكثر من ${+DUR.t1||24} ساعة» و«خلال ${+DUR.t1||24} ساعة» حسب إعدادات «المدة الزمنية للإغلاق». البلاغ المفتوح الذي تجاوز ${+DUR.t1||24} ساعة يُحسب «أكثر من ${+DUR.t1||24} ساعة»، والمعاد فتحه حسب إعداد القاعدة. متوسط الرضا لا يوجد في القاعدة فيُعبّأ في التقرير.</div></div>
+    <div data-brqbox hidden style="display:grid;gap:10px">
+      <div style="font-size:13px;color:var(--muted)">حدّد الأرباع التي تريدها في التقرير، ويمكنك إضافة أرباع 2025 أو أي سنة واستبعادها. تُرتَّب من الأقدم إلى الأحدث، وكل ربع يُقارن بالربع الذي قبله في القائمة.</div>
+      <div data-brqgrid style="display:grid;gap:6px"></div>
+      <div data-brqlist style="display:grid;gap:8px"></div>
+      <div style="font-size:12.5px;color:var(--muted)">«أرقامه من القاعدة»: إن ألغيته يصل الربع فارغاً لتُعبّأ أرقامه يدوياً. «يظهر في الإنفوجرافيك»: إن ألغيته يبقى أساساً للمقارنة فقط، ويفيد ذلك في أول ربع. مدة الإغلاق «أكثر من ${+DUR.t1||24} ساعة» و«خلال ${+DUR.t1||24} ساعة» حسب إعدادات «المدة الزمنية للإغلاق»، والمفتوح الذي تجاوزها يُحسب «أكثر من»، ومتوسط الرضا يُعبّأ في التقرير.</div></div>
     <div style="font-size:13px">${slaNote}<br><span style="color:var(--muted)">أقسام رضا المستفيد تصل بأسماء المراكز والتصانيف، وتُعبّأ نسبها يدوياً في التقرير.</span></div>
     <div id="brPrev" style="font-size:13px;color:var(--muted)"></div></div>`,
     onOpen:sc=>{
-      const read=()=>{ const o={a:{},b:{},quarters:[0,1,2,3].map(()=>({}))}; sc.querySelectorAll('[data-br]').forEach(i=>{ const [x,y]=i.dataset.br.split('.'); if(y) o[x][y]=i.value.trim(); else o[x]=i.value; });
-        sc.querySelectorAll('[data-brq]').forEach(i=>{ const [x,y]=i.dataset.brq.split('.'); o.quarters[+x][y]= i.type==='checkbox'?i.checked:i.value.trim(); }); o.top=Math.max(3,Math.min(50,+o.top||12)); o.off=[...sc.querySelectorAll('[data-broff]')].filter(i=>!i.checked).map(i=>i.dataset.broff); return o; };
+      const QC=brQCounts(), QS=new Map(); (d.quarters&&d.quarters.length&&d.quarters[0].k?brQNorm(d.quarters):brQDefaults()).forEach(q=>QS.set(q.k,q));
+      const now=brQOfDate(new Date()), nowK=now.y*10+now.n;
+      const yrs=new Set([2025,now.y]); QC.forEach((v,k)=>yrs.add(+k.split('-')[0])); QS.forEach(q=>yrs.add(q.y));
+      const YRS=[...yrs].filter(y=>y>2000&&y<=now.y+1).sort((a,b)=>a-b);
+      const sorted=()=>[...QS.values()].sort((a,b)=>(a.y*10+a.n)-(b.y*10+b.n));
+      const drawGrid=()=>{ sc.querySelector('[data-brqgrid]').innerHTML=YRS.map(y=>`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b style="width:46px">${y}</b>${[1,2,3,4].map(n=>{ const k=brQKey(y,n), c=QC.get(k)||0, fut=y*10+n>nowK, run=y*10+n===nowK;
+          return `<label class="chip" style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:13px;${fut?'opacity:.45':''}${QS.has(k)?';background:var(--accent-soft);border-color:var(--accent)':''}"><input type="checkbox" data-brqk="${k}" ${QS.has(k)?'checked':''} ${fut?'disabled':''}>ر${n}<span style="color:var(--muted);font-size:11.5px">${fut?'لم يبدأ':run?`جارٍ · ${fmt(c)}`:fmt(c)}</span></label>`; }).join('')}</div>`).join(''); };
+      const drawList=()=>{ const L=sorted(); sc.querySelector('[data-brqlist]').innerHTML = L.length ? L.map((q,i)=>`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;border:1px solid var(--line);border-radius:10px;padding:8px 10px">
+          <b style="width:22px;align-self:center">${i+1}</b>
+          <div class="field" style="flex:2 1 160px"><label>الاسم</label><input class="inp" data-brqf="${q.k}.label" value="${esc(q.label)}"></div>
+          <div class="field" style="flex:1 1 120px"><label>من</label><input class="inp" type="date" data-brqf="${q.k}.from" value="${esc(q.from)}"></div>
+          <div class="field" style="flex:1 1 120px"><label>إلى</label><input class="inp" type="date" data-brqf="${q.k}.to" value="${esc(q.to)}"></div>
+          <div style="display:grid;gap:4px;font-size:13px;flex:1 1 170px"><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-brqf="${q.k}.on" ${q.on?'checked':''}> أرقامه من القاعدة <span style="color:var(--muted);font-size:11.5px">(${fmt(QC.get(q.k)||0)})</span></label>
+            <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-brqf="${q.k}.show" ${q.show?'checked':''}> يظهر في الإنفوجرافيك${i===0?'':` <span style="color:var(--muted);font-size:11.5px">يُقارن بـ ${esc(L[i-1].label)}</span>`}</label></div>
+          <button type="button" class="btn sm ghost" data-brqx="${q.k}" title="استبعاد هذا الربع">استبعاد</button></div>`).join('') : '<div style="color:var(--warn);font-size:13px">لم تحدد أي ربع بعد.</div>'; };
+      sc.addEventListener('change',e=>{ const t=e.target;
+        if(t.dataset.brqk){ const [y,n]=t.dataset.brqk.split('-').map(Number); if(t.checked) QS.set(t.dataset.brqk, brQMake(y,n,{on:(QC.get(t.dataset.brqk)||0)>0})); else QS.delete(t.dataset.brqk); drawGrid(); drawList(); }
+        else if(t.dataset.brqf&&t.type==='checkbox'){ const [k,f]=t.dataset.brqf.split('.'); const q=QS.get(k); if(q) q[f]=t.checked; } });
+      sc.addEventListener('input',e=>{ const t=e.target; if(t.dataset.brqf&&t.type!=='checkbox'){ const [k,f]=t.dataset.brqf.split('.'); const q=QS.get(k); if(q) q[f]=t.value.trim(); } });
+      sc.addEventListener('click',e=>{ const b=e.target.closest('[data-brqx]'); if(!b) return; QS.delete(b.dataset.brqx); drawGrid(); drawList(); });
+      drawGrid(); drawList();
+      const read=()=>{ const o={a:{},b:{},quarters:sorted().map(q=>({...q}))}; sc.querySelectorAll('[data-br]').forEach(i=>{ const [x,y]=i.dataset.br.split('.'); if(y) o[x][y]=i.value.trim(); else o[x]=i.value; }); o.top=Math.max(3,Math.min(50,+o.top||12)); o.off=[...sc.querySelectorAll('[data-broff]')].filter(i=>!i.checked).map(i=>i.dataset.broff); return o; };
       const upd=()=>{ const o=read(); const QQ=o.type==='quarterly', all=o.type==='weekly'||QQ;
         sc.querySelector('[data-brab]').hidden=QQ; sc.querySelector('[data-brqbox]').hidden=!QQ; sc.querySelector('[data-brqbox]').style.display=QQ?'grid':'none';
-        if(QQ){ o.quarters.forEach((q,i)=>{ const el=sc.querySelector(`[data-brqn="${i}"]`); if(el) el.textContent = q.on&&q.from&&q.to ? `(${fmt(brPeriodRecs('',q.from,q.to,o.off).length)} بلاغ)` : ''; });
+        if(QQ){
           sc.querySelector('[data-brsec]').style.opacity=.45; sc.querySelector('[data-br="sector"]').disabled=true; sc.querySelector('[data-broffbox]').hidden=false;
           sc.querySelector('#brPrev').textContent='يُرسل كل القطاعات المحددة، وتحت كل قطاع كل مراكزه، وأعلى التصانيف الفرعية حسب «عدد التصانيف».'; return; }
         sc.querySelector('[data-brsec]').style.opacity=all?.45:1; sc.querySelector('[data-br="sector"]').disabled=all; sc.querySelector('[data-broffbox]').hidden=!(all||!o.sector);
@@ -2770,6 +2794,7 @@ function bridgeDialog(){
     actions:[{label:'حفظ ملف التقرير',cls:'primary',run:async sc=>{
       const o=sc._brRead();
       if(o.type==='quarterly'){
+        if(!o.quarters.length){ toast('حدّد ربعاً واحداً على الأقل'); return false; }
         const bad=o.quarters.find(q=>q.on&&(!q.from||!q.to||q.from>q.to)); if(bad){ toast(`حدّد تاريخي «${bad.label||'الربع'}» بشكل صحيح`); return false; }
         if(sectors.length && o.off.length>=sectors.length){ toast('اختر قطاعاً واحداً على الأقل'); return false; }
         try{ const prev=JSON.parse(localStorage.getItem(BRIDGE_KEY)||'{}'); localStorage.setItem(BRIDGE_KEY,JSON.stringify({...prev,type:o.type,top:o.top,off:o.off,quarters:o.quarters})); }catch(e){}
