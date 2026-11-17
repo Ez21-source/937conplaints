@@ -713,7 +713,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '163';
+const APP_VER = '166';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -2677,13 +2677,30 @@ function brBuild(o){
 /* التقرير الربعي: لكل ربع ولكل قطاع ومركز وتصنيف فرعي: عدد البلاغات، وعدد ما أُغلق خلال 24 ساعة وما تجاوزها.
    مدة الإغلاق من إعدادات «المدة الزمنية للإغلاق». المفتوح الذي تجاوز 24 ساعة يُحسب «أكثر من 24 ساعة»،
    والمفتوح الذي لم يتجاوزها لا يدخل في المدة بعد، والمعاد فتحه حسب إعداد القاعدة. الرضا لا يوجد في القاعدة فيُعبّأ في التقرير. */
+// v166: المفتوح = «حالة التذكرة» تساوي حالة المعالجة في إعدادات المدة (مثل «تحت المعالجة - ضابط الاتصال»)، وعمره من تاريخ الإنشاء
+// والمغلق = غير ذلك وله تاريخ حل؛ وما لا حالة مفتوحة له ولا تاريخ حل لا يدخل في المدة
+const brOpenSt=r=>{ const k=durStKey(), want=nrm(DUR.stVal||''); return !!(k&&want&&nrm(r[k]||'')===want); };
+function brCls(r,T1,T2,SK){
+  if(brOpenSt(r)){ const st=anyDate(r.date); if(!st) return null; const h=(Date.now()-st.getTime())/3600000; return h>T2?'op':null; }
+  const d=durInfo(r); if(!d||d.st!=='closed') return null;
+  if(d.h<=T1) return 'w'; if(d.h<=T2) return 'o'; return (SK&&slaState(r,SK)==='in')?'rs':'r'; }
+// البلاغات التي تُحسب «مفتوحة أكثر من 48 ساعة» في الأرباع المحددة: لا يوجد لها تاريخ حل وعمرها تجاوز T2
+function brOpenLate(o){ const T1=+DUR.t1||24, T2=Math.max(T1+1,+DUR.t2||48), seen=new Set(), out=[];
+  (o.quarters||[]).filter(q=>q.on&&q.from&&q.to).forEach(q=>brPeriodRecs('',q.from,q.to,o.off).forEach(r=>{ if(seen.has(r)) return; if(brCls(r,T1,T2,null)==='op'){ seen.add(r); out.push(r); } }));
+  return out; }
+// فحص: ماذا يوجد فعلاً في عمودي تاريخ الحل لهذه البلاغات
+function brEndDiag(L){ return [DUR.endCol,DUR.endCol2].filter(Boolean).map(l=>{ const k=colByLabel(l);
+    if(!k) return `<div style="margin-top:4px;color:var(--warn)">عمود «${esc(l)}» المحدد في الإعدادات غير موجود في القاعدة بهذا الاسم.</div>`;
+    const m=new Map(); let empty=0; L.forEach(r=>{ const v=r[k]; if(v==null||String(v).trim()===''){ empty++; return; } const t=typeof v==='object'?JSON.stringify(v):String(v); m.set(t,(m.get(t)||0)+1); });
+    const ex=[...m.keys()].slice(0,3);
+    return `<div style="margin-top:4px">«${esc(l)}»: فارغ في ${fmt(empty)}${ex.length?` · مكتوب في ${fmt(L.length-empty)}، مثل: ${ex.map(v=>`<code dir="ltr">${esc(v.slice(0,40))}</code>`).join(' ، ')}`:''}</div>`; }).join(''); }
+function brStatusBreak(L){ const cols=[STAT.target,DUR.stCol].filter((v,i,a)=>v&&a.indexOf(v)===i).map(l=>[l,colByLabel(l)]).filter(x=>x[1]);
+  return cols.map(([l,k])=>{ const m=new Map(); L.forEach(r=>{ const v=String(r[k]??'').trim()||'(فارغ)'; m.set(v,(m.get(v)||0)+1); }); return [l,[...m].sort((a,b)=>b[1]-a[1]).slice(0,6)]; }); }
 function brQuarterly(o){
   const T1=+DUR.t1||24, T2=Math.max(T1+1,+DUR.t2||48); let durAny=false; const SK=slaKey();
   // المغلق: خلال T1 / أكثر من T1 حتى T2 / أكثر من T2 — والمفتوح الذي تجاوز T2 يُعدّ وحده (لا يدخل الشريط)
   // s48: المغلق بعد أكثر من T2 وعمود مستوى الخدمة فيه «لا»
-  const cls=r=>{ const d=durInfo(r); if(!d||d.st==='none') return null; durAny=true;
-    if(d.st==='open') return d.h>T2?'op':null;
-    if(d.h<=T1) return 'w'; if(d.h<=T2) return 'o'; return (SK&&slaState(r,SK)==='in')?'rs':'r'; };
+  const cls=r=>{ const c=brCls(r,T1,T2,SK); if(c!=null) durAny=true; return c; };
   const blank=()=>({count:0,over:0,within:0,o48:0,op48:0,s48:0});
   const add=(e,c)=>{ e.count++; if(c==='o') e.over++; else if(c==='w') e.within++; else if(c==='r') e.o48++; else if(c==='rs'){ e.o48++; e.s48++; } else if(c==='op') e.op48++; };
   const out=o.quarters.map(q=>{
@@ -2759,6 +2776,7 @@ function bridgeDialog(){
       <div style="font-size:13px;color:var(--muted)">حدّد الأرباع التي تريدها في التقرير، ويمكنك إضافة أرباع 2025 أو أي سنة واستبعادها. تُرتَّب من الأقدم إلى الأحدث، وكل ربع يُقارن بالربع الذي قبله في القائمة.</div>
       <div data-brqgrid style="display:grid;gap:6px"></div>
       <div data-brqlist style="display:grid;gap:8px"></div>
+      <div data-brqchk style="border:1px solid color-mix(in srgb,#E5484D 45%,var(--line));border-radius:10px;padding:10px 12px;font-size:13px"></div>
       <div style="font-size:12.5px;color:var(--muted)">«أرقامه من القاعدة»: إن ألغيته يصل الربع فارغاً لتُعبّأ أرقامه يدوياً. «يظهر في الإنفوجرافيك»: إن ألغيته يبقى أساساً للمقارنة فقط، ويفيد ذلك في أول ربع. مدة إغلاق البلاغات المغلقة: «خلال ${+DUR.t1||24} ساعة» و«أكثر من ${+DUR.t1||24}» و«أكثر من ${+DUR.t2||48}» حسب إعدادات «المدة الزمنية للإغلاق». ويُرسل وحده عدد المفتوح الذي تجاوز ${+DUR.t2||48} ساعة، وعدد المغلق بعد ${+DUR.t2||48} ساعة وعمود «${esc(SLA.label)}» فيه «${esc(SLA.no)}». ومتوسط الرضا يُعبّأ في التقرير.</div></div>
     <div style="font-size:13px">${slaNote}<br><span style="color:var(--muted)">أقسام رضا المستفيد تصل بأسماء المراكز والتصانيف، وتُعبّأ نسبها يدوياً في التقرير.</span></div>
     <div id="brPrev" style="font-size:13px;color:var(--muted)"></div></div>`,
@@ -2789,11 +2807,22 @@ function bridgeDialog(){
         sc.querySelector('[data-brab]').hidden=QQ; sc.querySelector('[data-brqbox]').hidden=!QQ; sc.querySelector('[data-brqbox]').style.display=QQ?'grid':'none';
         if(QQ){
           sc.querySelector('[data-brsec]').style.opacity=.45; sc.querySelector('[data-br="sector"]').disabled=true; sc.querySelector('[data-broffbox]').hidden=false;
-          sc.querySelector('#brPrev').textContent='يُرسل كل القطاعات المحددة، وتحت كل قطاع كل مراكزه وأعلى 10 تصانيف فرعية له، وأعلى التصانيف الفرعية للربع كله حسب «عدد التصانيف».'; return; }
+          sc.querySelector('#brPrev').textContent='يُرسل كل القطاعات المحددة، وتحت كل قطاع كل مراكزه وأعلى 10 تصانيف فرعية له، وأعلى التصانيف الفرعية للربع كله حسب «عدد التصانيف».';
+          const L=brOpenLate(o), T2=Math.max((+DUR.t1||24)+1,+DUR.t2||48), ek=[DUR.endCol,DUR.endCol2].filter(Boolean).map(x=>`«${esc(x)}»`).join(' و');
+          sc.querySelector('[data-brqchk]').innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>مفتوحة أكثر من ${T2} ساعة في الأرباع المحددة: ${fmt(L.length)}</b>${L.length?`<button type="button" class="btn sm" data-brqshow>عرض هذه البلاغات وأعمدتها</button>`:''}</div>
+            <div style="color:var(--muted);margin-top:4px">تُحسب مفتوحة لأن «${esc(DUR.stCol)}» فيها «${esc(DUR.stVal)}»، وعمرها من تاريخ الإنشاء تجاوز ${T2} ساعة، حتى لو كان فيها تاريخ حل. وهذا ما في عمودي تاريخ الحل لها:</div>
+            ${L.length?brEndDiag(L):''}
+            ${L.length?brStatusBreak(L).map(([l,a])=>`<div style="margin-top:4px">حالتها في عمود «${esc(l)}»: ${a.map(([v,n])=>`<span style="white-space:nowrap">${esc(v)} <b>${fmt(n)}</b></span>`).join(' · ')}</div>`).join(''):''}`;
+          sc._brLate=L; return; }
         sc.querySelector('[data-brsec]').style.opacity=all?.45:1; sc.querySelector('[data-br="sector"]').disabled=all; sc.querySelector('[data-broffbox]').hidden=!(all||!o.sector);
         const ok=o.a.from&&o.a.to&&o.b.from&&o.b.to;
         const sec=o.type==='weekly'?'':o.sector;
         sc.querySelector('#brPrev').textContent = ok ? `البلاغات المطابقة: ${o.a.label||'السابقة'} ${fmt(brPeriodRecs(sec,o.a.from,o.a.to,o.off).length)} · ${o.b.label||'الحالية'} ${fmt(brPeriodRecs(sec,o.b.from,o.b.to,o.off).length)}` : 'حدّد تاريخ البداية والنهاية للفترتين'; };
+      sc.addEventListener('click',e=>{ if(!e.target.closest('[data-brqshow]')) return; const L=sc._brLate||[]; if(!L.length) return;
+        document.getElementById('layer').innerHTML='';
+        filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:'',kw:'',sla:'',unread:'',nos:L.map(r=>keyNo(r.no)).join(' ')};
+        sort={k:'date',dir:1}; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh();
+        toast(`${fmt(L.length)} بلاغ بلا تاريخ حل تجاوزت ${Math.max((+DUR.t1||24)+1,+DUR.t2||48)} ساعة · من الأقدم`); });
       sc.addEventListener('input',upd); sc.addEventListener('change',upd); sc.addEventListener('click',e=>{ const b=e.target.closest('[data-broffall]'); if(!b) return; sc.querySelectorAll('[data-broff]').forEach(i=>i.checked=b.dataset.broffall==='1'); upd(); }); sc._brRead=read; upd();
     },
     actions:[{label:'حفظ ملف التقرير',cls:'primary',run:async sc=>{
