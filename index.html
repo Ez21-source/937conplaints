@@ -713,7 +713,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '162';
+const APP_VER = '163';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -2678,10 +2678,14 @@ function brBuild(o){
    مدة الإغلاق من إعدادات «المدة الزمنية للإغلاق». المفتوح الذي تجاوز 24 ساعة يُحسب «أكثر من 24 ساعة»،
    والمفتوح الذي لم يتجاوزها لا يدخل في المدة بعد، والمعاد فتحه حسب إعداد القاعدة. الرضا لا يوجد في القاعدة فيُعبّأ في التقرير. */
 function brQuarterly(o){
-  const T1=+DUR.t1||24; let durAny=false;
-  const cls=r=>{ const d=durInfo(r); if(!d||d.st==='none') return null; if(d.st==='open' && d.h<=T1) return null; durAny=true; return d.h>T1?'o':'w'; };
-  const blank=()=>({count:0,over:0,within:0});
-  const add=(e,c)=>{ e.count++; if(c==='o') e.over++; else if(c==='w') e.within++; };
+  const T1=+DUR.t1||24, T2=Math.max(T1+1,+DUR.t2||48); let durAny=false; const SK=slaKey();
+  // المغلق: خلال T1 / أكثر من T1 حتى T2 / أكثر من T2 — والمفتوح الذي تجاوز T2 يُعدّ وحده (لا يدخل الشريط)
+  // s48: المغلق بعد أكثر من T2 وعمود مستوى الخدمة فيه «لا»
+  const cls=r=>{ const d=durInfo(r); if(!d||d.st==='none') return null; durAny=true;
+    if(d.st==='open') return d.h>T2?'op':null;
+    if(d.h<=T1) return 'w'; if(d.h<=T2) return 'o'; return (SK&&slaState(r,SK)==='in')?'rs':'r'; };
+  const blank=()=>({count:0,over:0,within:0,o48:0,op48:0,s48:0});
+  const add=(e,c)=>{ e.count++; if(c==='o') e.over++; else if(c==='w') e.within++; else if(c==='r') e.o48++; else if(c==='rs'){ e.o48++; e.s48++; } else if(c==='op') e.op48++; };
   const out=o.quarters.map(q=>{
     const base={label:q.label, y:q.y, n:q.n, date:q.on?`${q.from.replace(/-/g,'/')} – ${q.to.replace(/-/g,'/')}`:'', show:!!q.show, sum:{}, hos:[], cats:[]};
     if(!q.on) return base;
@@ -2690,14 +2694,14 @@ function brQuarterly(o){
       const hn=String(r.sector||'').trim()||'غير محدد'; let h=H.get(hn); if(!h){ h={...blank(),cen:new Map(),cat:new Map()}; H.set(hn,h); } add(h,c);
       const cn=String(r.center||'').trim(); if(cn){ let ce=h.cen.get(cn); if(!ce){ ce=blank(); h.cen.set(cn,ce); } add(ce,c); }
       const sn=String(r.sub||'').trim(); if(sn){ let ce=C.get(sn); if(!ce){ ce=blank(); C.set(sn,ce); } add(ce,c); let hc=h.cat.get(sn); if(!hc){ hc=blank(); h.cat.set(sn,hc); } add(hc,c); } });
-    base.recs=L.length; base.sum={count:tot.count, over:tot.over, within:tot.within};
-    base.hos=[...H].sort((a,b)=>b[1].count-a[1].count).map(([name,h])=>({name:brShort(name)||name, count:h.count, over:h.over, within:h.within,
+    base.recs=L.length; base.sum={count:tot.count, over:tot.over, within:tot.within, o48:tot.o48, op48:tot.op48, s48:tot.s48};
+    base.hos=[...H].sort((a,b)=>b[1].count-a[1].count).map(([name,h])=>({name:brShort(name)||name, count:h.count, over:h.over, within:h.within, o48:h.o48, op48:h.op48, s48:h.s48,
       centers:[...h.cen].sort((a,b)=>b[1].count-a[1].count).map(([n,e])=>({name:n,...e})),
       cats:[...h.cat].sort((a,b)=>b[1].count-a[1].count).slice(0,10).map(([n,e])=>({name:n,...e}))}));
     base.cats=[...C].sort((a,b)=>b[1].count-a[1].count).slice(0,o.top).map(([n,e])=>({name:n,...e}));
     return base; });
-  if(!durAny) out.forEach(q=>{ const z=e=>{ e.over=null; e.within=null; }; if(q.sum.count!=null) z(q.sum); q.hos.forEach(h=>{ z(h); h.centers.forEach(z); (h.cats||[]).forEach(z); }); q.cats.forEach(z); });
-  return { kind:'r937-report-bridge', v:2, made:new Date().toISOString(), app:APP_VER, dur:durAny, t1:T1,
+  if(!durAny) out.forEach(q=>{ const z=e=>{ e.over=null; e.within=null; e.o48=null; e.op48=null; e.s48=null; }; if(q.sum.count!=null) z(q.sum); q.hos.forEach(h=>{ z(h); h.centers.forEach(z); (h.cats||[]).forEach(z); }); q.cats.forEach(z); });
+  return { kind:'r937-report-bridge', v:3, made:new Date().toISOString(), app:APP_VER, dur:durAny, t1:T1, t2:T2, sla:!!SK,
     counts:out.map(q=>q.recs||0), report:{ name:o.name, type:'quarterly', source:'db', qs:out } };
 }
 const BRQN=['الربع الأول','الربع الثاني','الربع الثالث','الربع الرابع'];
@@ -2755,7 +2759,7 @@ function bridgeDialog(){
       <div style="font-size:13px;color:var(--muted)">حدّد الأرباع التي تريدها في التقرير، ويمكنك إضافة أرباع 2025 أو أي سنة واستبعادها. تُرتَّب من الأقدم إلى الأحدث، وكل ربع يُقارن بالربع الذي قبله في القائمة.</div>
       <div data-brqgrid style="display:grid;gap:6px"></div>
       <div data-brqlist style="display:grid;gap:8px"></div>
-      <div style="font-size:12.5px;color:var(--muted)">«أرقامه من القاعدة»: إن ألغيته يصل الربع فارغاً لتُعبّأ أرقامه يدوياً. «يظهر في الإنفوجرافيك»: إن ألغيته يبقى أساساً للمقارنة فقط، ويفيد ذلك في أول ربع. مدة الإغلاق «أكثر من ${+DUR.t1||24} ساعة» و«خلال ${+DUR.t1||24} ساعة» حسب إعدادات «المدة الزمنية للإغلاق»، والمفتوح الذي تجاوزها يُحسب «أكثر من»، ومتوسط الرضا يُعبّأ في التقرير.</div></div>
+      <div style="font-size:12.5px;color:var(--muted)">«أرقامه من القاعدة»: إن ألغيته يصل الربع فارغاً لتُعبّأ أرقامه يدوياً. «يظهر في الإنفوجرافيك»: إن ألغيته يبقى أساساً للمقارنة فقط، ويفيد ذلك في أول ربع. مدة إغلاق البلاغات المغلقة: «خلال ${+DUR.t1||24} ساعة» و«أكثر من ${+DUR.t1||24}» و«أكثر من ${+DUR.t2||48}» حسب إعدادات «المدة الزمنية للإغلاق». ويُرسل وحده عدد المفتوح الذي تجاوز ${+DUR.t2||48} ساعة، وعدد المغلق بعد ${+DUR.t2||48} ساعة وعمود «${esc(SLA.label)}» فيه «${esc(SLA.no)}». ومتوسط الرضا يُعبّأ في التقرير.</div></div>
     <div style="font-size:13px">${slaNote}<br><span style="color:var(--muted)">أقسام رضا المستفيد تصل بأسماء المراكز والتصانيف، وتُعبّأ نسبها يدوياً في التقرير.</span></div>
     <div id="brPrev" style="font-size:13px;color:var(--muted)"></div></div>`,
     onOpen:sc=>{
