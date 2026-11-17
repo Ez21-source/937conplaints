@@ -713,7 +713,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '161';
+const APP_VER = '162';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -2687,15 +2687,16 @@ function brQuarterly(o){
     if(!q.on) return base;
     const L=brPeriodRecs('',q.from,q.to,o.off), H=new Map(), C=new Map(), tot=blank();
     L.forEach(r=>{ const c=cls(r); add(tot,c);
-      const hn=String(r.sector||'').trim()||'غير محدد'; let h=H.get(hn); if(!h){ h={...blank(),cen:new Map()}; H.set(hn,h); } add(h,c);
+      const hn=String(r.sector||'').trim()||'غير محدد'; let h=H.get(hn); if(!h){ h={...blank(),cen:new Map(),cat:new Map()}; H.set(hn,h); } add(h,c);
       const cn=String(r.center||'').trim(); if(cn){ let ce=h.cen.get(cn); if(!ce){ ce=blank(); h.cen.set(cn,ce); } add(ce,c); }
-      const sn=String(r.sub||'').trim(); if(sn){ let ce=C.get(sn); if(!ce){ ce=blank(); C.set(sn,ce); } add(ce,c); } });
+      const sn=String(r.sub||'').trim(); if(sn){ let ce=C.get(sn); if(!ce){ ce=blank(); C.set(sn,ce); } add(ce,c); let hc=h.cat.get(sn); if(!hc){ hc=blank(); h.cat.set(sn,hc); } add(hc,c); } });
     base.recs=L.length; base.sum={count:tot.count, over:tot.over, within:tot.within};
     base.hos=[...H].sort((a,b)=>b[1].count-a[1].count).map(([name,h])=>({name:brShort(name)||name, count:h.count, over:h.over, within:h.within,
-      centers:[...h.cen].sort((a,b)=>b[1].count-a[1].count).map(([n,e])=>({name:n,...e}))}));
+      centers:[...h.cen].sort((a,b)=>b[1].count-a[1].count).map(([n,e])=>({name:n,...e})),
+      cats:[...h.cat].sort((a,b)=>b[1].count-a[1].count).slice(0,10).map(([n,e])=>({name:n,...e}))}));
     base.cats=[...C].sort((a,b)=>b[1].count-a[1].count).slice(0,o.top).map(([n,e])=>({name:n,...e}));
     return base; });
-  if(!durAny) out.forEach(q=>{ const z=e=>{ e.over=null; e.within=null; }; if(q.sum.count!=null) z(q.sum); q.hos.forEach(h=>{ z(h); h.centers.forEach(z); }); q.cats.forEach(z); });
+  if(!durAny) out.forEach(q=>{ const z=e=>{ e.over=null; e.within=null; }; if(q.sum.count!=null) z(q.sum); q.hos.forEach(h=>{ z(h); h.centers.forEach(z); (h.cats||[]).forEach(z); }); q.cats.forEach(z); });
   return { kind:'r937-report-bridge', v:2, made:new Date().toISOString(), app:APP_VER, dur:durAny, t1:T1,
     counts:out.map(q=>q.recs||0), report:{ name:o.name, type:'quarterly', source:'db', qs:out } };
 }
@@ -2784,7 +2785,7 @@ function bridgeDialog(){
         sc.querySelector('[data-brab]').hidden=QQ; sc.querySelector('[data-brqbox]').hidden=!QQ; sc.querySelector('[data-brqbox]').style.display=QQ?'grid':'none';
         if(QQ){
           sc.querySelector('[data-brsec]').style.opacity=.45; sc.querySelector('[data-br="sector"]').disabled=true; sc.querySelector('[data-broffbox]').hidden=false;
-          sc.querySelector('#brPrev').textContent='يُرسل كل القطاعات المحددة، وتحت كل قطاع كل مراكزه، وأعلى التصانيف الفرعية حسب «عدد التصانيف».'; return; }
+          sc.querySelector('#brPrev').textContent='يُرسل كل القطاعات المحددة، وتحت كل قطاع كل مراكزه وأعلى 10 تصانيف فرعية له، وأعلى التصانيف الفرعية للربع كله حسب «عدد التصانيف».'; return; }
         sc.querySelector('[data-brsec]').style.opacity=all?.45:1; sc.querySelector('[data-br="sector"]').disabled=all; sc.querySelector('[data-broffbox]').hidden=!(all||!o.sector);
         const ok=o.a.from&&o.a.to&&o.b.from&&o.b.to;
         const sec=o.type==='weekly'?'':o.sector;
