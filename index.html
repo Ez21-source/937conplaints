@@ -598,6 +598,7 @@ body.dash-full .actionbar{display:none}
           <button type="button" data-more="moves"><span>حركة البلاغات</span><span>كل تغيير على البلاغات، تصدير واستيراد</span></button>
           <button type="button" data-more="brand"><span>الهوية والتقارير</span><span>الشعار، الجهة، المُعدّ</span></button>
           <button type="button" data-more="bridge"><span>إرسال للتقرير</span><span>أرقام فترتين لنموذج التقرير</span></button>
+          <button type="button" data-more="act"><span>متابعة المستبعدة والمفقودة</span><span>مستبعد · تحت الإجراء · مفقود + تقرير</span></button>
           <button type="button" data-more="cmp2"><span>مقارنة عمودين</span><span>ضابط الاتصال: القرار الأخير × حالة التذكرة</span></button>
           <hr>
           <button type="button" data-more="restore"><span>استعادة بيانات الملف الأصلي</span></button>
@@ -713,7 +714,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '169';
+const APP_VER = '161';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -1660,13 +1661,12 @@ function optionsFor(k){
   filt[k]=save;
   if(k==='month'){ const m=new Map(); base.forEach(r=>{ if(r._m) m.set(r._m,{n:(m.get(r._m)?.n||0)+1, key:monthKey(r)}); }); return [...m.entries()].sort((a,b)=>b[1].key<a[1].key?-1:1).map(([v,o])=>[v,o.n]); }
   if(k==='__dur'){ const m=new Map(); base.forEach(r=>{ const v=rv(r,'__dur'); m.set(v,(m.get(v)||0)+1); }); const L=durLabels(); return [L.g,L.o,L.r,RO_LBL].filter(c=>m.has(c)).map(c=>[c,m.get(c)]).concat(m.has('')?[['__none',m.get('')]]:[]); }
-  const L=countBy(base,k), e=L.filter(([v])=>v===''||v==null).reduce((a,[,n])=>a+n,0), out=L.filter(([v])=>v!==''&&v!=null);
-  return e?[['__none',e],...out]:out; // v169: خيار «(فارغ)» في كل الفلاتر
+  return countBy(base,k).filter(([v])=>v!=='');
 }
 // فلتر متعدد: القيمة '' = الكل، أو نص واحد، أو قائمة قيم
 const fVals=k=>{ const v=filt[k]; return Array.isArray(v)?v:(v?[v]:[]); };
 function fOk(k,val){ const vs=fVals(k); if(!vs.length) return true; return vs.some(x=> x==='__none' ? !val : val===x); }
-const fLabel=(k,v)=>v==='__none'?(k==='__dur'?'غير معروف (ملفات قديمة)':k==='sector'?'بدون قطاع':'(فارغ)'):v;
+const fLabel=(k,v)=>v==='__none'?(k==='__dur'?'غير معروف (ملفات قديمة)':'بدون قطاع'):v;
 const fText=k=>{ const vs=fVals(k); return vs.length<=2?vs.map(v=>fLabel(k,v)).join('، '):`${fLabel(k,vs[0])} و${fmt(vs.length-1)} أخرى`; };
 let FC_KEY='center', FC_ROWS=[];
 document.addEventListener('change',e=>{ const t=e.target;
@@ -1867,12 +1867,12 @@ function durPeriods(){ const ds=filtered.map(r=>r.date).filter(Boolean).sort(); 
   return {C,P,lbl,hasPrev:base.some(r=>r.date&&r.date.slice(0,10)<a)}; }
 function d48Tile(){ const L=durLabels(); let o=0,c=0; filtered.forEach(r=>{ const d=durI(r); if(d.st!=='none'&&d.lvl==='r'){ if(d.st==='open') o++; else c++; } });
   return `<div role="button" tabindex="0" class="kpi" data-dgo="d48" style="cursor:pointer;${o?'border-color:color-mix(in srgb,#E5484D 55%,var(--line))':''}"><span class="lbl">${esc(L.r)}</span><span class="val" style="${o?'color:#E5484D':''}">${fmt(o)}</span><span class="sub">مفتوح تجاوز ${+DUR.t2||48} ساعة</span>${c?`<span class="sub">+ ${fmt(c)} محلول تجاوزها</span>`:''}</div>`; }
-function durTile(){ const L=durLabels(), P=durPeriods(); const cnt=a=>{ const o={g:0,o:0,r:0,n:0,ro:0,ne:0}; a.forEach(r=>{ const d=durI(r); if(d.st!=='none'){ o[d.lvl]++; o.n++; if(d.ro) o.ro++; } else if(d.noEnd) o.ne++; }); return o; };
+function durTile(){ const L=durLabels(), P=durPeriods(); const cnt=a=>{ const o={g:0,o:0,r:0,n:0,ro:0}; a.forEach(r=>{ const d=durI(r); if(d.st!=='none'){ o[d.lvl]++; o.n++; if(d.ro) o.ro++; } }); return o; };
   const F=cnt(filtered), Cc=P?cnt(P.C):null, Pc=P?cnt(P.P):null;
   const arr=k=>{ if(!P||!P.hasPrev||!Pc[k]) return ''; const c=Cc[k], p=Pc[k]; if(c===p) return `<span class="kd" title="لم يتغيّر عن الفترة السابقة">=</span>`; const up=c>p, pc=Math.abs((c-p)/p*100).toFixed(0); const cls=k==='g'?(up?'g':'b'):(up?'b':'g');
     return `<span class="kd ${cls}" title="${esc(P.lbl)}: ${fmt(c)} · الفترة السابقة: ${fmt(p)}">${up?'▲':'▼'} ${pc}%</span>`; };
   const row=k=>`<div class="kdur" data-durf="${k}" title="اضغط لعرض البلاغات"><span><span class="dur dur-${k}">${esc(L[k])}</span> <b>${fmt(F[k])}</b> <span class="kp">${pct(F[k],F.n)}</span></span>${arr(k)}</div>`;
-  return `<div class="kpi"><span class="lbl">المدة الزمنية للإغلاق</span>${F.n?row('g')+row('o')+row('r'):'<span class="sub">لا توجد بلاغات معروفة المدة</span>'}${F.ne?`<span class="kp" style="color:var(--warn);display:block;margin-top:4px" title="حالتها ليست مفتوحة ولا يوجد لها تاريخ حل، فلا تدخل في المدة">غير مفتوحة وبلا تاريخ حل: ${fmt(F.ne)}</span>`:''}${F.n&&P&&P.hasPrev?`<span class="kp" style="color:var(--muted);display:block;margin-top:4px" title="${esc(P.lbl)}: ${fmt(Cc.g)} · ${fmt(Cc.o)} · ${fmt(Cc.r)} — الفترة السابقة: ${fmt(Pc.g)} · ${fmt(Pc.o)} · ${fmt(Pc.r)} (24 · 48 · أكثر من 48)">السابقة: ${fmt(Pc.g)} · ${fmt(Pc.o)} · ${fmt(Pc.r)}</span>`:''}${F.ro?`<span class="kp" data-dgo="reopendlg" style="color:#E5484D;display:block;margin-top:2px;cursor:pointer">↺ منها ${fmt(F.ro)} ${F.ro===1?'بلاغ معاد فتحه تُحسب مدته':'بلاغاً معاد فتحه تُحسب مدتها'} من إعادة الفتح</span>`:''}</div>`; }
+  return `<div class="kpi"><span class="lbl">المدة الزمنية للإغلاق</span>${F.n?row('g')+row('o')+row('r'):'<span class="sub">لا توجد بلاغات معروفة المدة</span>'}${F.n&&P&&P.hasPrev?`<span class="kp" style="color:var(--muted);display:block;margin-top:4px" title="${esc(P.lbl)}: ${fmt(Cc.g)} · ${fmt(Cc.o)} · ${fmt(Cc.r)} — الفترة السابقة: ${fmt(Pc.g)} · ${fmt(Pc.o)} · ${fmt(Pc.r)} (24 · 48 · أكثر من 48)">السابقة: ${fmt(Pc.g)} · ${fmt(Pc.o)} · ${fmt(Pc.r)}</span>`:''}${F.ro?`<span class="kp" data-dgo="reopendlg" style="color:#E5484D;display:block;margin-top:2px;cursor:pointer">↺ منها ${fmt(F.ro)} ${F.ro===1?'بلاغ معاد فتحه تُحسب مدته':'بلاغاً معاد فتحه تُحسب مدتها'} من إعادة الفتح</span>`:''}</div>`; }
 function showDurList(lv,title){ const list=filtered.filter(r=>{ const d=durInfo(r); return d.st!=='none'&&d.lvl===lv; }); if(!list.length){ toast('لا توجد بلاغات'); return; }
   filt={...filt,nos:list.map(r=>keyNo(r.no)).join(' ')}; sort={k:'__dur',dir:-1}; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); toast(`${title}: ${fmt(list.length)} بلاغ، مرتبة من الأطول مدة`); }
 document.addEventListener('click',e=>{ const r=e.target.closest('[data-durf]'); if(r){ const L=durLabels(); showDurList(r.dataset.durf,L[r.dataset.durf]); } });
@@ -2086,6 +2086,7 @@ function renderSide(){
     ${item('imp','استيراد Excel','data-sact="imp"')}
     ${item('exp','طباعة وتصدير','data-sact="exp"')}
     ${item('exp','إرسال للتقرير','data-sact="bridge"')}
+    ${item('exp','متابعة المستبعدة والمفقودة','data-sact="act"')}
     ${item('exp','مقارنة عمودين','data-sact="cmp2"')}
     ${item('ver','التحقق من بلاغ','data-sact="ver"')}
     ${item('panel','لوحة التحكم','data-sact="panel"')}
@@ -2101,7 +2102,7 @@ document.addEventListener('click',e=>{
   if(b.dataset.sact){ const a=b.dataset.sact; if(!sidePinned()) closeSide();
     if(a==='alerts') alertsDialog(); if(a==='new') document.getElementById('btnNew').click(); if(a==='imp') document.getElementById('btnImport').click();
     if(a==='exp') setTimeout(()=>{ const x=document.getElementById('btnExport'); x.scrollIntoView({block:'nearest'}); x.click(); },50);
-    if(a==='bridge') bridgeDialog(); if(a==='cmp2') cmpDialog(); if(a==='ver') document.getElementById('btnVerify').click(); if(a==='panel') document.getElementById('btnPanel').click(); }
+    if(a==='bridge') bridgeDialog(); if(a==='cmp2') cmpDialog(); if(a==='act') actDialog(); if(a==='ver') document.getElementById('btnVerify').click(); if(a==='panel') document.getElementById('btnPanel').click(); }
 });
 // السحب من حافة الشاشة اليمنى لفتح القائمة، وإلى اليمين لإغلاقها
 (()=>{ let sx=null, sy=0, mode='';
@@ -2172,9 +2173,7 @@ function renderView(){
 function renderBulk(){
   const b=document.getElementById('bulkbar');
   if(!selected.size){ b.innerHTML=''; return; }
-  let exN=0; try{ const XS=excSet(); if(XS.size) selected.forEach(id=>{ const r=byId.get(id); if(r&&XS.has(keyNo(r.no))) exN++; }); }catch(e){}
-  const inN=selected.size-exN;
-  b.innerHTML=`<div class="bulk"><b>${fmt(selected.size)} محدد</b><button type="button" class="btn sm" id="bulkEdit">تعديل جماعي</button>${inN?`<button type="button" class="btn sm" id="bulkExc" title="لا تدخل في الأعداد ولا في التقارير، وتبقى في القاعدة وتُحدَّث مع الاستيراد">استبعاد (${fmt(inN)})</button>`:''}${exN?`<button type="button" class="btn sm" id="bulkBack">إرجاع المستبعدة (${fmt(exN)})</button>`:''}<button type="button" class="btn sm danger" id="bulkDel">حذف</button><button type="button" class="btn sm ghost" id="bulkClear">إلغاء التحديد</button></div>`;
+  b.innerHTML=`<div class="bulk"><b>${fmt(selected.size)} محدد</b><button type="button" class="btn sm" id="bulkEdit">تعديل جماعي</button><button type="button" class="btn sm danger" id="bulkDel">حذف</button><button type="button" class="btn sm ghost" id="bulkClear">إلغاء التحديد</button></div>`;
 }
 
 /* ---------- report (preview / png / pdf / html) ---------- */
@@ -2417,6 +2416,7 @@ document.addEventListener('change',e=>{ const s=e.target.closest&&e.target.close
 // نافذة اختيار متعدد للفلتر
 function filterPicker(k){
   let opts=optionsFor(k); const cur=new Set(fVals(k));
+  if(k==='sector'){ const none=RECS.filter(r=>!r.sector).length; if(none) opts=[['__none',none],...opts]; }
   cur.forEach(v=>{ if(!opts.find(o=>o[0]===v)) opts.unshift([v,0]); });
   const html=`<input class="inp" id="mpQ" placeholder="ابحث…" autocomplete="off">
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button type="button" class="btn sm" id="mpAll">تحديد الكل</button><button type="button" class="btn sm" id="mpNone">إلغاء التحديد</button><span class="hint" id="mpN"></span></div>
@@ -2484,10 +2484,6 @@ document.addEventListener('click',e=>{
     if(b.id==='selAll'){ filtered.forEach(r=>selected.add(r.id)); renderView(); return; }
     if(b.id==='bulkClear'){ selected.clear(); renderView(); return; }
     if(b.id==='bulkDel'){ guard(()=>confirmDelete([...selected])); return; }
-    if(b.id==='bulkExc'){ guard(()=>{ const XS=excSet(); const L=[...selected].map(id=>byId.get(id)).filter(r=>r&&!XS.has(keyNo(r.no))); if(!L.length) return;
-      dialog({title:'استبعاد البلاغات المحددة',html:`<p style="margin-top:0">سيُستبعد <b>${fmt(L.length)}</b> بلاغ من أعداد اللوحة والتقارير وكل ما يُرسل للتقرير. تبقى في القاعدة وتُحدَّث مع كل استيراد، وتجدها وترجعها من «فحص تبعية التجمع ← المستبعدة» أو بتحديدها هنا ثم «إرجاع المستبعدة».</p><div class="field"><label for="bxWhy">السبب</label><input class="inp" id="bxWhy" value="استبعاد يدوي"></div>`,
-        actions:[{label:`استبعاد ${fmt(L.length)}`,cls:'primary',run:sc=>{ const why=(sc.querySelector('#bxWhy').value||'').trim()||'استبعاد يدوي'; excAdd(L.map(r=>keyNo(r.no)),why); selected.clear(); refresh(); toast(`استُبعد ${fmt(L.length)} بلاغ`); }},{label:'إلغاء'}]}); }); return; }
-    if(b.id==='bulkBack'){ guard(()=>{ const XS=excSet(); const K=[...selected].map(id=>byId.get(id)).filter(r=>r&&XS.has(keyNo(r.no))).map(r=>keyNo(r.no)); if(!K.length) return; excBack(K); selected.clear(); refresh(); toast(`أُرجع ${fmt(K.length)} بلاغ إلى الأعداد`); }); return; }
     if(b.id==='bulkEdit'){ guard(bulkEdit); return; }
     if(b.id==='btnNew'){ guard(()=>editRecord(null)); return; }
     if(b.id==='btnPanel'){ guard(()=>controlPanel('home')); return; }
@@ -2622,6 +2618,7 @@ document.getElementById('moreMenu').addEventListener('click',e=>{
   if(b.dataset.more==='moves'){ moveDialog(); return; }
   if(b.dataset.more==='bridge'){ bridgeDialog(); return; }
   if(b.dataset.more==='cmp2'){ cmpDialog(); return; }
+  if(b.dataset.more==='act'){ actDialog(); return; }
   if(b.dataset.more==='brand'){ guard(brandDialog); return; }
   if(b.dataset.more==='panel'){ guard(()=>controlPanel('home')); return; }
   if(b.dataset.more==='restore') guard(()=>dialog({title:'استعادة بيانات الملف الأصلي؟', body:`ستُستبدل كل البلاغات الحالية (${fmt(RECS.length)}) ببلاغات الملف الأصلي (${fmt((SEED||[]).length)}). يُنصح بتصدير نسخة احتياطية أولاً.`, actions:[{label:'استعادة',cls:'primary',run:async()=>{ await replaceAll(seedRecords(),'restore'); toast('استُعيدت بيانات الملف الأصلي'); }},{label:'إلغاء'}]}));
@@ -2680,77 +2677,6 @@ function brBuild(o){
       periods:[{label:o.a.label,date:fmtR(o.a)},{label:o.b.label,date:fmtR(o.b)}], sections:sec }
   };
 }
-/* التقرير الربعي: لكل ربع ولكل قطاع ومركز وتصنيف فرعي: عدد البلاغات، وعدد ما أُغلق خلال 24 ساعة وما تجاوزها.
-   مدة الإغلاق من إعدادات «المدة الزمنية للإغلاق». المفتوح الذي تجاوز 24 ساعة يُحسب «أكثر من 24 ساعة»،
-   والمفتوح الذي لم يتجاوزها لا يدخل في المدة بعد، والمعاد فتحه حسب إعداد القاعدة. الرضا لا يوجد في القاعدة فيُعبّأ في التقرير. */
-// v166: المفتوح = «حالة التذكرة» تساوي حالة المعالجة في إعدادات المدة (مثل «تحت المعالجة - ضابط الاتصال»)، وعمره من تاريخ الإنشاء
-// والمغلق = غير ذلك وله تاريخ حل؛ وما لا حالة مفتوحة له ولا تاريخ حل لا يدخل في المدة
-// المطابقة تتجاهل المسافات والشرطات والهمزات، فـ«تحت المعالجة - ضابط الاتصال» = «تحت المعالجة ضابط الإتصال»
-const brStK=v=>nrm(v).replace(/[^\p{L}\p{N}]+/gu,'');
-const brOpenSt=r=>durOpenBy(r)===true;
-// فحص: أين البلاغات التي حالتها مفتوحة؟
-function brOpenDiag(o){ const k=colByLabel(DUR.openCol1)||durStKey(); if(!k) return `<div style="margin-top:4px;color:var(--warn)">عمود «${esc(DUR.openCol1)}» غير موجود في القاعدة بهذا الاسم.</div>`;
-  const T2=Math.max((+DUR.t1||24)+1,+DUR.t2||48), Q=(o.quarters||[]).filter(q=>q.on&&q.from&&q.to), inQ=r=>{ const d=String(r.date||'').slice(0,10); return Q.some(q=>d>=q.from&&d<=q.to); };
-  const all=RECS.filter(brOpenSt), q=all.filter(inQ), inc=new Set(); Q.forEach(x=>brPeriodRecs('',x.from,x.to,o.off).forEach(r=>{ if(brOpenSt(r)) inc.add(r); }));
-  const young=[...inc].filter(r=>{ const d=anyDate(r.date); return d&&(Date.now()-d.getTime())/3600000<=T2; }).length;
-  const vals=new Map(); Q.forEach(x=>brPeriodRecs('',x.from,x.to,o.off).forEach(r=>{ const v=String(r[k]??'').trim()||'(فارغ)'; vals.set(v,(vals.get(v)||0)+1); }));
-  return `<div style="margin-top:6px">المفتوحة حسب الإعداد في كل القاعدة: <b>${fmt(all.length)}</b> · تاريخ إنشائها داخل الأرباع المحددة: <b>${fmt(q.length)}</b> · بعد القطاعات غير المحددة والمستبعدة: <b>${fmt(inc.size)}</b>${young?` · عمرها 48 ساعة أو أقل: ${fmt(young)}`:''}</div>
-    <div style="margin-top:4px;color:var(--muted)">قيم «${esc(DUR.openCol1)}» في الأرباع المحددة: ${[...vals].sort((a,b)=>b[1]-a[1]).slice(0,8).map(([v,n])=>`<span style="white-space:nowrap">${esc(v)} <b>${fmt(n)}</b></span>`).join(' · ')}</div>`; }
-function brCls(r,T1,T2,SK){
-  const d=durInfo(r); if(!d) return null; if(d.st==='open') return d.h>T2?'op':null; if(d.st!=='closed') return null;
-  const s=SK?slaState(r,SK):''; if(s==='in') return 'w'; if(s==='out') return 'r'; return d.h<=T2?'w':'r'; }
-// البلاغات التي تُحسب «مفتوحة أكثر من 48 ساعة» في الأرباع المحددة: لا يوجد لها تاريخ حل وعمرها تجاوز T2
-function brOpenLate(o){ const T1=+DUR.t1||24, T2=Math.max(T1+1,+DUR.t2||48), seen=new Set(), out=[];
-  (o.quarters||[]).filter(q=>q.on&&q.from&&q.to).forEach(q=>brPeriodRecs('',q.from,q.to,o.off).forEach(r=>{ if(seen.has(r)) return; if(brCls(r,T1,T2,null)==='op'){ seen.add(r); out.push(r); } }));
-  return out; }
-// فحص: ماذا يوجد فعلاً في عمودي تاريخ الحل لهذه البلاغات
-function brEndDiag(L){ return [DUR.endCol,DUR.endCol2].filter(Boolean).map(l=>{ const k=colByLabel(l);
-    if(!k) return `<div style="margin-top:4px;color:var(--warn)">عمود «${esc(l)}» المحدد في الإعدادات غير موجود في القاعدة بهذا الاسم.</div>`;
-    const m=new Map(); let empty=0; L.forEach(r=>{ const v=r[k]; if(v==null||String(v).trim()===''){ empty++; return; } const t=typeof v==='object'?JSON.stringify(v):String(v); m.set(t,(m.get(t)||0)+1); });
-    const ex=[...m.keys()].slice(0,3);
-    return `<div style="margin-top:4px">«${esc(l)}»: فارغ في ${fmt(empty)}${ex.length?` · مكتوب في ${fmt(L.length-empty)}، مثل: ${ex.map(v=>`<code dir="ltr">${esc(v.slice(0,40))}</code>`).join(' ، ')}`:''}</div>`; }).join(''); }
-function brStatusBreak(L){ const cols=[STAT.target,DUR.stCol].filter((v,i,a)=>v&&a.indexOf(v)===i).map(l=>[l,colByLabel(l)]).filter(x=>x[1]);
-  return cols.map(([l,k])=>{ const m=new Map(); L.forEach(r=>{ const v=String(r[k]??'').trim()||'(فارغ)'; m.set(v,(m.get(v)||0)+1); }); return [l,[...m].sort((a,b)=>b[1]-a[1]).slice(0,6)]; }); }
-function brQuarterly(o){
-  const T1=+DUR.t1||24, T2=Math.max(T1+1,+DUR.t2||48); let durAny=false; const SK=slaKey();
-  // v169: المغلق جزءان: «خلال 48» = مستوى الخدمة «لا»، «أكثر من 48» = «نعم» (وإن كان فارغاً فبالساعات). والمفتوح الذي تجاوز 48 وحده
-  // المغلق: خلال T1 / أكثر من T1 حتى T2 / أكثر من T2 — والمفتوح الذي تجاوز T2 يُعدّ وحده (لا يدخل الشريط)
-  // s48: المغلق بعد أكثر من T2 وعمود مستوى الخدمة فيه «لا»
-  const cls=r=>{ const c=brCls(r,T1,T2,SK); if(c!=null) durAny=true; return c; };
-  const blank=()=>({count:0,over:null,within:0,o48:0,op48:0,s48:null});
-  const add=(e,c)=>{ e.count++; if(c==='w') e.within++; else if(c==='r') e.o48++; else if(c==='op') e.op48++; };
-  const out=o.quarters.map(q=>{
-    const base={label:q.label, y:q.y, n:q.n, date:q.on?`${q.from.replace(/-/g,'/')} – ${q.to.replace(/-/g,'/')}`:'', show:!!q.show, sum:{}, hos:[], cats:[]};
-    if(!q.on) return base;
-    const L=brPeriodRecs('',q.from,q.to,o.off), H=new Map(), C=new Map(), tot=blank();
-    L.forEach(r=>{ const c=cls(r); add(tot,c);
-      const hn=String(r.sector||'').trim()||'غير محدد'; let h=H.get(hn); if(!h){ h={...blank(),cen:new Map(),cat:new Map()}; H.set(hn,h); } add(h,c);
-      const cn=String(r.center||'').trim(); if(cn){ let ce=h.cen.get(cn); if(!ce){ ce=blank(); h.cen.set(cn,ce); } add(ce,c); }
-      const sn=String(r.sub||'').trim(); if(sn){ let ce=C.get(sn); if(!ce){ ce=blank(); C.set(sn,ce); } add(ce,c); let hc=h.cat.get(sn); if(!hc){ hc=blank(); h.cat.set(sn,hc); } add(hc,c); } });
-    base.recs=L.length; base.sum={count:tot.count, over:tot.over, within:tot.within, o48:tot.o48, op48:tot.op48, s48:tot.s48};
-    base.hos=[...H].sort((a,b)=>b[1].count-a[1].count).map(([name,h])=>({name:brShort(name)||name, count:h.count, over:h.over, within:h.within, o48:h.o48, op48:h.op48, s48:h.s48,
-      centers:[...h.cen].sort((a,b)=>b[1].count-a[1].count).map(([n,e])=>({name:n,...e})),
-      cats:[...h.cat].sort((a,b)=>b[1].count-a[1].count).slice(0,10).map(([n,e])=>({name:n,...e}))}));
-    base.cats=[...C].sort((a,b)=>b[1].count-a[1].count).slice(0,o.top).map(([n,e])=>({name:n,...e}));
-    return base; });
-  if(!durAny) out.forEach(q=>{ const z=e=>{ e.over=null; e.within=null; e.o48=null; e.op48=null; e.s48=null; }; if(q.sum.count!=null) z(q.sum); q.hos.forEach(h=>{ z(h); h.centers.forEach(z); (h.cats||[]).forEach(z); }); q.cats.forEach(z); });
-  return { kind:'r937-report-bridge', v:3, made:new Date().toISOString(), app:APP_VER, dur:durAny, t1:T1, t2:T2, sla:!!SK,
-    counts:out.map(q=>q.recs||0), report:{ name:o.name, type:'quarterly', source:'db', qs:out } };
-}
-const BRQN=['الربع الأول','الربع الثاني','الربع الثالث','الربع الرابع'];
-const brQKey=(y,n)=>`${y}-${n}`;
-function brQMake(y,n,extra){ const st=new Date(y,(n-1)*3,1), en=new Date(y,n*3,0); return {k:brQKey(y,n), y, n, label:`${BRQN[n-1]} ${y}`, from:iso(st), to:iso(en), on:true, show:true, ...(extra||{})}; }
-function brQOfDate(d){ return {y:d.getFullYear(), n:Math.floor(d.getMonth()/3)+1}; }
-function brQCounts(){ const m=new Map(), XS=excSet(); RECS.forEach(r=>{ if(XS.size&&XS.has(keyNo(r.no))) return; const d=String(r.date||'').slice(0,10); if(!d) return; const k=brQKey(+d.slice(0,4), Math.floor((+d.slice(5,7)-1)/3)+1); m.set(k,(m.get(k)||0)+1); }); return m; }
-// الافتراضي: آخر أربعة أرباع مكتملة، وأولها للمقارنة فقط
-function brQDefaults(){
-  let {y,n}=brQOfDate(new Date()); n--; if(n<1){ n=4; y--; }
-  const C=brQCounts(), L=[];
-  for(let i=0;i<4;i++){ L.unshift(brQMake(y,n)); n--; if(n<1){ n=4; y--; } }
-  return L.map((q,i)=>({...q, on:(C.get(q.k)||0)>0, show:i>0}));
-}
-// أرباع محفوظة من إصدار سابق بلا مفتاح: يُستنتج من تاريخ البداية
-function brQNorm(L){ return (L||[]).map(q=>{ if(q.k) return q; const d=new Date((q.from||'')+'T00:00:00'); if(isNaN(d)) return null; const {y,n}=brQOfDate(d); return {...q,k:brQKey(y,n),y,n}; }).filter(Boolean); }
 function brDefaults(){
   let saved={}; try{ saved=JSON.parse(localStorage.getItem(BRIDGE_KEY)||'{}'); }catch(e){}
   const ds=RECS.map(r=>String(r.date||'').slice(0,10)).filter(Boolean).sort();
@@ -2760,7 +2686,7 @@ function brDefaults(){
   const qE=(y,qq)=>{ const s=qS(y,qq); return new Date(s.getFullYear(),s.getMonth()+3,0); };
   const QN=['الربع الأول','الربع الثاني','الربع الثالث','الربع الرابع'];
   const y=last.getFullYear();
-  return {type:'hospital', sector:'', top:12, off:[], quarters:brQDefaults(),
+  return {type:'hospital', sector:'', top:12, off:[],
     a:{label:QN[(q+3)%4], from:iso(qS(y,q-1)), to:iso(qE(y,q-1))},
     b:{label:QN[q], from:iso(qS(y,q)), to:iso(qE(y,q))}, ...saved};
 }
@@ -2780,86 +2706,31 @@ function bridgeDialog(){
   dialog({title:'إرسال الأرقام إلى نموذج التقرير', wide:true, html:`<div style="display:grid;gap:12px">
     <p style="margin:0;color:var(--muted)">يُنشأ ملف صغير فيه الأرقام المحسوبة فقط (دون أسماء المتصلين أو الهويات). افتحه في «نموذج تقرير بلاغات 937» من زر «استيراد من القاعدة»، فيُضاف تقريراً جديداً دون المساس بالتقارير السابقة.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <div class="field" style="flex:1 1 160px"><label>نوع التقرير</label><select class="inp" data-br="type">${opt('hospital','تقرير مستشفى',d.type!=='weekly')}${opt('weekly','التقرير الأسبوعي (كل المستشفيات)',d.type==='weekly')}${opt('quarterly','التقرير الربعي (أربعة أرباع، كل المستشفيات)',d.type==='quarterly')}</select></div>
+      <div class="field" style="flex:1 1 160px"><label>نوع التقرير</label><select class="inp" data-br="type">${opt('hospital','تقرير مستشفى',d.type!=='weekly')}${opt('weekly','التقرير الأسبوعي (كل المستشفيات)',d.type==='weekly')}</select></div>
       <div class="field" style="flex:2 1 220px" data-brsec><label>المستشفى (القطاع)</label><select class="inp" data-br="sector">${opt('','كل القطاعات',!d.sector)}${sectors.map(s=>opt(s,s,s===d.sector)).join('')}</select></div>
       <div class="field" style="flex:0 1 110px"><label>عدد التصانيف</label><input class="inp" type="number" min="3" max="50" data-br="top" value="${esc(d.top)}"></div>
     </div>
     <div data-broffbox style="border:1px solid var(--line);border-radius:10px;padding:10px 12px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px"><b style="font-size:13px">القطاعات المشمولة</b><span style="color:var(--muted);font-size:12px">ألغِ تحديد أي قطاع لا تريده أن يظهر في التقرير</span><span style="margin-inline-start:auto;display:flex;gap:6px"><button type="button" class="btn sm" data-broffall="1">الكل</button><button type="button" class="btn sm" data-broffall="0">لا شيء</button></span></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:2px 12px;max-height:190px;overflow:auto">${sectors.map(s=>`<label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" data-broff="${esc(s)}"${OFF.has(s)?'':' checked'}><span style="flex:1">${esc(s)}</span><span style="color:var(--muted);font-size:11.5px">${fmt(SC.get(s))}</span></label>`).join('')}</div></div>
     <div style="font-size:12.5px;color:var(--muted)">البلاغات المستبعدة (من «فحص تبعية التجمع ← المستبعدة») لا تدخل في الأرقام المرسلة.</div>
-    <div data-brab style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px">${per('a',d.a,'الفترة السابقة')}${per('b',d.b,'الفترة الحالية')}</div>
-    <div data-brqbox hidden style="display:grid;gap:10px">
-      <div style="font-size:13px;color:var(--muted)">حدّد الأرباع التي تريدها في التقرير، ويمكنك إضافة أرباع 2025 أو أي سنة واستبعادها. تُرتَّب من الأقدم إلى الأحدث، وكل ربع يُقارن بالربع الذي قبله في القائمة.</div>
-      <div data-brqgrid style="display:grid;gap:6px"></div>
-      <div data-brqlist style="display:grid;gap:8px"></div>
-      <div data-brqchk style="border:1px solid color-mix(in srgb,#E5484D 45%,var(--line));border-radius:10px;padding:10px 12px;font-size:13px"></div>
-      <div style="font-size:12.5px;color:var(--muted)">«أرقامه من القاعدة»: إن ألغيته يصل الربع فارغاً لتُعبّأ أرقامه يدوياً. «يظهر في الإنفوجرافيك»: إن ألغيته يبقى أساساً للمقارنة فقط، ويفيد ذلك في أول ربع. إغلاق البلاغات المغلقة جزءان: «خلال ${+DUR.t2||48} ساعة» = عمود «${esc(SLA.label)}» فيه «${esc(SLA.no)}»، و«أكثر من ${+DUR.t2||48} ساعة» = فيه «${esc(SLA.yes)}» (والفارغ يُحسب بالساعات). ويُرسل وحده عدد المفتوح الذي تجاوز ${+DUR.t2||48} ساعة. ومتوسط الرضا يُعبّأ في التقرير.</div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px">${per('a',d.a,'الفترة السابقة')}${per('b',d.b,'الفترة الحالية')}</div>
     <div style="font-size:13px">${slaNote}<br><span style="color:var(--muted)">أقسام رضا المستفيد تصل بأسماء المراكز والتصانيف، وتُعبّأ نسبها يدوياً في التقرير.</span></div>
     <div id="brPrev" style="font-size:13px;color:var(--muted)"></div></div>`,
     onOpen:sc=>{
-      const QC=brQCounts(), QS=new Map(); (d.quarters&&d.quarters.length&&d.quarters[0].k?brQNorm(d.quarters):brQDefaults()).forEach(q=>QS.set(q.k,q));
-      const now=brQOfDate(new Date()), nowK=now.y*10+now.n;
-      const yrs=new Set([2025,now.y]); QC.forEach((v,k)=>yrs.add(+k.split('-')[0])); QS.forEach(q=>yrs.add(q.y));
-      const YRS=[...yrs].filter(y=>y>2000&&y<=now.y+1).sort((a,b)=>a-b);
-      const sorted=()=>[...QS.values()].sort((a,b)=>(a.y*10+a.n)-(b.y*10+b.n));
-      const drawGrid=()=>{ sc.querySelector('[data-brqgrid]').innerHTML=YRS.map(y=>`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b style="width:46px">${y}</b>${[1,2,3,4].map(n=>{ const k=brQKey(y,n), c=QC.get(k)||0, fut=y*10+n>nowK, run=y*10+n===nowK;
-          return `<label class="chip" style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:13px;${fut?'opacity:.45':''}${QS.has(k)?';background:var(--accent-soft);border-color:var(--accent)':''}"><input type="checkbox" data-brqk="${k}" ${QS.has(k)?'checked':''} ${fut?'disabled':''}>ر${n}<span style="color:var(--muted);font-size:11.5px">${fut?'لم يبدأ':run?`جارٍ · ${fmt(c)}`:fmt(c)}</span></label>`; }).join('')}</div>`).join(''); };
-      const drawList=()=>{ const L=sorted(); sc.querySelector('[data-brqlist]').innerHTML = L.length ? L.map((q,i)=>`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;border:1px solid var(--line);border-radius:10px;padding:8px 10px">
-          <b style="width:22px;align-self:center">${i+1}</b>
-          <div class="field" style="flex:2 1 160px"><label>الاسم</label><input class="inp" data-brqf="${q.k}.label" value="${esc(q.label)}"></div>
-          <div class="field" style="flex:1 1 120px"><label>من</label><input class="inp" type="date" data-brqf="${q.k}.from" value="${esc(q.from)}"></div>
-          <div class="field" style="flex:1 1 120px"><label>إلى</label><input class="inp" type="date" data-brqf="${q.k}.to" value="${esc(q.to)}"></div>
-          <div style="display:grid;gap:4px;font-size:13px;flex:1 1 170px"><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-brqf="${q.k}.on" ${q.on?'checked':''}> أرقامه من القاعدة <span style="color:var(--muted);font-size:11.5px">(${fmt(QC.get(q.k)||0)})</span></label>
-            <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-brqf="${q.k}.show" ${q.show?'checked':''}> يظهر في الإنفوجرافيك${i===0?'':` <span style="color:var(--muted);font-size:11.5px">يُقارن بـ ${esc(L[i-1].label)}</span>`}</label></div>
-          <button type="button" class="btn sm ghost" data-brqx="${q.k}" title="استبعاد هذا الربع">استبعاد</button></div>`).join('') : '<div style="color:var(--warn);font-size:13px">لم تحدد أي ربع بعد.</div>'; };
-      sc.addEventListener('change',e=>{ const t=e.target;
-        if(t.dataset.brqk){ const [y,n]=t.dataset.brqk.split('-').map(Number); if(t.checked) QS.set(t.dataset.brqk, brQMake(y,n,{on:(QC.get(t.dataset.brqk)||0)>0})); else QS.delete(t.dataset.brqk); drawGrid(); drawList(); }
-        else if(t.dataset.brqf&&t.type==='checkbox'){ const [k,f]=t.dataset.brqf.split('.'); const q=QS.get(k); if(q) q[f]=t.checked; } });
-      sc.addEventListener('input',e=>{ const t=e.target; if(t.dataset.brqf&&t.type!=='checkbox'){ const [k,f]=t.dataset.brqf.split('.'); const q=QS.get(k); if(q) q[f]=t.value.trim(); } });
-      sc.addEventListener('click',e=>{ const b=e.target.closest('[data-brqx]'); if(!b) return; QS.delete(b.dataset.brqx); drawGrid(); drawList(); });
-      drawGrid(); drawList();
-      const read=()=>{ const o={a:{},b:{},quarters:sorted().map(q=>({...q}))}; sc.querySelectorAll('[data-br]').forEach(i=>{ const [x,y]=i.dataset.br.split('.'); if(y) o[x][y]=i.value.trim(); else o[x]=i.value; }); o.top=Math.max(3,Math.min(50,+o.top||12)); o.off=[...sc.querySelectorAll('[data-broff]')].filter(i=>!i.checked).map(i=>i.dataset.broff); return o; };
-      const upd=()=>{ const o=read(); const QQ=o.type==='quarterly', all=o.type==='weekly'||QQ;
-        sc.querySelector('[data-brab]').hidden=QQ; sc.querySelector('[data-brqbox]').hidden=!QQ; sc.querySelector('[data-brqbox]').style.display=QQ?'grid':'none';
-        if(QQ){
-          sc.querySelector('[data-brsec]').style.opacity=.45; sc.querySelector('[data-br="sector"]').disabled=true; sc.querySelector('[data-broffbox]').hidden=false;
-          sc.querySelector('#brPrev').textContent='يُرسل كل القطاعات المحددة، وتحت كل قطاع كل مراكزه وأعلى 10 تصانيف فرعية له، وأعلى التصانيف الفرعية للربع كله حسب «عدد التصانيف».';
-          const L=brOpenLate(o), T2=Math.max((+DUR.t1||24)+1,+DUR.t2||48), ek=[DUR.endCol,DUR.endCol2].filter(Boolean).map(x=>`«${esc(x)}»`).join(' و');
-          sc.querySelector('[data-brqchk]').innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>مفتوحة أكثر من ${T2} ساعة في الأرباع المحددة: ${fmt(L.length)}</b>${L.length?`<button type="button" class="btn sm" data-brqshow>عرض هذه البلاغات وأعمدتها</button>`:''}</div>
-            <div style="color:var(--muted);margin-top:4px">تُحسب مفتوحة حسب «متى يكون البلاغ مفتوحاً» في إعدادات المدة (${DUR.openMode==='and'?'الشرطان معاً':'أحد الشرطين يكفي'})، وعمرها من تاريخ الإنشاء تجاوز ${T2} ساعة، حتى لو كان فيها تاريخ حل.</div>
-            ${L.length?brEndDiag(L):''}${brOpenDiag(o)}
-            ${L.length?brStatusBreak(L).map(([l,a])=>`<div style="margin-top:4px">حالتها في عمود «${esc(l)}»: ${a.map(([v,n])=>`<span style="white-space:nowrap">${esc(v)} <b>${fmt(n)}</b></span>`).join(' · ')}</div>`).join(''):''}`;
-          sc._brLate=L; return; }
-        sc.querySelector('[data-brsec]').style.opacity=all?.45:1; sc.querySelector('[data-br="sector"]').disabled=all; sc.querySelector('[data-broffbox]').hidden=!(all||!o.sector);
+      const read=()=>{ const o={a:{},b:{}}; sc.querySelectorAll('[data-br]').forEach(i=>{ const [x,y]=i.dataset.br.split('.'); if(y) o[x][y]=i.value.trim(); else o[x]=i.value; }); o.top=Math.max(3,Math.min(50,+o.top||12)); o.off=[...sc.querySelectorAll('[data-broff]')].filter(i=>!i.checked).map(i=>i.dataset.broff); return o; };
+      const upd=()=>{ const o=read(); sc.querySelector('[data-brsec]').style.opacity=o.type==='weekly'?.45:1; sc.querySelector('[data-br="sector"]').disabled=o.type==='weekly'; sc.querySelector('[data-broffbox]').hidden=!(o.type==='weekly'||!o.sector);
         const ok=o.a.from&&o.a.to&&o.b.from&&o.b.to;
         const sec=o.type==='weekly'?'':o.sector;
         sc.querySelector('#brPrev').textContent = ok ? `البلاغات المطابقة: ${o.a.label||'السابقة'} ${fmt(brPeriodRecs(sec,o.a.from,o.a.to,o.off).length)} · ${o.b.label||'الحالية'} ${fmt(brPeriodRecs(sec,o.b.from,o.b.to,o.off).length)}` : 'حدّد تاريخ البداية والنهاية للفترتين'; };
-      sc.addEventListener('click',e=>{ if(!e.target.closest('[data-brqshow]')) return; const L=sc._brLate||[]; if(!L.length) return;
-        document.getElementById('layer').innerHTML='';
-        filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:'',kw:'',sla:'',unread:'',nos:L.map(r=>keyNo(r.no)).join(' ')};
-        sort={k:'date',dir:1}; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh();
-        toast(`${fmt(L.length)} بلاغ بلا تاريخ حل تجاوزت ${Math.max((+DUR.t1||24)+1,+DUR.t2||48)} ساعة · من الأقدم`); });
       sc.addEventListener('input',upd); sc.addEventListener('change',upd); sc.addEventListener('click',e=>{ const b=e.target.closest('[data-broffall]'); if(!b) return; sc.querySelectorAll('[data-broff]').forEach(i=>i.checked=b.dataset.broffall==='1'); upd(); }); sc._brRead=read; upd();
     },
     actions:[{label:'حفظ ملف التقرير',cls:'primary',run:async sc=>{
       const o=sc._brRead();
-      if(o.type==='quarterly'){
-        if(!o.quarters.length){ toast('حدّد ربعاً واحداً على الأقل'); return false; }
-        const bad=o.quarters.find(q=>q.on&&(!q.from||!q.to||q.from>q.to)); if(bad){ toast(`حدّد تاريخي «${bad.label||'الربع'}» بشكل صحيح`); return false; }
-        if(sectors.length && o.off.length>=sectors.length){ toast('اختر قطاعاً واحداً على الأقل'); return false; }
-        try{ const prev=JSON.parse(localStorage.getItem(BRIDGE_KEY)||'{}'); localStorage.setItem(BRIDGE_KEY,JSON.stringify({...prev,type:o.type,top:o.top,off:o.off,quarters:o.quarters})); }catch(e){}
-        const shown=o.quarters.filter(q=>q.show).map(q=>q.label);
-        o.name=`التقرير الربعي ${shown.length?shown[shown.length-1]:''}`.trim();
-        const out=brQuarterly(o);
-        if(!out.counts.some(Boolean) && !o.quarters.some(q=>!q.on)){ toast('لا توجد بلاغات في الأرباع المحددة'); return false; }
-        const fn=`تقرير-937-ربعي-${stamp()}.json`;
-        await saveFile(fn,new Blob([JSON.stringify(out)],{type:'application/json'}));
-        return; }
       if(!(o.a.from&&o.a.to&&o.b.from&&o.b.to)){ toast('حدّد تواريخ الفترتين'); return false; }
       if(o.a.from>o.a.to||o.b.from>o.b.to){ toast('تاريخ البداية بعد تاريخ النهاية'); return false; }
       if(o.type==='weekly') o.sector=''; if(o.sector) o.off=[];
       if(!o.sector && sectors.length && o.off.length>=sectors.length){ toast('اختر قطاعاً واحداً على الأقل'); return false; }
-      try{ const prev=JSON.parse(localStorage.getItem(BRIDGE_KEY)||'{}'); localStorage.setItem(BRIDGE_KEY,JSON.stringify({...prev,type:o.type,sector:o.sector,top:o.top,off:o.off,a:o.a,b:o.b})); }catch(e){}
+      try{ localStorage.setItem(BRIDGE_KEY,JSON.stringify({type:o.type,sector:o.sector,top:o.top,off:o.off,a:o.a,b:o.b})); }catch(e){}
       o.name = o.type==='weekly' ? `الأسبوعي ${o.b.from.slice(5).replace('-','/')}` : (brShort(o.sector)||'كل القطاعات');
       const out=brBuild(o);
       if(!out.counts[0]&&!out.counts[1]){ toast('لا توجد بلاغات في الفترتين المحددتين'); return false; }
@@ -3004,6 +2875,108 @@ async function ckCluClick(e,S,sc,inR){ if(S.tab!=='clu') return; const all=(S.cl
       all.forEach((it,ri)=>{ const r=it.o||it.n, rr=ri+2; x+=`<row r="${rr}">${[r.no,cellText(r,'date'),r.center||'',r.sector||'',r.sub||'',it.who,label(it.col),it.snip,crRev(it.k)?'روجع':'لم يُراجَع',XS.has(it.k)?'نعم':'لا',...IC.map(k=>cellText(it.n,k)||cellText(r,k)||'')].map((c,i)=>cellXml(rr,i,c,2)).join('')}</row>`; });
       const blob=await buildXlsx([],{sheets:[['خارج التجمع',sheetDoc(x,[16,20,30,30,36,26,22,60,14,10,...IC.map(()=>45)],'')]]}); busy(null); await saveFile(`خارج-التجمع-${stamp()}.xlsx`,blob); }catch(err){ busy(null); console.error(err); toast('تعذر التصدير'); } return; }
 }
+
+/* ---------- متابعة المستبعدة والمفقودة: عمود «الإجراء المتخذ» + صفحة + تقرير ---------- */
+const ACT_L={ex:'مستبعد',up:'تحت الإجراء',ms:'مفقود'}, ACT_C={ex:['#FEE2E2','#991B1B'],up:['#DBEAFE','#1E40AF'],ms:['#FEF3C7','#92400E']};
+function actKey(create){ let c=SCHEMA.find(c=>c.auto==='act'&&!c.removed); if(c) return c.k; if(!create||VIEWER) return null;
+  const l=colByLabel('الإجراء المتخذ')?'الإجراء المتخذ (متابعة)':'الإجراء المتخذ'; const k='c_'+uid(); SCHEMA.push({k,l,type:'text',custom:1,table:1,rep:0,req:0,pii:0,options:[],auto:'act'}); saveSchema(); return k; }
+let UPC=null;
+function upMap(){ const sig=CR_V+'|'+DATA_V+'|'+RECS.length+'|'+JSON.stringify([CLU.own,CLU.cols,CLU.extra]); if(UPC&&UPC.sig===sig) return UPC.m;
+  const m=new Map(); Object.entries(CR).forEach(([k,v])=>{ if(v&&!v.done) m.set(k,v.who||''); }); try{ cluScan(RECS).forEach(h=>{ const k=keyNo(h.r.no); if(CR[k]&&CR[k].done) return; if(!m.get(k)) m.set(k,h.who); }); }catch(e){}
+  UPC={sig,m}; return m; }
+function actItems(){ const XI=excInfo(), GS=goneSet(), UP=upMap(), M=new Map(RECS.map(r=>[keyNo(r.no),r])), out=[], seen=new Set();
+  const add=(k,a,why)=>{ if(seen.has(k)) return; const r=M.get(k); if(!r) return; seen.add(k); const rv=(GR[k]&&GR[k].rev)||(CR[k]&&CR[k].rev)||null; const sn=(GR[k]&&GR[k].seen)||(CR[k]&&CR[k].seen)||(EXS.m[k]&&EXS.m[k].at)||'';
+    out.push({k,r,a,why,rev:rv,seen:sn}); };
+  XI.set.forEach(k=>add(k,'ex',XI.why.get(k)||'يدوي'));
+  GS.forEach(k=>add(k,'ms','غير موجود في ملف CARE'+(GR[k]&&GR[k].seen?' ('+dm(GR[k].seen).split(' ')[0]+')':'')));
+  UP.forEach((w,k)=>add(k,'up','خارج التجمع'+(w?': '+w:'')+' — لم يُستبعد بعد'));
+  return out; }
+const actRev=k=>!!((GR[k]&&GR[k].rev)||(CR[k]&&CR[k].rev));
+function actMark(ks,on){ const g=ks.filter(k=>GR[k]), c=ks.filter(k=>CR[k]||!GR[k]); if(g.length) grMark(g,on); if(c.length) crMark(c,on); }
+let ACT_T=null, ACT_RUN=false;
+function actSyncSoon(){ if(typeof VIEWER!=='undefined'&&VIEWER) return; clearTimeout(ACT_T); ACT_T=setTimeout(()=>{ actSync().catch(e=>console.error(e)); },1500); }
+async function actSync(){ if(VIEWER||ACT_RUN) return 0; if(!MV_READY){ actSyncSoon(); return 0; } ACT_RUN=true;
+  try{ const I=actItems(); const want=new Map(I.map(x=>[x.k,ACT_L[x.a]])); let ak=actKey(false); if(!ak&&!want.size) return 0; if(!ak){ ak=actKey(true); schemaChanged(); }
+    const up=[]; RECS.forEach(r=>{ const v=want.get(keyNo(r.no))||''; if(String(r[ak]||'')!==v){ const b={...r,[ak]:v}; delete b._s; delete b._m; up.push(prep(clean(b))); } });
+    if(up.length) await saveRecords(up,{type:'bulk',note:'تحديث «'+label(ak)+'»',archive:true}); return up.length; } finally{ ACT_RUN=false; } }
+function actDialog(S){ S=S||{a:'all',rv:'all',sector:'',center:'',from:'',to:'',sel:new Set()}; const all=actItems();
+  const inF=x=>{ const r=x.r, d=String(r.date||'').slice(0,10); return (!S.sector||r.sector===S.sector)&&(!S.center||r.center===S.center)&&(!S.from||d>=S.from)&&(!S.to||d<=S.to); };
+  const F0=all.filter(inF); const cA={ex:0,up:0,ms:0}; F0.forEach(x=>cA[x.a]++); const F1=S.a==='all'?F0:F0.filter(x=>x.a===S.a); const nR=F1.filter(x=>x.rev).length;
+  const L=(S.rv==='new'?F1.filter(x=>!x.rev):S.rv==='rev'?F1.filter(x=>x.rev):F1).slice().sort((a,b)=>(!!a.rev-!!b.rev)||String(b.r.date).localeCompare(String(a.r.date)));
+  S.list=L; [...S.sel].forEach(k=>{ if(!L.some(x=>x.k===k)) S.sel.delete(k); });
+  const secs=[...new Set(all.map(x=>x.r.sector).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar')), cens=[...new Set(all.filter(x=>!S.sector||x.r.sector===S.sector).map(x=>x.r.center).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));
+  const opt=(v,c)=>`<option value="">الكل</option>`+v.map(s=>`<option ${s===c?'selected':''}>${esc(s)}</option>`).join('');
+  const chip=(g,k,l,n)=>`<button type="button" class="btn sm ${S[g]===k?'primary':''}" data-ac="${g}:${k}">${l}${n!=null?` (${fmt(n)})`:''}</button>`;
+  const pill=a=>`<span class="badge" style="background:${ACT_C[a][0]};color:${ACT_C[a][1]};font-weight:700">${ACT_L[a]}</span>`;
+  const revp=x=>x.rev?`<span class="badge" style="background:color-mix(in srgb,#22A06B 18%,transparent);color:#1E8A5A;font-weight:700">✓ روجع ${esc(dm(x.rev).split(' ')[0])}</span>`:`<span class="badge" style="background:#7C3AED;color:#fff;font-weight:700">جديد</span>`;
+  const nS=S.sel.size;
+  const html=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><label class="field" style="min-width:200px"><span class="hint">القطاع</span><select class="inp" data-af="sector">${opt(secs,S.sector)}</select></label><label class="field" style="min-width:200px"><span class="hint">المركز</span><select class="inp" data-af="center">${opt(cens,S.center)}</select></label><label class="field"><span class="hint">من</span><input type="date" class="inp" data-af="from" value="${esc(S.from)}"></label><label class="field"><span class="hint">إلى</span><input type="date" class="inp" data-af="to" value="${esc(S.to)}"></label></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px"><b style="font-size:13px">الإجراء المتخذ:</b>${chip('a','all','الكل',F0.length)}${chip('a','ex','🚫 مستبعد',cA.ex)}${chip('a','up','⏳ تحت الإجراء',cA.up)}${chip('a','ms','❓ مفقود',cA.ms)}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><b style="font-size:13px">المراجعة:</b>${chip('rv','new','🆕 جديد',F1.length-nR)}${chip('rv','rev','✓ روجع',nR)}${chip('rv','all','الكل',F1.length)}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><button type="button" class="btn sm ghost" data-aa="all">تحديد الكل</button><button type="button" class="btn sm ghost" data-aa="none">إلغاء التحديد</button><span class="hint">المحدد: ${fmt(nS)}</span><span style="flex:1"></span>
+      <button type="button" class="btn sm" data-aa="rev" ${nS?'':'disabled'}>✓ تعليم كمراجَع</button>${!VIEWER?`<button type="button" class="btn sm" data-aa="exc" ${nS?'':'disabled'}>🚫 استبعاد</button><button type="button" class="btn sm" data-aa="back" ${nS?'':'disabled'}>↩ إرجاع من الاستبعاد</button><button type="button" class="btn sm" data-aa="dis" ${nS?'':'disabled'} title="لا يحتاج إجراء: يخرج من «مفقود» أو «تحت الإجراء»">✓ لا يحتاج إجراء</button>`:''}
+      <button type="button" class="btn sm" data-aa="view" ${L.length?'':'disabled'}>عرضها في السجلات</button><button type="button" class="btn sm primary" data-aa="rsel" ${nS?'':'disabled'}>📄 تقرير المحدد (${fmt(nS)})</button><button type="button" class="btn sm primary" data-aa="rall" ${L.length?'':'disabled'}>📄 تقرير الكل (${fmt(L.length)})</button></div>
+    <p class="hint" style="margin:0 0 6px">اضغط أي صف لقراءة البلاغ (يُعلَّم «روجع» تلقائياً) ثم «↩ رجوع للقائمة». العمود «${esc(actKey(false)?label(actKey(false)):'الإجراء المتخذ')}» يُحدَّث تلقائياً في القاعدة.</p>
+    ${L.length?`<div class="ctbl-wrap" style="max-height:48vh"><table class="ctbl"><thead><tr><th></th><th>رقم البلاغ</th><th>التاريخ</th><th>القطاع</th><th>المركز</th><th>التصنيف</th><th>الإجراء المتخذ</th><th>السبب</th><th>المراجعة</th></tr></thead><tbody>${L.slice(0,400).map(x=>`<tr data-aopen="${esc(x.r.id)}" style="cursor:pointer;${x.rev?'':'background:color-mix(in srgb,#7C3AED 7%,transparent)'}"><td><input type="checkbox" data-asel="${esc(x.k)}" ${S.sel.has(x.k)?'checked':''}></td><td><b dir="ltr">${esc(x.r.no)}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(x.r.date).slice(0,10))}</td><td>${esc(x.r.sector||'')}</td><td>${esc(x.r.center||'')}</td><td>${esc(x.r.sub||x.r.main||'')}</td><td>${pill(x.a)}</td><td class="hint" style="font-size:12px">${esc(x.why)}</td><td style="white-space:nowrap">${revp(x)}</td></tr>`).join('')}</tbody></table></div>${L.length>400?'<p class="hint">يظهر أول 400 — التقرير والتصدير يشملان الكل.</p>':''}`:'<p class="ro-empty" style="padding:14px;text-align:center">لا توجد بلاغات بهذه الفلاتر.</p>'}`;
+  dialog({title:`متابعة المستبعدة والمفقودة (${fmt(all.length)})`,wide:true,html,onOpen:s=>{
+    s.addEventListener('change',e=>{ const t=e.target; if(t.dataset.af){ S[t.dataset.af]=t.value; if(t.dataset.af==='sector') S.center=''; actDialog(S); return; } if(t.dataset.asel!==undefined){ t.checked?S.sel.add(t.dataset.asel):S.sel.delete(t.dataset.asel); const n=S.sel.size; s.querySelectorAll('[data-aa="rev"],[data-aa="exc"],[data-aa="back"],[data-aa="dis"],[data-aa="rsel"]').forEach(b=>{ b.disabled=!n; b.textContent=b.textContent.replace(/\(\d[\d,]*\)/,'('+fmt(n)+')'); }); const hn=[...s.querySelectorAll('.hint')].find(h=>h.textContent.startsWith('المحدد:')); if(hn) hn.textContent='المحدد: '+fmt(n); } });
+    s.addEventListener('click',async e=>{ const c=e.target.closest('[data-ac]'); if(c){ const [g,k]=c.dataset.ac.split(':'); S[g]=k; actDialog(S); return; }
+      const tr=e.target.closest('tr[data-aopen]'); if(tr&&!e.target.closest('input,button,label')){ const r=byId.get(tr.dataset.aopen); if(r){ REC_BACK=()=>actDialog(S); REC_REV={is:actRev,mark:actMark}; document.getElementById('layer').innerHTML=''; viewRecord(r); } return; }
+      const b=e.target.closest('[data-aa]'); if(!b) return; const a=b.dataset.aa, SEL=L.filter(x=>S.sel.has(x.k));
+      if(a==='all'){ L.forEach(x=>S.sel.add(x.k)); actDialog(S); return; } if(a==='none'){ S.sel.clear(); actDialog(S); return; }
+      if(a==='rev'){ actMark(SEL.map(x=>x.k),true); S.sel.clear(); actDialog(S); toast('عُلّمت كمراجَعة'); return; }
+      if(a==='exc'){ const z=SEL.filter(x=>x.a!=='ex'); if(!z.length){ toast('المحددة مستبعدة أصلاً'); return; } z.forEach(x=>excAdd([x.k],x.a==='ms'?'مفقود من ملف CARE':(x.why.split(' — ')[0]))); actMark(z.map(x=>x.k),true); S.sel.clear(); refresh(true); toast(`استُبعد ${fmt(z.length)} بلاغ`); actDialog(S); return; }
+      if(a==='back'){ const z=SEL.filter(x=>x.a==='ex'); if(!z.length){ toast('لا يوجد بين المحددة بلاغ مستبعد'); return; } excBack(z.map(x=>x.k)); S.sel.clear(); refresh(true); toast(`أُرجع ${fmt(z.length)} بلاغ`); actDialog(S); return; }
+      if(a==='dis'){ const z=SEL.filter(x=>x.a!=='ex'); if(!z.length){ toast('اختر بلاغات «مفقود» أو «تحت الإجراء»'); return; } const t0=new Date().toISOString(); let g=false,c=false;
+        z.forEach(x=>{ if(GR[x.k]&&GR[x.k].gone!==false){ GR[x.k]={...GR[x.k],gone:false,ok:t0}; g=true; } if(x.a==='up'||CR[x.k]){ CR[x.k]={...(CR[x.k]||{seen:t0}),done:t0}; c=true; } }); if(g) saveGR(); if(c) saveCR(); S.sel.clear(); refresh(true); toast(`أُخرج ${fmt(z.length)} بلاغ من المتابعة`); actDialog(S); return; }
+      if(a==='view'){ document.getElementById('layer').innerHTML=''; filt={...filt,q:'',from:'',to:'',exc:'show',gone:'',nos:L.map(x=>x.k).join(' ')}; view='table'; document.querySelectorAll('[data-view]').forEach(v=>v.setAttribute('aria-pressed',v.dataset.view===view)); refresh(); toast(`تُعرض ${fmt(L.length)} بلاغ`); return; }
+      if(a==='rsel'||a==='rall'){ actReportDialog(S, a==='rsel'?SEL:L); } }); },
+    actions:[{label:'إغلاق'}]}); }
+const ACTR_KEY='r937-actrep-v1';
+function actCols(){ const C=[{id:'no',l:'رقم البلاغ',v:x=>x.r.no},{id:'date',l:'التاريخ',v:x=>fmtDate(x.r.date).slice(0,10)},{id:'sector',l:'القطاع',v:x=>x.r.sector||''},{id:'center',l:'المركز',v:x=>x.r.center||''},{id:'sub',l:'التصنيف الفرعي',v:x=>x.r.sub||''},{id:'main',l:'التصنيف الرئيسي',v:x=>x.r.main||''},{id:'act',l:'الإجراء المتخذ',v:x=>ACT_L[x.a]},{id:'why',l:'السبب',v:x=>x.why},{id:'rev',l:'المراجعة',v:x=>x.rev?'روجع '+dm(x.rev).split(' ')[0]:'جديد'},{id:'desc',l:'وصف البلاغ',v:x=>cellText(x.r,'desc')||''}];
+  const ex=new Set(['no','date','sector','center','sub','main','desc']); const add=k=>{ if(k&&!ex.has(k)&&!C.some(c=>c.id==='c:'+k)) C.push({id:'c:'+k,l:label(k),v:x=>cellText(x.r,k)||''}); };
+  infoCols().forEach(add); add(colByLabel('القرار الأخير من المنطقة')); add(colByLabel(OLDC_L)); return C; }
+function actRepEl(items,R){ const C=actCols().filter(c=>R.cols.includes(c.id)); const cnt={ex:0,up:0,ms:0}; items.forEach(x=>cnt[x.a]++); const nR=items.filter(x=>x.rev).length;
+  const ds=items.map(x=>String(x.r.date||'').slice(0,10)).filter(Boolean).sort(); const per=ds.length?ds[0].replace(/-/g,'/')+' – '+ds[ds.length-1].replace(/-/g,'/'):'—';
+  const pill=(a)=>`<span style="background:${ACT_C[a][0]};color:${ACT_C[a][1]};font-weight:700;border-radius:99px;padding:1px 9px;font-size:11.5px;white-space:nowrap">${ACT_L[a]}</span>`;
+  const revp=x=>x.rev?`<span style="background:#DCFCE7;color:#166534;font-weight:700;border-radius:99px;padding:1px 9px;font-size:11.5px;white-space:nowrap">✓ روجع</span>`:`<span style="background:#7C3AED;color:#fff;font-weight:700;border-radius:99px;padding:1px 9px;font-size:11.5px">جديد</span>`;
+  const cell=(c,x)=>c.id==='act'?pill(x.a):c.id==='rev'?revp(x):esc(String(c.v(x)||'')).slice(0,c.id==='desc'||c.id.startsWith('c:')?400:200);
+  const groups=new Map(); items.slice().sort((a,b)=>String(b.r.date).localeCompare(String(a.r.date))).forEach(x=>{ const g=R.grp==='sector'?(x.r.sector||'بدون قطاع'):R.grp==='act'?ACT_L[x.a]:''; if(!groups.has(g)) groups.set(g,[]); groups.get(g).push(x); });
+  { const so=[...groups.entries()].sort((a,b)=>b[1].length-a[1].length); groups.clear(); so.forEach(([g,L])=>groups.set(g,L)); }
+  const el=document.createElement('div'); el.dir='rtl'; el.style.cssText='width:1120px;background:#fff;color:#14213D;font-family:'+getComputedStyle(document.body).fontFamily+';padding:22px 28px;box-sizing:border-box';
+  const th=`<tr>${C.map(c=>`<th style="text-align:start;padding:6px 6px;background:#F1F5F9;color:#475569;font-size:12px;border-bottom:1px solid #CBD5E1;white-space:nowrap">${esc(c.l)}</th>`).join('')}</tr>`;
+  let h=`<div class="blk" style="padding-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #1B2F5E;padding-bottom:10px"><div style="display:flex;gap:12px;align-items:center">${BRAND.logo?`<img src="${BRAND.logo}" style="height:54px">`:''}<div><div style="color:#2B6CB0;font-weight:700;font-size:13px">${esc(BRAND.org||'')}</div><div style="font-size:23px;font-weight:800">${esc(R.title||'تقرير البلاغات المستبعدة والمفقودة')}</div></div></div><div style="font-size:12.5px;color:#475569;text-align:left;line-height:1.7">الفترة: ${esc(per)}<br>تاريخ التقرير: ${esc((d=>[d.getDate(),d.getMonth()+1,d.getFullYear()].map(n=>String(n).padStart(2,'0')).join('-'))(new Date()))}${BRAND.preparer?`<br>إعداد: ${esc(BRAND.preparer)}`:''}</div></div></div>`;
+  if(R.kpi) h+=`<div class="blk" style="padding:4px 0 12px"><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">${[['الإجمالي',items.length,'#14213D'],['مستبعد',cnt.ex,'#991B1B'],['تحت الإجراء',cnt.up,'#1E40AF'],['مفقود',cnt.ms,'#92400E']].map(([l,n,c])=>`<div style="border:1px solid #E2E8F0;border-radius:10px;padding:8px 12px;background:#F8FAFC"><div style="font-size:12px;color:#64748B">${l}</div><div style="font-size:26px;font-weight:800;color:${c}">${fmt(n)}</div></div>`).join('')}</div><div style="font-size:12.5px;color:#64748B;margin-top:6px">روجع: ${fmt(nR)} · جديد: ${fmt(items.length-nR)}</div></div>`;
+  const CH=C.some(c=>c.id==='desc'||c.id.startsWith('c:'))?6:12;
+  groups.forEach((L,g)=>{ for(let i=0;i<L.length;i+=CH){ const part=L.slice(i,i+CH);
+    h+=`<div class="blk" style="padding-bottom:10px">${g&&i===0?`<div style="font-weight:800;color:#1B2F5E;font-size:15px;margin:6px 0">${esc(g)} (${fmt(L.length)})</div>`:g?`<div style="font-weight:700;color:#64748B;font-size:12.5px;margin:4px 0">${esc(g)} — تابع</div>`:''}<table style="width:100%;border-collapse:collapse;font-size:12.5px">${i===0||true?th:''}${part.map(x=>`<tr>${C.map(c=>`<td style="padding:5px 6px;border-bottom:1px solid #EEF2F7;vertical-align:top;${c.id==='no'?'direction:ltr;text-align:right;font-weight:700':''}">${cell(c,x)}</td>`).join('')}</tr>`).join('')}</table></div>`; } });
+  el.innerHTML=h; return el; }
+function actReportDialog(S,items){ let R=(()=>{ try{ return JSON.parse(localStorage.getItem(ACTR_KEY)||'null'); }catch(e){ return null; } })()||{}; R={cols:['no','date','sector','center','sub','act','why','rev'],grp:'sector',kpi:1,title:'تقرير البلاغات المستبعدة والمفقودة',...R};
+  const save=()=>{ try{ localStorage.setItem(ACTR_KEY,JSON.stringify(R)); }catch(e){} }; const C=actCols();
+  const seg=(k,v,l)=>`<label><input type="radio" name="ar_${k}" value="${v}" ${R[k]===v?'checked':''}><span>${l}</span></label>`;
+  const html=`<p class="hint" style="margin-top:0">يشمل ${fmt(items.length)} بلاغ.</p>
+    <label class="field"><span class="hint">عنوان التقرير</span><input class="inp" id="arTitle" value="${esc(R.title)}"></label>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0"><b>التجميع:</b><div class="seg">${seg('grp','sector','حسب القطاع')}${seg('grp','act','حسب الإجراء')}${seg('grp','none','بدون')}</div></div>
+    <b>الأعمدة الظاهرة:</b><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:4px 12px;margin:6px 0 10px;border:1px solid var(--line);border-radius:10px;padding:10px 12px">${C.map(c=>`<label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" data-arc="${esc(c.id)}" ${R.cols.includes(c.id)?'checked':''}> ${esc(c.l)}</label>`).join('')}</div>
+    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="arKpi" ${R.kpi?'checked':''}> ملخص الأعداد في أعلى التقرير</label>
+    <p class="hint">الاختيارات تُحفظ للمرة القادمة. ملف Excel يحتوي الأعمدة المختارة مع فلتر تلقائي، وورقة ملخص حسب القطاع والإجراء.</p>`;
+  const rd=s=>{ R.title=s.querySelector('#arTitle').value.trim()||'تقرير البلاغات المستبعدة والمفقودة'; R.kpi=s.querySelector('#arKpi').checked?1:0; R.grp=(s.querySelector('[name=ar_grp]:checked')||{}).value||'sector'; R.cols=[...s.querySelectorAll('[data-arc]')].filter(i=>i.checked).map(i=>i.dataset.arc); if(!R.cols.length) R.cols=['no']; save(); };
+  const withEl=async fn=>{ const holder=document.getElementById('exportHolder'); const el=actRepEl(items,R); holder.appendChild(el); try{ if(document.fonts&&document.fonts.ready) await document.fonts.ready; await Promise.all([...el.querySelectorAll('img')].map(i=>i.complete?0:new Promise(r=>{i.onload=i.onerror=r;}))); return await fn(el); } finally{ el.remove(); } };
+  const nm=ext=>`${R.title.replace(/[\\/:*?"<>|]+/g,'-').replace(/\s+/g,'-')}-${stamp()}.${ext}`;
+  dialog({title:'تقرير المستبعدة والمفقودة',wide:true,html,actions:[
+    {label:'⬇ Excel',cls:'primary',run:async s=>{ rd(s); busy('جارٍ تجهيز الملف…'); try{ const CC=C.filter(c=>R.cols.includes(c.id)); let x=`<row r="1">${CC.map((c,i)=>cellXml(1,i,c.l,1)).join('')}</row>`;
+        items.forEach((it,ri)=>{ const rr=ri+2; x+=`<row r="${rr}">${CC.map((c,i)=>cellXml(rr,i,c.v(it),2)).join('')}</row>`; });
+        const secs=[...new Set(items.map(it=>it.r.sector||'بدون قطاع'))].sort((a,b)=>a.localeCompare(b,'ar')); let y=`<row r="1">${['القطاع','مستبعد','تحت الإجراء','مفقود','الإجمالي','روجع','جديد'].map((h,i)=>cellXml(1,i,h,1)).join('')}</row>`;
+        secs.forEach((sc,ri)=>{ const L=items.filter(it=>(it.r.sector||'بدون قطاع')===sc), rr=ri+2, n=a=>L.filter(it=>it.a===a).length, nr=L.filter(it=>it.rev).length; y+=`<row r="${rr}">${[sc,n('ex'),n('up'),n('ms'),L.length,nr,L.length-nr].map((v,i)=>cellXml(rr,i,v,2)).join('')}</row>`; });
+        const blob=await buildXlsx([],{sheets:[['البلاغات',sheetDoc(x,CC.map(c=>c.id==='desc'||c.id.startsWith('c:')?50:c.id==='why'?40:c.id==='sector'||c.id==='center'?32:16),`<autoFilter ref="A1:${colName(CC.length-1)}${items.length+1}"/>`)],['ملخص',sheetDoc(y,[40,12,14,12,12,12,12],'')]]}); busy(null); await saveFile(nm('xlsx'),blob); }catch(err){ busy(null); console.error(err); toast('تعذر التصدير'); } return false; }},
+    {label:'⬇ صورة PNG',cls:'primary',run:async s=>{ rd(s); busy('جارٍ تجهيز الصورة…'); try{ const blob=await withEl(async el=>{ const r=Math.max(0.5,Math.min(2,16000/Math.max(1,el.offsetHeight))); return canvasBlob(await snap(el,r)); }); busy(null); await saveFile(nm('png'),blob); }catch(err){ busy(null); console.error(err); toast('تعذر إنشاء الصورة'); } return false; }},
+    {label:'⬇ PDF',cls:'primary',run:async s=>{ rd(s); busy('جارٍ تجهيز PDF…'); try{ const blob=await withEl(async el=>{ const PDFLib=await lib('pdflib'); const pdf=await PDFLib.PDFDocument.create(); const W=842,H=595,M=22; const font=await pdf.embedFont(PDFLib.StandardFonts.Helvetica);
+          const bl=[...el.querySelectorAll('.blk')]; let page=pdf.addPage([W,H]), y=H-M; const pages=[page];
+          for(let i=0;i<bl.length;i++){ busy(`جارٍ تجهيز PDF… ${Math.round(i/bl.length*100)}%`); const c=await snap(bl[i],2); const img=await pdf.embedJpg(new Uint8Array(await (await canvasBlob(c,'image/jpeg',0.88)).arrayBuffer()));
+            let sc=(W-2*M)/c.width, h=c.height*sc, w=W-2*M; if(h>H-2*M-14){ sc=(H-2*M-14)/c.height; h=H-2*M-14; w=c.width*sc; } if(y-h<M+14){ page=pdf.addPage([W,H]); pages.push(page); y=H-M; } page.drawImage(img,{x:(W-w)/2,y:y-h,width:w,height:h}); y-=h; }
+          pages.forEach((pg,i)=>{ const tx=`${i+1} / ${pages.length}`; pg.drawText(tx,{x:(W-font.widthOfTextAtSize(tx,8.5))/2,y:M-6,size:8.5,font,color:PDFLib.rgb(0.4,0.45,0.5)}); });
+          pdf.setTitle(R.title); return new Blob([await pdf.save()],{type:'application/pdf'}); }); busy(null); await saveFile(nm('pdf'),blob); }catch(err){ busy(null); console.error(err); toast('تعذر إنشاء PDF'); } return false; }},
+    {label:'↩ رجوع',run:()=>{ setTimeout(()=>actDialog(S),0); }}]}); }
 
 /* ---------- dialogs ---------- */
 function dialog({title, body, html, actions, wide, onOpen}){
@@ -3179,7 +3152,7 @@ function markPhrase(root,ph){ if(!root||!ph) return; const ws=String(ph).split(/
 // مراجعة «غير موجودة في الملف»: متى ظهر البلاغ أول مرة، ومتى روجع
 const GR_KEY='r937-gonerev-v1'; let GR=(()=>{ try{ return JSON.parse(localStorage.getItem(GR_KEY)||'{}')||{}; }catch(e){ return {}; } })();
 let GR_V=0, GONE_C=null;
-const saveGR=()=>{ GR_V++; try{ localStorage.setItem(GR_KEY,JSON.stringify(GR)); }catch(e){} };
+const saveGR=()=>{ GR_V++; try{ localStorage.setItem(GR_KEY,JSON.stringify(GR)); }catch(e){} actSyncSoon(); };
 // البلاغات غير الموجودة في آخر ملف CARE (داخل فترة الملف). تتحدّث عند كل استيراد أو فحص ملف، وتعود «موجودة» إذا ظهرت في ملف لاحق
 function goneSet(){ const sig=GR_V+'|'+RECS.length; if(GONE_C&&GONE_C.sig===sig) return GONE_C.set; const have=new Set(RECS.map(r=>keyNo(r.no)));
   const set=new Set(Object.keys(GR).filter(k=>GR[k]&&GR[k].gone!==false&&have.has(k))); GONE_C={sig,set}; return set; }
@@ -3190,7 +3163,7 @@ function goneMark(fileRecs, fname){ const fds=fileRecs.map(n=>String(n.date||'')
   fk.forEach(k=>{ const g=GR[k]; if(g&&g.gone!==false){ GR[k]={...g,gone:false,back:t}; ch=true; } });
   if(ch) saveGR(); return gone; }
 const CR_KEY='r937-clurev-v1'; let CR=(()=>{ try{ return JSON.parse(localStorage.getItem(CR_KEY)||'{}')||{}; }catch(e){ return {}; } })();
-const saveCR=()=>{ try{ localStorage.setItem(CR_KEY,JSON.stringify(CR)); }catch(e){} };
+const saveCR=()=>{ try{ localStorage.setItem(CR_KEY,JSON.stringify(CR)); }catch(e){} CR_V++; actSyncSoon(); }; let CR_V=0;
 const crRev=k=>!!(CR[k]&&CR[k].rev); function crMark(ks,on){ const t=new Date().toISOString(); ks.forEach(k=>{ CR[k]={...(CR[k]||{seen:t}),rev:on?t:null}; }); saveCR(); }
 const grRev=k=>!!(GR[k]&&GR[k].rev); function grMark(ks,on){ const t=new Date().toISOString(); ks.forEach(k=>{ GR[k]={...(GR[k]||{seen:t}),rev:on?t:null}; }); saveGR(); }
 const dm=t=>{ if(!t) return ''; const d=new Date(t), z=n=>String(n).padStart(2,'0'); return `${z(d.getDate())}/${z(d.getMonth()+1)} ${z(d.getHours())}:${z(d.getMinutes())}`; };
@@ -5257,8 +5230,7 @@ function genAction(b){
 
 /* ---------- المدة الزمنية للإغلاق ---------- */
 const DUR_KEY='r937-dur-v1';
-const DEF_DUR={on:1,start:'created',stCol:'حالة التذكرة',stVal:'تحت المعالجة - ضابط الاتصال',endCol:'تاريخ الحل',endCol2:'تاريخ الحل من المنسق',active:'hours',openShow:'hours',roMode:'b',t1:24,t2:48,
-  openOn:1,openMode:'or',openCol1:'حالة التذكرة',openSt:['تحت المعالجة ( ضابط الاتصال ) - شكوى أفراد'],openCol2:'القرار الأخير من المنطقة',openDec:['ارسال إلى ضابط الاتصال','لم يتم الحل - اعادة الى ضابط الاتصال','ارسال الى ضابط الاتصال']};
+const DEF_DUR={on:1,start:'created',stCol:'حالة التذكرة',stVal:'تحت المعالجة - ضابط الاتصال',endCol:'تاريخ الحل',endCol2:'تاريخ الحل من المنسق',active:'hours',openShow:'hours',roMode:'b',t1:24,t2:48};
 let DUR=(()=>{ try{ return {...DEF_DUR,...JSON.parse(localStorage.getItem(DUR_KEY)||'{}')}; }catch(e){ return {...DEF_DUR}; } })();
 const saveDur=()=>{ try{ localStorage.setItem(DUR_KEY,JSON.stringify(DUR)); }catch(e){} };
 const durEndKey=()=>colByLabel(DUR.endCol), durEndKey2=()=>DUR.endCol2?colByLabel(DUR.endCol2):null, durStKey=()=>colByLabel(DUR.stCol);
@@ -5275,7 +5247,7 @@ function durStart(r){
 // المدة = من البداية حتى «تاريخ الحل» (أو «تاريخ الحل من المنسق» إن كان الأول فارغاً)، وللمفتوح حتى الآن
 function durLvl(h){ return h<=(+DUR.t1||24)?'g':h<=(+DUR.t2||48)?'o':'r'; }
 let DIC=new WeakMap(), DIC_SIG='';
-function durInfo(r){ const mn=Math.floor(Date.now()/60000), sig=LOG_VER+'|'+MV_VER+'|'+REOPEN.length+'|'+RECS.length+'|'+DUR.start+'|'+DUR.stVal+'|'+DUR.stCol+'|'+DUR.endCol+'|'+DUR.endCol2+'|'+DUR.t1+'|'+DUR.t2+'|'+DUR.roMode+'|'+durOpenRule().sig;
+function durInfo(r){ const mn=Math.floor(Date.now()/60000), sig=LOG_VER+'|'+MV_VER+'|'+REOPEN.length+'|'+RECS.length+'|'+DUR.start+'|'+DUR.stVal+'|'+DUR.stCol+'|'+DUR.endCol+'|'+DUR.endCol2+'|'+DUR.t1+'|'+DUR.t2+'|'+DUR.roMode;
   if(sig!==DIC_SIG){ DIC=new WeakMap(); DIC_SIG=sig; } let x=DIC.get(r); if(x&&x.st==='open'&&x._m!==mn) x=null; // المغلق لا يتغير مع الوقت؛ المفتوح فقط يُحدَّث كل دقيقة
   if(!x){ x=durInfo0(r); if(x.st==='open') x={...x,_m:mn}; DIC.set(r,x); } return x; }
 // البلاغ المعاد فتحه: وقت إعادة الفتح الحقيقي غير موجود في الملف (يُعرف بوقت الاستيراد/الفحص)
@@ -5286,23 +5258,9 @@ function durInfo0(r){ const ci=roCycles(r); if(ci){ const L=ci.cyc[ci.cyc.length
     if(L&&L.open) return {st:'none',roP:1,...RA};
     if(L&&L.h!=null) return {st:'closed',h:L.h,lvl:durLvl(L.h),...RA}; }
   return durBase(r); }
-/* v168: متى يكون البلاغ مفتوحاً — بقيم «حالة التذكرة» و«القرار الأخير من المنطقة» المحددة في الإعدادات (أحدهما يكفي، أو الاثنان معاً)
-   المطابقة تتجاهل المسافات والأقواس والشرطات والهمزات. يرجع null إذا لم يكن في البلاغ أي من العمودين (ملف قديم) */
-const durVK=v=>nrm(v).replace(/[^\p{L}\p{N}]+/gu,'');
-let DOR_C=null;
-function durOpenRule(){ const sig=JSON.stringify([DUR.openOn,DUR.openMode,DUR.openCol1,DUR.openCol2,DUR.openSt,DUR.openDec,SCHEMA.length]);
-  if(DOR_C&&DOR_C.sig===sig) return DOR_C;
-  DOR_C={sig,on:!!DUR.openOn,and:DUR.openMode==='and',k1:colByLabel(DUR.openCol1),k2:colByLabel(DUR.openCol2),S1:new Set((DUR.openSt||[]).map(durVK).filter(Boolean)),S2:new Set((DUR.openDec||[]).map(durVK).filter(Boolean))}; return DOR_C; }
-function durOpenBy(r){ const R=durOpenRule(); if(!R.on) return null;
-  const h1=!!(R.k1&&R.S1.size&&r[R.k1]!==undefined), h2=!!(R.k2&&R.S2.size&&r[R.k2]!==undefined); if(!h1&&!h2) return null;
-  const a=h1&&R.S1.has(durVK(r[R.k1]??'')), b=h2&&R.S2.has(durVK(r[R.k2]??''));
-  return R.and ? ((h1?a:true)&&(h2?b:true)) : (a||b); }
 function durBase(r){
-  const ob=durOpenBy(r);
-  if(ob===true){ const st=durStart(r)||anyDate(r.date); if(!st) return {st:'none'}; const h=Math.max(0,(Date.now()-st.getTime())/3600000); return {st:'open',h,lvl:durLvl(h)}; }
   const ek=durEndKey(), ek2=durEndKey2(); const end=(ek?anyDate(r[ek]):null)||(ek2?anyDate(r[ek2]):null);
   if(end){ const st=durStart(r)||anyDate(r.date); if(!st) return {st:'none'}; const h=Math.max(0,(end.getTime()-st.getTime())/3600000); return {st:'closed',h,lvl:durLvl(h)}; }
-  if(ob===false) return {st:'none',noEnd:1}; // ليس مفتوحاً حسب حالته ولا تاريخ حل له: مدته غير معروفة
   // بلاغ لم يأتِ من ملف فيه «تاريخ الحل» ولا «حالة التذكرة» (من ملف قديم): لا نعرف حالته
   const sk=durStKey(); if((!ek || r[ek]===undefined) && (!ek2 || r[ek2]===undefined) && !(sk && String(r[sk]??'').trim())) return {st:'none'};
   const st=durStart(r); if(!st) return {st:'none'};
@@ -5328,18 +5286,9 @@ function panelDur(){
       <label class="opt"><input type="radio" name="duStart" value="status" ${DUR.start==='status'?'checked':''}><span>عندما تكون حالة التذكرة<small>يُعرف وقتها من أول استيراد ظهرت فيه التذكرة بهذه الحالة؛ وإن كانت بها من البداية فمن تاريخ الإنشاء.</small></span></label>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-inline-start:28px"><span class="hint">عمود الحالة</span><select class="inp" id="duStCol" style="width:auto">${cols.map(l=>`<option ${l===DUR.stCol?'selected':''}>${esc(l)}</option>`).join('')}</select><span class="hint">القيمة</span>${vals.length?`<select class="inp" id="duStVal" style="width:auto">${[...new Set([DUR.stVal,...vals])].map(v=>`<option ${v===DUR.stVal?'selected':''}>${esc(v)}</option>`).join('')}</select>`:`<input class="inp" id="duStVal" value="${esc(DUR.stVal)}" style="width:auto">`}</div>
     </div></div>
-    <div style="margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:10px 12px"><b>متى يكون البلاغ مفتوحاً</b>
-      <label class="opt" style="margin-top:6px"><input type="checkbox" id="duOpOn" ${DUR.openOn?'checked':''}><span>بقيم الأعمدة التالية<small>البلاغ المفتوح تُحسب مدته من الإنشاء حتى الآن ولو كان فيه تاريخ حل. وإن ألغيته يُعدّ مفتوحاً كل بلاغ ليس له تاريخ حل.</small></span></label>
-      ${DUR.openOn?`<div class="seg" style="margin:6px 0"><label><input type="radio" name="duOpMode" value="or" ${DUR.openMode!=='and'?'checked':''}><span>أحد الشرطين يكفي</span></label><label><input type="radio" name="duOpMode" value="and" ${DUR.openMode==='and'?'checked':''}><span>الشرطان معاً</span></label></div>
-      ${[['1','openCol1','openSt'],['2','openCol2','openDec']].map(([n,ck,vk])=>{ const k=colByLabel(DUR[ck]); const V=k?countBy(RECS,k).filter(x=>x[0]):[]; const SEL=new Set((DUR[vk]||[]).map(durVK));
-        const extra=(DUR[vk]||[]).filter(v=>!V.some(x=>durVK(x[0])===durVK(v)));
-        return `<div style="margin-top:8px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="hint">العمود ${n}</span><select class="inp" id="duOpCol${n}" style="width:auto">${cols.map(l=>`<option ${l===DUR[ck]?'selected':''}>${esc(l)}</option>`).join('')}</select><span class="hint">${SEL.size} قيمة محددة</span></div>
-          <div style="max-height:170px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px 8px;margin-top:4px">${V.length?V.map(([v,c])=>`<label class="opt" style="padding:3px 0"><input type="checkbox" data-duov="${vk}" value="${esc(v)}" ${SEL.has(durVK(v))?'checked':''}><span>${esc(v)} <span class="hint">(${fmt(c)})</span></span></label>`).join(''):`<span class="hint">${k?'لا توجد قيم':'هذا العمود غير موجود في القاعدة'}</span>`}
-          ${extra.map(v=>`<label class="opt" style="padding:3px 0"><input type="checkbox" data-duov="${vk}" value="${esc(v)}" checked><span>${esc(v)} <span class="hint">(غير موجودة في البيانات الحالية)</span></span></label>`).join('')}</div></div>`; }).join('')}`:''}
-    </div>
     <div style="margin-top:10px"><b>وينتهي عند</b> <select class="inp" id="duEnd" style="width:auto">${cols.map(l=>`<option ${l===DUR.endCol?'selected':''}>${esc(l)}</option>`).join('')}</select>
       <span class="hint">وإن كان فارغاً فعند</span> <select class="inp" id="duEnd2" style="width:auto"><option value="" ${!DUR.endCol2?'selected':''}>— لا شيء —</option>${cols.map(l=>`<option ${l===DUR.endCol2?'selected':''}>${esc(l)}</option>`).join('')}</select>
-      <p class="hint" style="margin:4px 0 0">${ek?'المحلول: تُحسب المدة الفعلية حتى تاريخ الحل. المفتوح (حسب «متى يكون البلاغ مفتوحاً»، أو العمودان فارغان إن لم يُحدد): تُحسب حتى الآن وتتغير تلقائياً.':'<span style="color:var(--bad)">هذا العمود غير موجود في القاعدة بعد — استورد ملف Care الذي يحتويه وأضِفه عند ظهور نافذة الأعمدة الجديدة.</span>'}</p></div>
+      <p class="hint" style="margin:4px 0 0">${ek?'المحلول: تُحسب المدة الفعلية حتى تاريخ الحل. المفتوح (العمودان فارغان): تُحسب حتى الآن وتتغير تلقائياً.':'<span style="color:var(--bad)">هذا العمود غير موجود في القاعدة بعد — استورد ملف Care الذي يحتويه وأضِفه عند ظهور نافذة الأعمدة الجديدة.</span>'}</p></div>
     <div style="margin-top:10px"><b>التصنيف والألوان (بالساعات)</b>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px"><span class="hint">حتى</span><input class="inp" type="number" min="1" id="duT1" value="${+DUR.t1||24}" style="width:80px"><span class="hint">ساعة أو أقل =</span><span class="dur dur-g">${durLabels().g}</span></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px"><span class="hint">أكثر من ذلك حتى</span><input class="inp" type="number" min="2" id="duT2" value="${+DUR.t2||48}" style="width:80px"><span class="hint">ساعة =</span><span class="dur dur-o">${durLabels().o}</span></div>
@@ -5354,10 +5303,6 @@ function panelDur(){
   </div>`;
 }
 function durChange(t){
-  if(t.id==='duOpOn'){ DUR.openOn=t.checked?1:0; saveDur(); refresh(true); return 'redraw'; }
-  if(t.name==='duOpMode'){ DUR.openMode=t.value; saveDur(); refresh(true); return 'redraw'; }
-  if(t.id==='duOpCol1'||t.id==='duOpCol2'){ DUR[t.id==='duOpCol1'?'openCol1':'openCol2']=t.value; saveDur(); refresh(true); return 'redraw'; }
-  if(t.dataset&&t.dataset.duov){ const k=t.dataset.duov, A=(DUR[k]||[]).filter(v=>durVK(v)!==durVK(t.value)); if(t.checked) A.push(t.value); DUR[k]=A; saveDur(); refresh(true); return 'redraw'; }
   if(t.id==='duOn') DUR.on=t.checked?1:0; else if(t.name==='duStart') DUR.start=t.value; else if(t.id==='duStCol'){ DUR.stCol=t.value; saveDur(); refresh(true); return 'redraw'; }
   else if(t.id==='duStVal') DUR.stVal=t.value; else if(t.id==='duEnd'){ DUR.endCol=t.value; saveDur(); refresh(true); return 'redraw'; } else if(t.id==='duEnd2'){ DUR.endCol2=t.value; saveDur(); refresh(true); return 'redraw'; }
   else if(t.id==='duT1'){ DUR.t1=Math.max(1,+t.value||24); saveDur(); refresh(true); return 'redraw'; } else if(t.id==='duT2'){ DUR.t2=Math.max((+DUR.t1||24)+1,+t.value||48); saveDur(); refresh(true); return 'redraw'; } else if(t.name==='duAct') DUR.active=t.value; else if(t.name==='duOpen'){ DUR.openShow=t.value; saveDur(); refresh(true); return 'redraw'; } else if(t.name==='duRo'){ DUR.roMode=t.value; saveDur(); refresh(true); toast(t.value==='a'?'المعاد فتحه يُحسب من تاريخ الإنشاء':'المعاد فتحه يُكتب «معاد فتحه» حتى يُغلق'); return 'redraw'; }
@@ -5435,7 +5380,7 @@ function cluScan(list){ const ks=cluCols(), out=[]; list.forEach(r=>{ for(const 
 let DATA_V=0, EXC_V=0, EXC_C=null;
 const EXC_KEY='r937-exc-v1';
 let EXS=(()=>{ try{ const v=JSON.parse(localStorage.getItem(EXC_KEY)||'{}'); return {m:v.m||{},keep:v.keep||[]}; }catch(e){ return {m:{},keep:[]}; } })();
-const saveExc=()=>{ EXC_V++; EXC_C=null; try{ localStorage.setItem(EXC_KEY,JSON.stringify(EXS)); }catch(e){} };
+const saveExc=()=>{ EXC_V++; EXC_C=null; try{ localStorage.setItem(EXC_KEY,JSON.stringify(EXS)); }catch(e){} actSyncSoon(); };
 function excInfo(){ const sig=RECS.length+'|'+EXC_V+'|'+DATA_V+'|'+(CLU.auto?1:0)+'|'+JSON.stringify([CLU.own,CLU.cols,CLU.extra]); if(EXC_C&&EXC_C.sig===sig) return EXC_C;
   const why=new Map(); Object.entries(EXS.m).forEach(([k,v])=>why.set(k,v.why||'يدوي'));
   if(CLU.auto){ const keep=new Set(EXS.keep); cluScan(RECS).forEach(h=>{ const k=keyNo(h.r.no); if(!keep.has(k)&&!why.has(k)) why.set(k,'تلقائي: '+h.who); }); }
@@ -5604,7 +5549,7 @@ async function checkStatusFile(file){
   if(!VIEWER&&ren.length){ try{ await oldcSync(); }catch(e){ console.error(e); } }
   // خارج التجمع: إفادات الملف (الأحدث) تذكر أن المركز لا يتبع تجمعنا
   const clu=[]; { const su=new Map(); res.recs.forEach(n=>{ const k=keyNo(n.no); if(k&&!su.has(k)) su.set(k,n); }); const tN=new Date().toISOString(); let cch=false;
-    cluScan([...su.values()]).forEach(h=>{ const k=keyNo(h.r.no), o=ex.get(k)||null; clu.push({k,n:h.r,o,who:h.who,snip:h.snip,col:h.k}); if(!CR[k]){ CR[k]={seen:tN,rev:null}; cch=true; } }); if(cch) saveCR();
+    cluScan([...su.values()]).forEach(h=>{ const k=keyNo(h.r.no), o=ex.get(k)||null; clu.push({k,n:h.r,o,who:h.who,snip:h.snip,col:h.k}); if(!CR[k]){ CR[k]={seen:tN,rev:null,who:h.who}; cch=true; } else if(!CR[k].who){ CR[k].who=h.who; cch=true; } }); if(cch) saveCR();
     clu.sort((a,b)=>String(b.n.date).localeCompare(String(a.n.date))); }
   ren.sort((a,b)=>String(b.n.date).localeCompare(String(a.n.date))); ns.sort((a,b)=>String(b.n.date).localeCompare(String(a.n.date)));
   checkDialog({file,sk,hits,news,gone,ren,ns,clu,rng,same,F:{from:'',to:''},tab:hits.length||!news.length?'chg':'new',sel:CC0});
@@ -5622,6 +5567,8 @@ function checkDialog(S){
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px"><b>الفترة (تاريخ البلاغ)</b><span class="hint">من</span><input type="date" class="inp" id="ckFrom" value="${esc(F.from)}" style="width:auto"><span class="hint">إلى</span><input type="date" class="inp" id="ckTo" value="${esc(F.to)}" style="width:auto">${flt?'<button type="button" class="btn sm ghost" id="ckAll">كل الفترات</button>':''}${ds.length?`<span class="hint">تواريخ المتغيّرة والجديدة: ${esc(ds[0].replace(/-/g,'/'))} – ${esc(ds[ds.length-1].replace(/-/g,'/'))}</span>`:''}</div>
     <div class="stats" style="margin-bottom:10px"><div><b style="color:${hits.length?'#E5484D':'inherit'}">${fmt(hits.length)}${of(hits.length,S.hits.length)}</b><span>تذكرة فيها تغيير${sk?` (منها ${fmt(nSt)} تغيّرت حالتها، و<b style="color:#E5484D">${fmt(nRo)} معاد فتحها</b>)`:''}</span></div><div><b style="color:${news.length?'#2B6CB0':'inherit'}">${fmt(news.length)}${of(news.length,S.news.length)}</b><span>بلاغ جديد غير مسجّل في القاعدة</span></div><div><b>${fmt(S.same)}</b><span>بدون أي تغيير</span></div></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${tb('chg','تذاكر تغيّرت',hits.length)}${tb('new','بلاغات جديدة',news.length)}${tb('gone','غير موجودة في الملف',gone.length)}${tb('ren','أسماء مراكز مُصحّحة',(S.ren||[]).filter(x=>inR(x.n.date)).length)}${tb('ns','مراكز بلا قطاع أو «تجمع مكة»',(S.ns||[]).filter(x=>inR(x.n.date)).length)}${tb('clu','خارج التجمع',(S.clu||[]).filter(x=>inR(x.n.date)).length)}</div>
+    ${!VIEWER&&(hits.length||news.length)?(()=>{ if(S.arch===undefined){ const fmx=[...hits.map(h=>h.o),...news].map(r=>String(r.date||'').slice(0,10)).filter(Boolean).sort().pop()||'', dmn=RECS.map(r=>String(r.date||'').slice(0,10)).filter(Boolean).sort()[0]||''; S.arch=!!(fmx&&dmn&&fmx<dmn); }
+      return `<label class="opt" style="margin:6px 0 10px;border-color:color-mix(in srgb,#7C5CFF 40%,var(--line))"><input type="checkbox" id="ckArch" ${S.arch?'checked':''}><span>📦 بيانات أرشيف (سنوات سابقة)<small>عند «تحديث المتغيّرة» أو «إضافة الجديدة»: لا تُسجَّل في «حركة البلاغات»، ولا تُعدّ «متأخرة»، ولا تظهر في «التحديثات» و«المعاد فتحها»، ولا يتغيّر «آخر تحديث للبيانات». يُؤشَّر تلقائياً إذا كانت كل بلاغات الملف أقدم من بيانات التطبيق.</small></span></label>`; })():''}
     ${tab==='clu'?ckCluTab(S,inR):tab==='ren'||tab==='ns'?ckNameTab(S,tab,inR):tab==='gone'?(()=>{ const GS=S.gsel||(S.gsel=new Set()), XS=excSet(), byC=countBy(gone,'center'), stK=sk; const nU=gone.filter(r=>!grRev(keyNo(r.no))).length, nR=gone.length-nU;
       if(!S.gf) S.gf=nU?'new':'all'; const GL=(S.gf==='new'?gone.filter(r=>!grRev(keyNo(r.no))):S.gf==='rev'?gone.filter(r=>grRev(keyNo(r.no))):gone).slice().sort((a,b)=>(grRev(keyNo(a.no))-grRev(keyNo(b.no)))||String(b.date).localeCompare(String(a.date)));
       const gb=(k,l)=>`<button type="button" class="btn sm ${S.gf===k?'primary':''}" data-gf="${k}">${l}</button>`; return `<div style="padding:10px 12px;border:1px solid #F0C27A;border-inline-start:4px solid #E8890C;background:color-mix(in srgb,#E8890C 8%,var(--surface));border-radius:10px;margin-bottom:10px"><b>بلاغات في التطبيق تاريخها داخل فترة الملف (${esc(fmtDate(S.rng.from))} – ${esc(fmtDate(S.rng.to))}) ولم تَرِد فيه.</b><br><span class="hint">قد تكون حُذفت أو أُلغيت في المنصة، أو أن الملف مُصدَّر بفلتر (مراكز أو حالات معيّنة) فلم يشملها. تأكد قبل الحذف.</span></div>
@@ -5636,13 +5583,14 @@ function checkDialog(S){
       ${ccl.map(([c,n])=>`<label class="opt"><input type="checkbox" data-cc="${esc(c)}" ${S.sel.has(c)?'checked':''}><span>${esc(label(c))}<small>يتغيّر في ${fmt(n)} تذكرة</small></span></label>`).join('')}</div>`:'<p class="ro-empty" style="padding:14px;text-align:center">لا توجد تذاكر متغيّرة'+(flt?' في هذه الفترة':': كل تذاكر الملف مطابقة للقاعدة')+'.</p>')}`;
   const doUpd=async()=>{ const sel=[...S.sel].filter(c=>CC.has(c)); if(!sel.length){ toast('اختر عموداً واحداً على الأقل في تبويب «تذاكر تغيّرت»'); return null; }
     const puts=hits.map(h=>{ const n={...byId.get(h.o.id)||h.o}; delete n._s; delete n._m; sel.forEach(c=>{ n[c]=h.m[c]; }); return prep(clean(n)); });
-    await saveRecords(puts,{type:'reopen',note:file.name+(flt?` (${F.from||'…'} – ${F.to||'…'})`:'')+' · '+sel.map(c=>label(c)).join('، ')});
+    await saveRecords(puts,{type:'reopen',note:(S.arch?'📦 أرشيف · ':'')+file.name+(flt?` (${F.from||'…'} – ${F.to||'…'})`:'')+' · '+sel.map(c=>label(c)).join('، '),archive:!!S.arch});
+    if(S.arch) return {n:hits.length, nR:0};
     return {n:hits.length, nR:addReopen(hits.map(h=>sel.includes(sk)?h:{...h,to:h.from}),file.name,sel)}; };
   const doAdd=async()=>{ const have=new Set(RECS.map(r=>keyNo(r.no))); const list=news.filter(n=>!have.has(keyNo(n.no))); if(!list.length) return 0;
     const DS=defSec(); if(active('sector')) list.forEach(r=>{ if(String(r.sector||'').trim()) return; const x=r.center?centerToSector(r.center):''; if(x) r.sector=x; else if(DS) r.sector=DS; });
     const lastDay=RECS.reduce((m,r)=>r.date&&r.date.slice(0,10)>m?r.date.slice(0,10):m,''); const late=lastDay?list.filter(r=>r.date&&r.date.slice(0,10)<lastDay):[];
-    await saveRecords(list.map(prep),{type:'import',note:file.name+' · بلاغات جديدة من الفحص'}); if(late.length) addLate(late,file.name); return list.length; };
-  const run=async(u,a)=>{ busy('جارٍ الحفظ…'); let r=null, n=0; try{ if(u){ r=await doUpd(); if(!r){ busy(null); return false; } } if(a) n=await doAdd(); } finally{ busy(null); } if((r&&r.n)||n) setLastUpd('فحص التغييرات',file.name,n,r?r.n:0);
+    await saveRecords(list.map(prep),{type:'import',note:(S.arch?'📦 أرشيف · ':'')+file.name+' · بلاغات جديدة من الفحص',archive:!!S.arch}); if(late.length&&!S.arch) addLate(late,file.name); return list.length; };
+  const run=async(u,a)=>{ busy('جارٍ الحفظ…'); let r=null, n=0; try{ if(u){ r=await doUpd(); if(!r){ busy(null); return false; } } if(a) n=await doAdd(); } finally{ busy(null); } if(((r&&r.n)||n)&&!S.arch) setLastUpd('فحص التغييرات',file.name,n,r?r.n:0);
     toast([r?`حُدّثت ${fmt(r.n)} تذكرة${r.nR?` · ${fmt(r.nR)} في «معاد فتحها»`:''}`:'',n?`أضيف ${fmt(n)} بلاغ جديد`:''].filter(Boolean).join(' · ')||'لا شيء للحفظ'); if(r&&r.nR) setTimeout(()=>reopenDialog('new'),60); };
   const W=!VIEWER;
   dialog({title:'فحص تغييرات التذاكر', wide:true, html, actions:[
@@ -5665,6 +5613,7 @@ function checkDialog(S){
         if(a==='exc'){ if(!ks.length) return; excAdd(ks,'غير موجود في ملف '+file.name); G.clear(); refresh(true); toast(`استُبعد ${fmt(ks.length)} بلاغ — لا تُحسب، ويمكن إرجاعها من «فحص تبعية التجمع ← المستبعدة»`); checkDialog(S); }
         if(a==='del'){ if(!ks.length) return; dialog({title:`حذف ${fmt(sel.length)} بلاغ من القاعدة؟`, body:`هذه البلاغات تاريخها داخل فترة الملف «${file.name}» ولم تَرِد فيه. ستُحذف من التطبيق على هذا الجهاز، ويمكن التراجع بزر «تراجع». إن لم تكن متأكداً فاختر «استبعادها» بدل الحذف.`,
           actions:[{label:'حذف',cls:'primary danger',run:async()=>{ await removeRecords(sel.map(r=>r.id),'del'); G.clear(); S.gone=(S.gone||[]).filter(r=>!ks.includes(keyNo(r.no))); toast(`حُذف ${fmt(ks.length)} بلاغ`); setTimeout(()=>checkDialog(S),50); }},{label:'إلغاء'}]}); } });
+      sc.addEventListener('change',e=>{ if(e.target.id==='ckArch') S.arch=e.target.checked; });
       sc.addEventListener('click',e=>ckNameClick(e,S,sc,inR)); sc.addEventListener('click',e=>ckCluClick(e,S,sc,inR));
       sc.addEventListener('change',e=>{ const t=e.target; if(t.dataset.csel===undefined) return; const G=S.csel||(S.csel=new Set()); t.checked?G.add(t.dataset.csel):G.delete(t.dataset.csel); sc.querySelectorAll('[data-cm="exc"],[data-cm="rev"]').forEach(b=>{ b.disabled=!G.size; b.textContent=b.textContent.replace(/\(\d[\d,]*\)/,'('+fmt(G.size)+')'); }); });
       sc.addEventListener('change',e=>{ const t=e.target; if(t.dataset.nsel===undefined) return; const G=S.nsel||(S.nsel=new Set()); t.checked?G.add(t.dataset.nsel):G.delete(t.dataset.nsel); sc.querySelectorAll('[data-nm="rev"]').forEach(b=>{ b.disabled=!G.size; b.textContent=b.textContent.replace(/\(\d[\d,]*\)/,'('+fmt(G.size)+')'); }); });
@@ -5741,7 +5690,7 @@ const mvCut=v=>{ v=String(v??''); return v.length>1500?v.slice(0,1500)+'…':v; 
 async function loadMV(){ try{ const keys=(await dbMetaKeys()).filter(k=>typeof k==='string'&&k.startsWith('mv:')).sort(); let all=[];
     for(const k of keys){ const v=await dbMeta(k); if(Array.isArray(v)&&v.length){ all=all.concat(v); MV_KEYS.add(k); } }
     const old=await dbMeta('movelog'); if(Array.isArray(old)&&old.length){ all=all.concat(old); all.sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0); MV_FULL=true; setTimeout(()=>mvSave(true),3000); }
-    const pend=MV; MV=all; if(pend&&pend.length){ MV=MV.concat(pend).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0); pend.forEach(x=>MV_DIRTY.add(mvMon(x[0]))); } }catch(e){ console.error(e); } MV_READY=true; MV_VER++; setTimeout(()=>{ oldcSync().catch(e=>console.error(e)); },400); }
+    const pend=MV; MV=all; if(pend&&pend.length){ MV=MV.concat(pend).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0); pend.forEach(x=>MV_DIRTY.add(mvMon(x[0]))); } }catch(e){ console.error(e); } MV_READY=true; MV_VER++; setTimeout(()=>{ oldcSync().catch(e=>console.error(e)); },400); setTimeout(()=>actSyncSoon(),2500); }
 async function mvFlush(){ if(!MV_READY&&MV_P) await MV_P; const full=MV_FULL, dirty=MV_DIRTY; MV_FULL=false; MV_DIRTY=new Set(); const by=new Map();
   if(full) MV.forEach(x=>{ const m=mvMon(x[0]); let a=by.get(m); if(!a){ a=[]; by.set(m,a); } a.push(x); });
   else { if(!dirty.size) return; const mins=[...dirty].sort()[0]; dirty.forEach(m=>by.set(m,[])); for(let i=MV.length-1;i>=0;i--){ const m=mvMon(MV[i][0]); if(m<mins) break; const a=by.get(m); if(a) a.push(MV[i]); } by.forEach(a=>a.reverse()); }
