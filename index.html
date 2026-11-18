@@ -713,7 +713,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '168';
+const APP_VER = '169';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -1660,12 +1660,13 @@ function optionsFor(k){
   filt[k]=save;
   if(k==='month'){ const m=new Map(); base.forEach(r=>{ if(r._m) m.set(r._m,{n:(m.get(r._m)?.n||0)+1, key:monthKey(r)}); }); return [...m.entries()].sort((a,b)=>b[1].key<a[1].key?-1:1).map(([v,o])=>[v,o.n]); }
   if(k==='__dur'){ const m=new Map(); base.forEach(r=>{ const v=rv(r,'__dur'); m.set(v,(m.get(v)||0)+1); }); const L=durLabels(); return [L.g,L.o,L.r,RO_LBL].filter(c=>m.has(c)).map(c=>[c,m.get(c)]).concat(m.has('')?[['__none',m.get('')]]:[]); }
-  return countBy(base,k).filter(([v])=>v!=='');
+  const L=countBy(base,k), e=L.filter(([v])=>v===''||v==null).reduce((a,[,n])=>a+n,0), out=L.filter(([v])=>v!==''&&v!=null);
+  return e?[['__none',e],...out]:out; // v169: خيار «(فارغ)» في كل الفلاتر
 }
 // فلتر متعدد: القيمة '' = الكل، أو نص واحد، أو قائمة قيم
 const fVals=k=>{ const v=filt[k]; return Array.isArray(v)?v:(v?[v]:[]); };
 function fOk(k,val){ const vs=fVals(k); if(!vs.length) return true; return vs.some(x=> x==='__none' ? !val : val===x); }
-const fLabel=(k,v)=>v==='__none'?(k==='__dur'?'غير معروف (ملفات قديمة)':'بدون قطاع'):v;
+const fLabel=(k,v)=>v==='__none'?(k==='__dur'?'غير معروف (ملفات قديمة)':k==='sector'?'بدون قطاع':'(فارغ)'):v;
 const fText=k=>{ const vs=fVals(k); return vs.length<=2?vs.map(v=>fLabel(k,v)).join('، '):`${fLabel(k,vs[0])} و${fmt(vs.length-1)} أخرى`; };
 let FC_KEY='center', FC_ROWS=[];
 document.addEventListener('change',e=>{ const t=e.target;
@@ -2171,7 +2172,9 @@ function renderView(){
 function renderBulk(){
   const b=document.getElementById('bulkbar');
   if(!selected.size){ b.innerHTML=''; return; }
-  b.innerHTML=`<div class="bulk"><b>${fmt(selected.size)} محدد</b><button type="button" class="btn sm" id="bulkEdit">تعديل جماعي</button><button type="button" class="btn sm danger" id="bulkDel">حذف</button><button type="button" class="btn sm ghost" id="bulkClear">إلغاء التحديد</button></div>`;
+  let exN=0; try{ const XS=excSet(); if(XS.size) selected.forEach(id=>{ const r=byId.get(id); if(r&&XS.has(keyNo(r.no))) exN++; }); }catch(e){}
+  const inN=selected.size-exN;
+  b.innerHTML=`<div class="bulk"><b>${fmt(selected.size)} محدد</b><button type="button" class="btn sm" id="bulkEdit">تعديل جماعي</button>${inN?`<button type="button" class="btn sm" id="bulkExc" title="لا تدخل في الأعداد ولا في التقارير، وتبقى في القاعدة وتُحدَّث مع الاستيراد">استبعاد (${fmt(inN)})</button>`:''}${exN?`<button type="button" class="btn sm" id="bulkBack">إرجاع المستبعدة (${fmt(exN)})</button>`:''}<button type="button" class="btn sm danger" id="bulkDel">حذف</button><button type="button" class="btn sm ghost" id="bulkClear">إلغاء التحديد</button></div>`;
 }
 
 /* ---------- report (preview / png / pdf / html) ---------- */
@@ -2414,7 +2417,6 @@ document.addEventListener('change',e=>{ const s=e.target.closest&&e.target.close
 // نافذة اختيار متعدد للفلتر
 function filterPicker(k){
   let opts=optionsFor(k); const cur=new Set(fVals(k));
-  if(k==='sector'){ const none=RECS.filter(r=>!r.sector).length; if(none) opts=[['__none',none],...opts]; }
   cur.forEach(v=>{ if(!opts.find(o=>o[0]===v)) opts.unshift([v,0]); });
   const html=`<input class="inp" id="mpQ" placeholder="ابحث…" autocomplete="off">
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button type="button" class="btn sm" id="mpAll">تحديد الكل</button><button type="button" class="btn sm" id="mpNone">إلغاء التحديد</button><span class="hint" id="mpN"></span></div>
@@ -2482,6 +2484,10 @@ document.addEventListener('click',e=>{
     if(b.id==='selAll'){ filtered.forEach(r=>selected.add(r.id)); renderView(); return; }
     if(b.id==='bulkClear'){ selected.clear(); renderView(); return; }
     if(b.id==='bulkDel'){ guard(()=>confirmDelete([...selected])); return; }
+    if(b.id==='bulkExc'){ guard(()=>{ const XS=excSet(); const L=[...selected].map(id=>byId.get(id)).filter(r=>r&&!XS.has(keyNo(r.no))); if(!L.length) return;
+      dialog({title:'استبعاد البلاغات المحددة',html:`<p style="margin-top:0">سيُستبعد <b>${fmt(L.length)}</b> بلاغ من أعداد اللوحة والتقارير وكل ما يُرسل للتقرير. تبقى في القاعدة وتُحدَّث مع كل استيراد، وتجدها وترجعها من «فحص تبعية التجمع ← المستبعدة» أو بتحديدها هنا ثم «إرجاع المستبعدة».</p><div class="field"><label for="bxWhy">السبب</label><input class="inp" id="bxWhy" value="استبعاد يدوي"></div>`,
+        actions:[{label:`استبعاد ${fmt(L.length)}`,cls:'primary',run:sc=>{ const why=(sc.querySelector('#bxWhy').value||'').trim()||'استبعاد يدوي'; excAdd(L.map(r=>keyNo(r.no)),why); selected.clear(); refresh(); toast(`استُبعد ${fmt(L.length)} بلاغ`); }},{label:'إلغاء'}]}); }); return; }
+    if(b.id==='bulkBack'){ guard(()=>{ const XS=excSet(); const K=[...selected].map(id=>byId.get(id)).filter(r=>r&&XS.has(keyNo(r.no))).map(r=>keyNo(r.no)); if(!K.length) return; excBack(K); selected.clear(); refresh(); toast(`أُرجع ${fmt(K.length)} بلاغ إلى الأعداد`); }); return; }
     if(b.id==='bulkEdit'){ guard(bulkEdit); return; }
     if(b.id==='btnNew'){ guard(()=>editRecord(null)); return; }
     if(b.id==='btnPanel'){ guard(()=>controlPanel('home')); return; }
@@ -2692,7 +2698,7 @@ function brOpenDiag(o){ const k=colByLabel(DUR.openCol1)||durStKey(); if(!k) ret
     <div style="margin-top:4px;color:var(--muted)">قيم «${esc(DUR.openCol1)}» في الأرباع المحددة: ${[...vals].sort((a,b)=>b[1]-a[1]).slice(0,8).map(([v,n])=>`<span style="white-space:nowrap">${esc(v)} <b>${fmt(n)}</b></span>`).join(' · ')}</div>`; }
 function brCls(r,T1,T2,SK){
   const d=durInfo(r); if(!d) return null; if(d.st==='open') return d.h>T2?'op':null; if(d.st!=='closed') return null;
-  if(d.h<=T1) return 'w'; if(d.h<=T2) return 'o'; return (SK&&slaState(r,SK)==='in')?'rs':'r'; }
+  const s=SK?slaState(r,SK):''; if(s==='in') return 'w'; if(s==='out') return 'r'; return d.h<=T2?'w':'r'; }
 // البلاغات التي تُحسب «مفتوحة أكثر من 48 ساعة» في الأرباع المحددة: لا يوجد لها تاريخ حل وعمرها تجاوز T2
 function brOpenLate(o){ const T1=+DUR.t1||24, T2=Math.max(T1+1,+DUR.t2||48), seen=new Set(), out=[];
   (o.quarters||[]).filter(q=>q.on&&q.from&&q.to).forEach(q=>brPeriodRecs('',q.from,q.to,o.off).forEach(r=>{ if(seen.has(r)) return; if(brCls(r,T1,T2,null)==='op'){ seen.add(r); out.push(r); } }));
@@ -2707,11 +2713,12 @@ function brStatusBreak(L){ const cols=[STAT.target,DUR.stCol].filter((v,i,a)=>v&
   return cols.map(([l,k])=>{ const m=new Map(); L.forEach(r=>{ const v=String(r[k]??'').trim()||'(فارغ)'; m.set(v,(m.get(v)||0)+1); }); return [l,[...m].sort((a,b)=>b[1]-a[1]).slice(0,6)]; }); }
 function brQuarterly(o){
   const T1=+DUR.t1||24, T2=Math.max(T1+1,+DUR.t2||48); let durAny=false; const SK=slaKey();
+  // v169: المغلق جزءان: «خلال 48» = مستوى الخدمة «لا»، «أكثر من 48» = «نعم» (وإن كان فارغاً فبالساعات). والمفتوح الذي تجاوز 48 وحده
   // المغلق: خلال T1 / أكثر من T1 حتى T2 / أكثر من T2 — والمفتوح الذي تجاوز T2 يُعدّ وحده (لا يدخل الشريط)
   // s48: المغلق بعد أكثر من T2 وعمود مستوى الخدمة فيه «لا»
   const cls=r=>{ const c=brCls(r,T1,T2,SK); if(c!=null) durAny=true; return c; };
-  const blank=()=>({count:0,over:0,within:0,o48:0,op48:0,s48:0});
-  const add=(e,c)=>{ e.count++; if(c==='o') e.over++; else if(c==='w') e.within++; else if(c==='r') e.o48++; else if(c==='rs'){ e.o48++; e.s48++; } else if(c==='op') e.op48++; };
+  const blank=()=>({count:0,over:null,within:0,o48:0,op48:0,s48:null});
+  const add=(e,c)=>{ e.count++; if(c==='w') e.within++; else if(c==='r') e.o48++; else if(c==='op') e.op48++; };
   const out=o.quarters.map(q=>{
     const base={label:q.label, y:q.y, n:q.n, date:q.on?`${q.from.replace(/-/g,'/')} – ${q.to.replace(/-/g,'/')}`:'', show:!!q.show, sum:{}, hos:[], cats:[]};
     if(!q.on) return base;
@@ -2786,7 +2793,7 @@ function bridgeDialog(){
       <div data-brqgrid style="display:grid;gap:6px"></div>
       <div data-brqlist style="display:grid;gap:8px"></div>
       <div data-brqchk style="border:1px solid color-mix(in srgb,#E5484D 45%,var(--line));border-radius:10px;padding:10px 12px;font-size:13px"></div>
-      <div style="font-size:12.5px;color:var(--muted)">«أرقامه من القاعدة»: إن ألغيته يصل الربع فارغاً لتُعبّأ أرقامه يدوياً. «يظهر في الإنفوجرافيك»: إن ألغيته يبقى أساساً للمقارنة فقط، ويفيد ذلك في أول ربع. مدة إغلاق البلاغات المغلقة: «خلال ${+DUR.t1||24} ساعة» و«أكثر من ${+DUR.t1||24}» و«أكثر من ${+DUR.t2||48}» حسب إعدادات «المدة الزمنية للإغلاق». ويُرسل وحده عدد المفتوح الذي تجاوز ${+DUR.t2||48} ساعة، وعدد المغلق بعد ${+DUR.t2||48} ساعة وعمود «${esc(SLA.label)}» فيه «${esc(SLA.no)}». ومتوسط الرضا يُعبّأ في التقرير.</div></div>
+      <div style="font-size:12.5px;color:var(--muted)">«أرقامه من القاعدة»: إن ألغيته يصل الربع فارغاً لتُعبّأ أرقامه يدوياً. «يظهر في الإنفوجرافيك»: إن ألغيته يبقى أساساً للمقارنة فقط، ويفيد ذلك في أول ربع. إغلاق البلاغات المغلقة جزءان: «خلال ${+DUR.t2||48} ساعة» = عمود «${esc(SLA.label)}» فيه «${esc(SLA.no)}»، و«أكثر من ${+DUR.t2||48} ساعة» = فيه «${esc(SLA.yes)}» (والفارغ يُحسب بالساعات). ويُرسل وحده عدد المفتوح الذي تجاوز ${+DUR.t2||48} ساعة. ومتوسط الرضا يُعبّأ في التقرير.</div></div>
     <div style="font-size:13px">${slaNote}<br><span style="color:var(--muted)">أقسام رضا المستفيد تصل بأسماء المراكز والتصانيف، وتُعبّأ نسبها يدوياً في التقرير.</span></div>
     <div id="brPrev" style="font-size:13px;color:var(--muted)"></div></div>`,
     onOpen:sc=>{
