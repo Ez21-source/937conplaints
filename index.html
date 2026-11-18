@@ -224,6 +224,9 @@ mark{background:color-mix(in srgb,var(--warn) 30%,transparent);color:inherit;bor
 .scrim{position:fixed;inset:0;background:rgba(8,20,18,.45);display:grid;place-items:center;z-index:50;padding:16px;overflow:auto}
 .dialog{background:var(--surface);border-radius:14px;max-width:480px;width:100%;padding:20px;display:grid;gap:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:calc(100vh - 32px);overflow:auto}
 .dialog.wide{max-width:760px}
+.dialog.full{max-width:1500px;min-height:calc(100vh - 32px)}
+@media (max-width:700px){.scrim:has(.dialog.full){padding:0}.dialog.full{border-radius:0;max-height:100vh;min-height:100vh}}
+.acard{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:4px;cursor:pointer}
 .dialog h3{margin:0;font-family:var(--f-display);font-size:18px;font-weight:600}
 .dialog p{margin:0;color:var(--muted)}
 .cpq{position:fixed;inset:0;background:rgba(8,20,18,.35);display:grid;place-items:center;z-index:10;border-radius:inherit;padding:16px}
@@ -714,7 +717,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '161';
+const APP_VER = '162';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -2899,7 +2902,7 @@ async function actSync(){ if(VIEWER||ACT_RUN) return 0; if(!MV_READY){ actSyncSo
   try{ const I=actItems(); const want=new Map(I.map(x=>[x.k,ACT_L[x.a]])); let ak=actKey(false); if(!ak&&!want.size) return 0; if(!ak){ ak=actKey(true); schemaChanged(); }
     const up=[]; RECS.forEach(r=>{ const v=want.get(keyNo(r.no))||''; if(String(r[ak]||'')!==v){ const b={...r,[ak]:v}; delete b._s; delete b._m; up.push(prep(clean(b))); } });
     if(up.length) await saveRecords(up,{type:'bulk',note:'تحديث «'+label(ak)+'»',archive:true}); return up.length; } finally{ ACT_RUN=false; } }
-function actDialog(S){ S=S||{a:'all',rv:'all',sector:'',center:'',from:'',to:'',sel:new Set()}; const all=actItems();
+function actDialog(S){ S=S||{a:'all',rv:'all',sector:'',center:'',from:'',to:'',sel:new Set()}; const all=actItems(), PH=Math.min(window.innerWidth||9999,(window.screen&&screen.width)||9999)<=700;
   const inF=x=>{ const r=x.r, d=String(r.date||'').slice(0,10); return (!S.sector||r.sector===S.sector)&&(!S.center||r.center===S.center)&&(!S.from||d>=S.from)&&(!S.to||d<=S.to); };
   const F0=all.filter(inF); const cA={ex:0,up:0,ms:0}; F0.forEach(x=>cA[x.a]++); const F1=S.a==='all'?F0:F0.filter(x=>x.a===S.a); const nR=F1.filter(x=>x.rev).length;
   const L=(S.rv==='new'?F1.filter(x=>!x.rev):S.rv==='rev'?F1.filter(x=>x.rev):F1).slice().sort((a,b)=>(!!a.rev-!!b.rev)||String(b.r.date).localeCompare(String(a.r.date)));
@@ -2917,11 +2920,11 @@ function actDialog(S){ S=S||{a:'all',rv:'all',sector:'',center:'',from:'',to:'',
       <button type="button" class="btn sm" data-aa="rev" ${nS?'':'disabled'}>✓ تعليم كمراجَع</button>${!VIEWER?`<button type="button" class="btn sm" data-aa="exc" ${nS?'':'disabled'}>🚫 استبعاد</button><button type="button" class="btn sm" data-aa="back" ${nS?'':'disabled'}>↩ إرجاع من الاستبعاد</button><button type="button" class="btn sm" data-aa="dis" ${nS?'':'disabled'} title="لا يحتاج إجراء: يخرج من «مفقود» أو «تحت الإجراء»">✓ لا يحتاج إجراء</button>`:''}
       <button type="button" class="btn sm" data-aa="view" ${L.length?'':'disabled'}>عرضها في السجلات</button><button type="button" class="btn sm primary" data-aa="rsel" ${nS?'':'disabled'}>📄 تقرير المحدد (${fmt(nS)})</button><button type="button" class="btn sm primary" data-aa="rall" ${L.length?'':'disabled'}>📄 تقرير الكل (${fmt(L.length)})</button></div>
     <p class="hint" style="margin:0 0 6px">اضغط أي صف لقراءة البلاغ (يُعلَّم «روجع» تلقائياً) ثم «↩ رجوع للقائمة». العمود «${esc(actKey(false)?label(actKey(false)):'الإجراء المتخذ')}» يُحدَّث تلقائياً في القاعدة.</p>
-    ${L.length?`<div class="ctbl-wrap" style="max-height:48vh"><table class="ctbl"><thead><tr><th></th><th>رقم البلاغ</th><th>التاريخ</th><th>القطاع</th><th>المركز</th><th>التصنيف</th><th>الإجراء المتخذ</th><th>السبب</th><th>المراجعة</th></tr></thead><tbody>${L.slice(0,400).map(x=>`<tr data-aopen="${esc(x.r.id)}" style="cursor:pointer;${x.rev?'':'background:color-mix(in srgb,#7C3AED 7%,transparent)'}"><td><input type="checkbox" data-asel="${esc(x.k)}" ${S.sel.has(x.k)?'checked':''}></td><td><b dir="ltr">${esc(x.r.no)}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(x.r.date).slice(0,10))}</td><td>${esc(x.r.sector||'')}</td><td>${esc(x.r.center||'')}</td><td>${esc(x.r.sub||x.r.main||'')}</td><td>${pill(x.a)}</td><td class="hint" style="font-size:12px">${esc(x.why)}</td><td style="white-space:nowrap">${revp(x)}</td></tr>`).join('')}</tbody></table></div>${L.length>400?'<p class="hint">يظهر أول 400 — التقرير والتصدير يشملان الكل.</p>':''}`:'<p class="ro-empty" style="padding:14px;text-align:center">لا توجد بلاغات بهذه الفلاتر.</p>'}`;
-  dialog({title:`متابعة المستبعدة والمفقودة (${fmt(all.length)})`,wide:true,html,onOpen:s=>{
+    ${L.length?`${PH?`<div style="display:grid;gap:8px">${L.slice(0,400).map(x=>`<div class="acard" data-aopen="${esc(x.r.id)}" style="${x.rev?'':'background:color-mix(in srgb,#7C3AED 7%,transparent)'}"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="checkbox" data-asel="${esc(x.k)}" ${S.sel.has(x.k)?'checked':''} style="width:20px;height:20px"><b dir="ltr" style="color:var(--accent)">${esc(x.r.no)}</b><span class="hint">${esc(fmtDate(x.r.date).slice(0,10))}</span><span style="margin-inline-start:auto;display:flex;gap:4px">${pill(x.a)}${revp(x)}</span></div><div style="font-size:13.5px"><b>${esc(x.r.center||'')}</b> <span class="hint">· ${esc(x.r.sector||'')}</span></div><div style="font-size:13px">${esc(x.r.sub||x.r.main||'')}</div><div class="hint" style="font-size:12px">${esc(x.why)}</div></div>`).join('')}</div>`:`<div class="ctbl-wrap"><table class="ctbl"><thead><tr><th></th><th>رقم البلاغ</th><th>التاريخ</th><th>القطاع</th><th>المركز</th><th>التصنيف</th><th>الإجراء المتخذ</th><th>السبب</th><th>المراجعة</th></tr></thead><tbody>${L.slice(0,400).map(x=>`<tr data-aopen="${esc(x.r.id)}" style="cursor:pointer;${x.rev?'':'background:color-mix(in srgb,#7C3AED 7%,transparent)'}"><td><input type="checkbox" data-asel="${esc(x.k)}" ${S.sel.has(x.k)?'checked':''}></td><td><b dir="ltr">${esc(x.r.no)}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(x.r.date).slice(0,10))}</td><td>${esc(x.r.sector||'')}</td><td>${esc(x.r.center||'')}</td><td>${esc(x.r.sub||x.r.main||'')}</td><td>${pill(x.a)}</td><td class="hint" style="font-size:12px">${esc(x.why)}</td><td style="white-space:nowrap">${revp(x)}</td></tr>`).join('')}</tbody></table></div>`}${L.length>400?'<p class="hint">يظهر أول 400 — التقرير والتصدير يشملان الكل.</p>':''}`:'<p class="ro-empty" style="padding:14px;text-align:center">لا توجد بلاغات بهذه الفلاتر.</p>'}`;
+  dialog({title:`متابعة المستبعدة والمفقودة (${fmt(all.length)})`,wide:true,full:true,html,onOpen:s=>{
     s.addEventListener('change',e=>{ const t=e.target; if(t.dataset.af){ S[t.dataset.af]=t.value; if(t.dataset.af==='sector') S.center=''; actDialog(S); return; } if(t.dataset.asel!==undefined){ t.checked?S.sel.add(t.dataset.asel):S.sel.delete(t.dataset.asel); const n=S.sel.size; s.querySelectorAll('[data-aa="rev"],[data-aa="exc"],[data-aa="back"],[data-aa="dis"],[data-aa="rsel"]').forEach(b=>{ b.disabled=!n; b.textContent=b.textContent.replace(/\(\d[\d,]*\)/,'('+fmt(n)+')'); }); const hn=[...s.querySelectorAll('.hint')].find(h=>h.textContent.startsWith('المحدد:')); if(hn) hn.textContent='المحدد: '+fmt(n); } });
     s.addEventListener('click',async e=>{ const c=e.target.closest('[data-ac]'); if(c){ const [g,k]=c.dataset.ac.split(':'); S[g]=k; actDialog(S); return; }
-      const tr=e.target.closest('tr[data-aopen]'); if(tr&&!e.target.closest('input,button,label')){ const r=byId.get(tr.dataset.aopen); if(r){ REC_BACK=()=>actDialog(S); REC_REV={is:actRev,mark:actMark}; document.getElementById('layer').innerHTML=''; viewRecord(r); } return; }
+      const tr=e.target.closest('[data-aopen]'); if(tr&&!e.target.closest('input,button,label,select')){ const r=byId.get(tr.dataset.aopen); if(r){ REC_BACK=()=>actDialog(S); REC_REV={is:actRev,mark:actMark}; document.getElementById('layer').innerHTML=''; viewRecord(r); } return; }
       const b=e.target.closest('[data-aa]'); if(!b) return; const a=b.dataset.aa, SEL=L.filter(x=>S.sel.has(x.k));
       if(a==='all'){ L.forEach(x=>S.sel.add(x.k)); actDialog(S); return; } if(a==='none'){ S.sel.clear(); actDialog(S); return; }
       if(a==='rev'){ actMark(SEL.map(x=>x.k),true); S.sel.clear(); actDialog(S); toast('عُلّمت كمراجَعة'); return; }
@@ -2979,9 +2982,9 @@ function actReportDialog(S,items){ let R=(()=>{ try{ return JSON.parse(localStor
     {label:'↩ رجوع',run:()=>{ setTimeout(()=>actDialog(S),0); }}]}); }
 
 /* ---------- dialogs ---------- */
-function dialog({title, body, html, actions, wide, onOpen}){
+function dialog({title, body, html, actions, wide, full, onOpen}){
   const layer=document.getElementById('layer');
-  layer.innerHTML=`<div class="scrim"><div class="dialog${wide?' wide':''}" role="dialog" aria-modal="true" aria-labelledby="dlgT"><div class="dlg-h"><h3 id="dlgT">${esc(title)}</h3><button type="button" class="iconbtn dlg-x" aria-label="إغلاق" title="إغلاق"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>${body?`<p>${esc(body)}</p>`:''}${html||''}<div class="acts">${actions.map((a,i)=>`<button type="button" class="btn ${a.cls||''}" data-dlg="${i}">${esc(a.label)}</button>`).join('')}</div></div></div>`;
+  layer.innerHTML=`<div class="scrim"><div class="dialog${wide?' wide':''}${full?' full':''}" role="dialog" aria-modal="true" aria-labelledby="dlgT"><div class="dlg-h"><h3 id="dlgT">${esc(title)}</h3><button type="button" class="iconbtn dlg-x" aria-label="إغلاق" title="إغلاق"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>${body?`<p>${esc(body)}</p>`:''}${html||''}<div class="acts">${actions.map((a,i)=>`<button type="button" class="btn ${a.cls||''}" data-dlg="${i}">${esc(a.label)}</button>`).join('')}</div></div></div>`;
   const scrim=layer.firstChild;
   scrim.addEventListener('click',async e=>{
     if(e.target===scrim||e.target.closest('.dlg-x')){ layer.innerHTML=''; return; }
