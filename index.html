@@ -717,7 +717,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '173';
+const APP_VER = '174';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -1063,7 +1063,12 @@ function tx(store,mode,fn){
     catch(e){ rej(e); }
   });
 }
-const dbAll = ()=> idb ? new Promise((res,rej)=>{ const r=idb.transaction(ST).objectStore(ST).getAll(); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }) : Promise.resolve(null);
+// v174: القراءة على صفحات صغيرة حتى لا تتجمد الشاشة على الجوال أثناء التحميل
+const dbAll = ()=> idb ? new Promise((res,rej)=>{ const out=[], N=1500; let last=null;
+  const page=()=>{ try{ const rq=idb.transaction(ST).objectStore(ST).getAll(last===null?null:IDBKeyRange.lowerBound(last,true),N);
+    rq.onsuccess=()=>{ const a=rq.result; for(let i=0;i<a.length;i++) out.push(a[i]); if(a.length<N) return res(out); last=a[a.length-1].id; setTimeout(page,0); }; rq.onerror=()=>rej(rq.error); }catch(e){ rej(e); } }; page(); }) : Promise.resolve(null);
+// v174: تمرير على قائمة كبيرة بدفعات قصيرة
+function chunkEach(list,fn,ms){ ms=ms||22; return new Promise(res=>{ let i=0; const step=()=>{ const t0=performance.now(); try{ while(i<list.length){ fn(list[i++]); if((i&255)===0&&performance.now()-t0>ms) return setTimeout(step,0); } }catch(e){ console.error(e); } res(); }; step(); }); }
 const dbMeta = k => idb ? new Promise(res=>{ const r=idb.transaction('meta').objectStore('meta').get(k); r.onsuccess=()=>res(r.result); r.onerror=()=>res(undefined); }) : Promise.resolve(undefined);
 const dbSetMeta = (k,v)=> tx('meta','readwrite',s=>s.put(v,k));
 const dbPut = recs => tx(ST,'readwrite',s=>{ recs.forEach(r=>s.put(stripIdx(r))); });
@@ -1241,22 +1246,24 @@ const DEF_RULES=[
   localStorage.setItem(RULES_KEY,JSON.stringify(RULES)); localStorage.setItem('r937-rules-v3','1'); }catch(e){} })();
 (function(){ try{ if(localStorage.getItem('r937-rules-v2')) return; const have=new Set(RULES.map(r=>r.id)); DEF_RULES.filter(r=>['r6','r7','r8','r9'].includes(r.id)&&!have.has(r.id)).forEach(r=>RULES.push({...r})); localStorage.setItem(RULES_KEY,JSON.stringify(RULES)); localStorage.setItem('r937-rules-v2','1'); }catch(e){} })();
 let RULES=(()=>{ try{ const v=JSON.parse(localStorage.getItem(RULES_KEY)||'null'); return Array.isArray(v)?v:DEF_RULES.map(x=>({...x})); }catch(e){ return DEF_RULES.map(x=>({...x})); } })();
-const saveRules=()=>{ try{ localStorage.setItem(RULES_KEY,JSON.stringify(RULES)); }catch(e){} kwIdx=null; };
+const saveRules=()=>{ try{ localStorage.setItem(RULES_KEY,JSON.stringify(RULES)); }catch(e){} kwIdx=null; KWG=null; };
 const kwWords=rule=>String(rule.words||'').split(/[,،\n]+/).map(w=>w.trim()).filter(Boolean);
 function kwPattern(w){ return w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/[اأإآ]/g,'[اأإآ]').replace(/[هة]/g,'[هة]').replace(/[يىئ]/g,'[يىئ]').replace(/[وؤ]/g,'[وؤ]').replace(/\s+/g,'\\s+'); }
-let kwIdx=null;
-function kwIndex(){
-  const kv=(typeof DATA_V!=='undefined'?DATA_V:0)+'|'+RECS.length;
-  if(kwIdx&&kwIdx._v===kv) return kwIdx;
-  kwIdx=new Map(); kwIdx._v=kv;
+let kwIdx=null, KWG=null;
+const kwKV=()=>(typeof DATA_V!=='undefined'?DATA_V:0)+'|'+RECS.length;
+function* kwBuild(kv){ const m=new Map(); m._v=kv;
   const rules=RULES.filter(r=>r.on&&r.type==='kw').map(r=>({r,ws:kwWords(r).map(w=>[w,nrm(w)])})).filter(x=>x.ws.length);
-  if(!rules.length) return kwIdx;
-  const longs=SCHEMA.filter(c=>c.type==='long'&&!c.removed).map(c=>c.k);
-  RECS.forEach(rec=>{ const t=nrm(longs.map(k=>rec[k]).join(' ')); if(!t) return; let hit=null;
-    rules.forEach(({r,ws})=>ws.forEach(([w,n])=>{ if(n&&t.includes(n)){ (hit||(hit=[])).push({rid:r.id,w}); } }));
-    if(hit) kwIdx.set(rec.id,hit); });
-  return kwIdx;
-}
+  if(rules.length){ const longs=SCHEMA.filter(c=>c.type==='long'&&!c.removed).map(c=>c.k); const R=RECS; let c=0;
+    for(const rec of R){ if((++c&63)===0) yield; const t=nrm(longs.map(k=>rec[k]).join(' ')); if(!t) continue; let hit=null;
+      rules.forEach(({r,ws})=>ws.forEach(([w,n])=>{ if(n&&t.includes(n)){ (hit||(hit=[])).push({rid:r.id,w}); } }));
+      if(hit) m.set(rec.id,hit); } }
+  if(kv===kwKV()) kwIdx=m; if(KWG&&KWG._v===kv) KWG=null; }
+// v174: الفهرس يُبنى على دفعات ويتشارك فيه كل من يحتاجه
+function* kwIndexG(){ for(;;){ const kv=kwKV(); if(kwIdx&&kwIdx._v===kv) return kwIdx; if(!KWG||KWG._v!==kv){ KWG=kwBuild(kv); KWG._v=kv; } const g=KWG, x=g.next(); if(x.done){ if(KWG===g) KWG=null; continue; } yield; } }
+function kwIndex(){ const g=kwIndexG(); let x; while(!(x=g.next()).done); return x.value; }
+const kwReady=()=>!!(kwIdx&&kwIdx._v===kwKV());
+let KW_P=null;
+function kwWarm(){ if(kwReady()) return Promise.resolve(kwIdx); if(KW_P) return KW_P; KW_P=new Promise(res=>{ const g=kwIndexG(); const step=()=>{ const t0=performance.now(); let x; try{ do{ x=g.next(); }while(!x.done&&performance.now()-t0<22); }catch(e){ console.error(e); x={done:true}; } if(x.done){ KW_P=null; res(kwIdx); } else setTimeout(step,0); }; setTimeout(step,0); }); return KW_P; }
 function ruleField(rule){ if(rule.field && col(rule.field) && active(rule.field)) return rule.field; const l=nrm(rule.fieldLabel||''); if(!l) return null; const c=cols().find(c=>nrm(c.l)===l)||cols().find(c=>nrm(c.l).includes(l)||l.includes(nrm(c.l))&&nrm(c.l).includes('حال')); return c?c.k:null; }
 const ruleVals=rule=>String(rule.values||'').split(/[,،\n]+/).map(w=>nrm(w)).filter(Boolean);
 function valueMatch(rec,rule,k,vs){ k=k||ruleField(rule); if(!k) return false; const v=nrm(rec[k]); if(!v) return false; return (vs||ruleVals(rule)).some(w=>v===w||v.includes(w)); }
@@ -1311,23 +1318,25 @@ function evalRulesSoft(list){ const {sig,ls}=erSig(list); if(ER_C.sig===sig && (
   if(!ER_PEND){ ER_PEND=true; erRunAsync(); }
   return null; }
 // v173: تُحسب قاعدة بعد قاعدة على دفعات، ثم تُحدَّث البطاقات مرة واحدة
-function erRunAsync(){ const list=filtered, S0=erSig(list), rules=RULES.filter(r=>r.on), B0={}; let i=0; const acc=[];
+function erRunAsync(){ const list=filtered, S0=erSig(list), rules=RULES.filter(r=>r.on), B0={}; let i=0, g=null; const acc=[];
   const step=()=>{ const S1=erSig(filtered); if(filtered!==list||S1.sig!==S0.sig){ ER_PEND=false; ER_PEND=true; return setTimeout(erRunAsync,0); } const t0=performance.now();
-    while(i<rules.length){ try{ acc.push(...evalRules0(list,[rules[i]],B0)); }catch(e){ console.error(e); } i++; if(performance.now()-t0>30) return setTimeout(step,0); }
+    while(i<rules.length){ if(!g) g=evalRulesG(list,[rules[i]],B0); let x; try{ do{ x=g.next(); }while(!x.done&&performance.now()-t0<25); }catch(e){ console.error(e); x={done:true,value:[]}; } if(!x.done) return setTimeout(step,0); acc.push(...(x.value||[])); g=null; i++; if(performance.now()-t0>25) return setTimeout(step,0); }
     const ord={kw:0,value:1,rise:2}; const out=acc.map((a,j)=>[a,j]).sort((x,y)=>((ord[x[0].rule.type]??3)-(ord[y[0].rule.type]??3))||x[1]-y[1]).map(x=>x[0]);
     ER_C={list,sig:S0.sig,ls:S0.ls,out}; ER_PEND=false;
     try{ updKpi(['alerts']); }catch(e){ console.error(e); } setTimeout(()=>{ try{ renderSide(); }catch(e){} try{ renderAlerts(); }catch(e){} },0); setTimeout(()=>{ try{ renderHomeTicker(); }catch(e){} },0); };
   setTimeout(step,30); }
-function evalRules0(list,only,B0){
-  const out=[];
+function evalRules0(list,only,B0){ const g=evalRulesG(list,only,B0); let x; while(!(x=g.next()).done); return x.value; }
+// v174: نفس الحساب لكن يتوقف كل عدة بلاغات ليبقى التطبيق مستجيباً
+function* evalRulesG(list,only,B0){
+  const out=[]; let _c=0; const Y=()=>(++_c&511)===0;
   let base=null; const getBase=()=>base||(base=B0?(B0.v||(B0.v=baseNoDates())):baseNoDates());
-  (only||RULES.filter(r=>r.on)).forEach(rule=>{
+  for(const rule of (only||RULES.filter(r=>r.on))){
     const n=Math.max(1,+rule.n||1);
     if(rule.type==='rise'){
-      const k=rule.field==='sector'?'sector':'center'; if(!active(k)) return;
-      const w=periodWindows(+rule.days||7); if(!w) return;
+      const k=rule.field==='sector'?'sector':'center'; if(!active(k)) continue;
+      const w=periodWindows(+rule.days||7); if(!w) continue;
       const B=getBase(); const cur=new Map(), prev=new Map();
-      for(const r of B){ if(!r.date||!r[k]) continue; const d=r.date.slice(0,10); if(d>=w.a&&d<=w.b) cur.set(r[k],(cur.get(r[k])||0)+1); else if(d>=w.pa&&d<=w.pb) prev.set(r[k],(prev.get(r[k])||0)+1); }
+      for(const r of B){ if(Y()) yield; if(!r.date||!r[k]) continue; const d=r.date.slice(0,10); if(d>=w.a&&d<=w.b) cur.set(r[k],(cur.get(r[k])||0)+1); else if(d>=w.pa&&d<=w.pb) prev.set(r[k],(prev.get(r[k])||0)+1); }
       const minN=Math.max(1,+rule.min||1), P=Math.max(0,+rule.pct||0); const hits=[];
       cur.forEach((c,v)=>{ const pv=prev.get(v)||0; if(c<minN||c<=pv) return; const pc=pv?(c-pv)/pv*100:Infinity; if(pc>=P) hits.push({v,c,pv,pc}); });
       const nm=k==='sector'?'القطاع':'المركز';
@@ -1335,21 +1344,21 @@ function evalRules0(list,only,B0){
         title:`${h.v}: ${fmt(h.c)} بلاغ مقابل ${fmt(h.pv)} ${h.pv?`(+${pctF(h.pc,0)}%)`:'(جديد)'}`,
         sub:`زيادة في ${nm} · ${w.a.slice(5).replace('-','/')}–${w.b.slice(5).replace('-','/')} مقارنة بـ ${dWord(w.len)} قبلها`,
         act:{[k]:h.v,from:w.a,to:w.b}, tick:`${k==='sector'?'قطاع ':''}${h.v}: ${fmt(h.c)} بلاغ مقابل ${fmt(h.pv)} في الفترة السابقة ${h.pv?`↑ ${pctF(h.pc,0)}%`:'(لم يكن فيه بلاغات)'}`}));
-      return;
+      continue;
     }
     if(rule.type==='value'){
-      const k=ruleField(rule); if(!k) return; const vs=ruleVals(rule); if(!vs.length) return;
-      const recs=list.filter(r=>valueMatch(r,rule,k,vs)); if(!recs.length) return;
+      const k=ruleField(rule); if(!k) continue; const vs=ruleVals(rule); if(!vs.length) continue;
+      const recs=[]; for(const r of list){ if(Y()) yield; if(valueMatch(r,rule,k,vs)) recs.push(r); } if(!recs.length) continue;
       const per=countBy(recs,k).slice(0,3).map(([v,c])=>`${v} (${fmt(c)})`).join('، ');
       out.push({rule,sev:2,n:recs.length,title:`${fmt(recs.length)} بلاغ: ${rule.name||'متابعة'}`,sub:per,act:{kw:rule.id},recs});
-      return;
+      continue;
     }
     if(rule.type==='center'||rule.type==='sub'||rule.type==='sector'||rule.type==='total'){
-      const k=rule.type==='total'?null:rule.type; if(k&&!active(k)) return;
-      const isS=rule.subset==='sla'; if(isS&&!slaKey()) return;
+      const k=rule.type==='total'?null:rule.type; if(k&&!active(k)) continue;
+      const isS=rule.subset==='sla'; if(isS&&!slaKey()) continue;
       const per=rule.per||'day';
       const m=new Map();
-      (isS?list.filter(isOut):list).forEach(r=>{ const b=bucketOf(r.date,per); if(!b) return; const v=k?r[k]:''; if(k&&!v) return; const key=v+'§'+b.k; let g=m.get(key); if(!g){ g={v,b,n:0}; m.set(key,g); } g.n++; });
+      for(const r of list){ if(Y()) yield; if(isS&&!isOut(r)) continue; const b=bucketOf(r.date,per); if(!b) continue; const v=k?r[k]:''; if(k&&!v) continue; const key=v+'§'+b.k; let g=m.get(key); if(!g){ g={v,b,n:0}; m.set(key,g); } g.n++; }
       let groups=[...m.values()];
       const prevL={day:'اليوم السابق',week:'الأسبوع السابق',month:'الشهر السابق'}[per];
       const isP=rule.kind==='pct';
@@ -1357,17 +1366,17 @@ function evalRules0(list,only,B0){
         // الحد = عدد بلاغات هذا المركز/القطاع/التصنيف في الفترة السابقة المساوية في الطول
         const B=getBase(); const DAY=86400000, di=d=>Math.round(new Date(d+'T00:00:00').getTime()/DAY);
         const hist=new Map(); let first=Infinity, last=-Infinity;
-        B.forEach(r=>{ if(!r.date) return; const x=di(r.date.slice(0,10)); if(x<first) first=x; if(x>last) last=x; if(isS&&!isOut(r)) return; const v=k?r[k]:''; if(k&&!v) return; let h=hist.get(v); if(!h){ h=new Map(); hist.set(v,h); } h.set(x,(h.get(x)||0)+1); });
+        for(const r of B){ if(Y()) yield; if(!r.date) continue; const x=di(r.date.slice(0,10)); if(x<first) first=x; if(x>last) last=x; if(isS&&!isOut(r)) continue; const v=k?r[k]:''; if(k&&!v) continue; let h=hist.get(v); if(!h){ h=new Map(); hist.set(v,h); } h.set(x,(h.get(x)||0)+1); }
         const fl=Math.max(1,+rule.floor||1), mg=Math.max(1,+rule.margin||1), P=Math.max(1,+rule.pct||30);
         const dir=rule.dir||'up', wantUp=dir!=='down', wantDown=dir!=='up';
         const sumH=(v,a,b)=>{ const h=hist.get(v); let c=0; if(h) for(let x=a;x<=b;x++) c+=h.get(x)||0; return c; };
         const buckets=new Map(); groups.forEach(g=>buckets.set(g.b.k,g.b));
         const res=[];
-        buckets.forEach(bk=>{ const s0=di(bk.from), e0=Math.min(di(bk.to),last), len=e0-s0+1; if(s0-len<first) return;
+        for(const bk of buckets.values()){ const s0=di(bk.from), e0=Math.min(di(bk.to),last), len=e0-s0+1; if(s0-len<first) continue;
           const ents = wantDown ? [...hist.keys()] : groups.filter(g=>g.b.k===bk.k).map(g=>g.v);
-          ents.forEach(v=>{ const cur=(m.get(v+'§'+bk.k)||{n:0}).n, prev=sumH(v,s0-len,s0-1);
+          for(const v of ents){ if(Y()) yield; const cur=(m.get(v+'§'+bk.k)||{n:0}).n, prev=sumH(v,s0-len,s0-1);
             if(wantUp && cur>prev && cur>=fl){ const pc=prev?(cur-prev)/prev*100:Infinity; if(isP?pc>=P:cur-prev>=mg) res.push({v,b:bk,n:cur,th:prev,pc,dir:'up',pl:len,pa:s0-len,pb:s0-1}); }
-            if(wantDown && prev>cur && prev>=fl){ const pc=(prev-cur)/prev*100; if(isP?pc>=P:prev-cur>=mg) res.push({v,b:bk,n:cur,th:prev,pc,dir:'down',pl:len,pa:s0-len,pb:s0-1}); } }); });
+            if(wantDown && prev>cur && prev>=fl){ const pc=(prev-cur)/prev*100; if(isP?pc>=P:prev-cur>=mg) res.push({v,b:bk,n:cur,th:prev,pc,dir:'down',pl:len,pa:s0-len,pb:s0-1}); } } }
         groups=res;
       } else groups=groups.filter(g=>g.n>=n).map(g=>({...g,th:n,dir:'up'}));
       const mag=g=>isP?(isFinite(g.pc)?g.pc:1e9):Math.abs(g.n-g.th);
@@ -1383,19 +1392,19 @@ function evalRules0(list,only,B0){
     }
     if(rule.type==='caller'){
       const days=Math.max(1,+rule.days||30); const m=new Map();
-      list.forEach(r=>{ const ck=callerKey(r); if(!ck||!r.date) return; if(!m.has(ck)) m.set(ck,[]); m.get(ck).push(r); });
+      for(const r of list){ if(Y()) yield; const ck=callerKey(r); if(!ck||!r.date) continue; if(!m.has(ck)) m.set(ck,[]); m.get(ck).push(r); }
       const hits=[];
-      m.forEach((rs,ck)=>{ if(rs.length<n) return; const ds=rs.map(r=>new Date(r.date.slice(0,10)+'T00:00:00').getTime()).sort((a,b)=>a-b); let best=0,bi=0,j=0;
+      for(const [ck,rs] of m){ if(Y()) yield; if(rs.length<n) continue; const ds=rs.map(r=>new Date(r.date.slice(0,10)+'T00:00:00').getTime()).sort((a,b)=>a-b); let best=0,bi=0,j=0;
         for(let i=0;i<ds.length;i++){ while(ds[i]-ds[j]>(days-1)*86400000) j++; if(i-j+1>best){ best=i-j+1; bi=j; } }
-        if(best>=n){ const r0=rs.find(x=>x.caller)||rs[0]; hits.push({ck,best,name:r0.caller||r0.nid||'—',from:iso(new Date(ds[bi])),total:rs.length}); } });
+        if(best>=n){ const r0=rs.find(x=>x.caller)||rs[0]; hits.push({ck,best,name:r0.caller||r0.nid||'—',from:iso(new Date(ds[bi])),total:rs.length}); } }
       hits.sort((a,b)=>b.best-a.best).forEach(h=>out.push({rule,sev:h.best>=n*2?2:1,n:h.best,title:`${h.name}: ${fmt(h.best)} بلاغات خلال ${fmt(days)} يوماً`,sub:`ابتداءً من ${h.from}${h.total>h.best?` · ${fmt(h.total)} بالمجمل`:''}`,act:{ck:h.ck}}));
     }
     if(rule.type==='kw'){
-      const idx=kwIndex(); const recs=list.filter(r=>(idx.get(r.id)||[]).some(x=>x.rid===rule.id)); if(!recs.length) return;
+      const idx=yield* kwIndexG(); const recs=[]; for(const r of list){ if(Y()) yield; if((idx.get(r.id)||[]).some(x=>x.rid===rule.id)) recs.push(r); } if(!recs.length) continue;
       const per=new Map(); recs.forEach(r=>idx.get(r.id).filter(x=>x.rid===rule.id).forEach(x=>per.set(x.w,(per.get(x.w)||0)+1)));
       out.push({rule,sev:2,n:recs.length,title:`${fmt(recs.length)} بلاغ فيها ${rule.name||'كلمات حساسة'}`,sub:[...per.entries()].sort((a,b)=>b[1]-a[1]).slice(0,4).map(([w,c])=>`${w} (${fmt(c)})`).join('، '),act:{kw:rule.id}});
     }
-  });
+  }
   const ord={kw:0,value:1,rise:2};
   return out.map((a,i)=>[a,i]).sort((x,y)=>((ord[x[0].rule.type]??3)-(ord[y[0].rule.type]??3))||x[1]-y[1]).map(x=>x[0]);
 }
@@ -1428,7 +1437,18 @@ function deltaHTML(cur,prev,lbl){
   return `<span class="dl ${up?'up':dn?'dn':''}">${up?'▲':dn?'▼':'■'} ${pctF(Math.abs(p),0)}% <span>${lbl} ${fmt(prev)}</span></span>`;
 }
 let DSC={v:-1,sig:'',out:null};
-function dashStats(){ const sg=LOG_VER+'|'+RECS.length+'|'+JSON.stringify(filt); if(DSC.v===APPLY_VER&&DSC.sig===sg&&DSC.list===filtered) return DSC.out; const out=dashStats0(); DSC={v:APPLY_VER,sig:sg,list:filtered,out}; return out; }
+function dashStats(){ { const S=SUMA; if(S.A&&S.B&&S.hard===sumHard()) return dashStatsS(S); } const sg=LOG_VER+'|'+RECS.length+'|'+JSON.stringify(filt); if(DSC.v===APPLY_VER&&DSC.sig===sg&&DSC.list===filtered) return DSC.out; const out=dashStats0(); DSC={v:APPLY_VER,sig:sg,list:filtered,out}; return out; }
+function dashStatsS(S){ const A=S.A,B=S.B; const d=A.lastD; if(!d||B.none) return {d:''};
+  const cr=(a,b,M)=>{ let n=0; (M||B.bm).forEach((v,k)=>{ if(k>=a&&k<=b) n+=v; }); return n; };
+  const day=cr(d,d), prevDay=cr(addDays(d,-1),addDays(d,-1));
+  const wk=cr(addDays(d,-6),d), prevWk=cr(addDays(d,-13),addDays(d,-7));
+  const ms=d.slice(0,8)+'01', dom=+d.slice(8,10);
+  const pm=new Date(+d.slice(0,4),+d.slice(5,7)-2,1); const pms=iso(pm); const pmEnd=iso(new Date(pm.getFullYear(),pm.getMonth(),Math.min(dom,new Date(pm.getFullYear(),pm.getMonth()+1,0).getDate())));
+  const mo=cr(ms,d), prevMo=cr(pms,pmEnd);
+  const dayRecs=A.lastR; const topDay=countBy(dayRecs,'center')[0];
+  let sla=null; const SKx=slaKey();
+  if(SKx){ const a7=addDays(d,-6), p1=addDays(d,-13), p2=addDays(d,-7); sla={wk:cr(a7,d,B.so), tot:cr(a7,d,B.st), prev:cr(p1,p2,B.so), all:A.sO, allIn:A.sI}; }
+  return {d,day,prevDay,wk,prevWk,mo,prevMo,dom,topDay,dayRecs,sla}; }
 function dashStats0(){
   const base=baseNoDates();
   const ds=dsMM(filtered); const d=ds.length?ds[ds.length-1].slice(0,10):'';
@@ -1463,7 +1483,7 @@ function tickerItems(st,al){
   if(c.up) al.filter(a=>lim(a)&&a.dir!=='down').slice(0,10).forEach(a=>out.push(['u',a.tick]));
   if(c.down) al.filter(a=>lim(a)&&a.dir==='down').slice(0,10).forEach(a=>out.push(['d',a.tick]));
   if(c.alerts) al.filter(a=>!lim(a)&&!['kw','rise','value'].includes(a.rule.type)).slice(0,10).forEach(a=>out.push(['a',`تنبيه: ${a.title} · ${a.sub}`]));
-  if(c.kw){ const idx=kwIndex(); filtered.filter(r=>idx.has(r.id)).slice().sort((a,b)=>String(b.date).localeCompare(a.date)).slice(0,8).forEach(r=>out.push(['k',`بلاغ حساس · ${recTick(r,{cat:false})} · «${[...new Set(idx.get(r.id).map(x=>x.w))].join('، ')}»`])); }
+  if(c.kw){ const idx=kwReady()?kwIdx:null; if(!idx) kwWarm().then(()=>{ try{ renderHomeTicker(); }catch(e){} }); if(idx) filtered.filter(r=>idx.has(r.id)).slice().sort((a,b)=>String(b.date).localeCompare(a.date)).slice(0,8).forEach(r=>out.push(['k',`بلاغ حساس · ${recTick(r,{cat:false})} · «${[...new Set(idx.get(r.id).map(x=>x.w))].join('، ')}»`])); }
   const cs=new Set(dashCfg().cats||[]); const catOk=r=>!cs.size||cs.has('m:'+r.main)||cs.has('s:'+r.sub);
   if(c.latest) filtered.filter(catOk).slice().sort((a,b)=>String(b.date).localeCompare(a.date)).slice(0,+dashCfg().latestN||10).forEach(r=>out.push(['n',recTick(r)]));
   return out;
@@ -1558,6 +1578,7 @@ document.addEventListener('fullscreenchange',()=>{ if(!document.fullscreenElemen
 function renderHomeTicker(){
   const el=document.getElementById('homeTicker'); if(!el) return;
   if(!dashCfg().ticker||!dashCfg().home||view==='dash'){ el.innerHTML=''; el.hidden=true; return; }
+  { const S=sumA(); if(!S.A||!S.B) return; } // v174: يُرسم بعد اكتمال حساب الملخص على دفعات
   const html=tickerHTML(tickerItems(dashStats(),evalRulesSoft(filtered)||[])); el.hidden=!html; el.innerHTML=html; startTicker(el);
 }
 function kwRuleName(id){ if(id==='*') return 'كل الكلمات الحساسة'; const r=RULES.find(x=>x.id===id); return r?(r.name||'كلمات حساسة'):'كلمات حساسة'; }
@@ -1671,7 +1692,26 @@ function apply(){ _empSet=null; _clSet=null; APPLY_VER++;
     ix.sort(k==='count'?(i,j)=>(ks[i]-ks[j])*d:(i,j)=>{ const x=ks[i], y=ks[j]; return x<y?-d:x>y?d:0; }); const rank=new Map(); ix.forEach((i,p)=>rank.set(RECS[i],p)); SRT={sig:sg,recs:RECS,n,rank,arr:ix.map(i=>RECS[i])}; }
   if(filtered.length===RECS.length) filtered=SRT.arr.slice(); else { const R=SRT.rank; filtered.sort((a,b)=>(R.get(a)??0)-(R.get(b)??0)); }
 }
-let SRT={sig:'',recs:null,n:0,rank:null,arr:null}; // v173: ترتيب كل البلاغات محفوظ حتى تتغير البيانات
+let SRT={sig:'',recs:null,n:0,rank:null,arr:null};
+// v174: مجموعة مفاتيح كل البلاغات محفوظة حتى تتغير البيانات (كانت تُبنى من جديد في كل فحص)
+let KSA={sig:'',r:null,set:null};
+function allKeys(){ const sig=DATA_V+'|'+RECS.length; if(KSA.r===RECS&&KSA.sig===sig) return KSA.set; const set=new Set(); for(const r of RECS) set.add(rKey(r)); KSA={sig,r:RECS,set}; return set; }
+async function allKeysWarm(){ const sig=DATA_V+'|'+RECS.length, R=RECS; if(KSA.r===R&&KSA.sig===sig) return; const set=new Set(); await chunkEach(R,r=>set.add(rKey(r))); if(R===RECS&&sig===DATA_V+'|'+RECS.length) KSA={sig,r:R,set}; }
+// v174: ترتيب كل البلاغات على دفعات (دمج مستقر، نفس نتيجة الترتيب العادي) قبل أول عرض
+function srtWarm(){ const k=sort.k, d=sort.dir; if(k==='__dur') return Promise.resolve(); const sg=DATA_V+'|'+k+'|'+d, R=RECS, n=R.length; if(SRT.sig===sg&&SRT.recs===R&&SRT.n===n) return Promise.resolve();
+  const ks=new Array(n); let q=0; return chunkEach(R,r=>{ ks[q++]=k==='count'?r[k]:String(r[k]||''); }).then(()=>new Promise(res=>{
+    const cmp=k==='count'?(i,j)=>(ks[i]-ks[j])*d:(i,j)=>{ const x=ks[i], y=ks[j]; return x<y?-d:x>y?d:0; };
+    let a=Array.from({length:n},(_,i)=>i), b=new Array(n), pos=0, w=2048, ph=0, m=null; const BL=2048;
+    const ok=()=>R===RECS&&sg===DATA_V+'|'+sort.k+'|'+sort.dir;
+    const fin=()=>{ const rank=new Map(), arr=new Array(n); let p=0; chunkEach(a,i=>{ rank.set(R[i],p); arr[p++]=R[i]; }).then(()=>{ if(ok()) SRT={sig:sg,recs:R,n,rank,arr}; res(); }); };
+    const step=()=>{ if(!ok()) return res(); const t0=performance.now();
+      while(performance.now()-t0<20){
+        if(ph===0){ if(pos>=n){ ph=1; pos=0; continue; } const e=Math.min(n,pos+BL), part=a.slice(pos,e).sort(cmp); for(let t=0;t<part.length;t++) a[pos+t]=part[t]; pos=e; continue; }
+        if(!m){ if(w>=n) return fin(); if(pos>=n){ const t=a; a=b; b=t; w*=2; pos=0; continue; } const mid=Math.min(n,pos+w), hi=Math.min(n,pos+2*w); m={i:pos,j:mid,o:pos,mid,hi}; }
+        let c=0; while(c++<4096&&m.o<m.hi){ if(m.i<m.mid&&(m.j>=m.hi||cmp(a[m.i],a[m.j])<=0)) b[m.o++]=a[m.i++]; else b[m.o++]=a[m.j++]; }
+        if(m.o>=m.hi){ pos=m.hi; m=null; } }
+      setTimeout(step,0); };
+    setTimeout(step,0); })); } // v173: ترتيب كل البلاغات محفوظ حتى تتغير البيانات
 let CBC={v:-1,m:new Map()};
 // v173: أول وآخر تاريخ بمسح واحد بدل ترتيب كل التواريخ
 function dsMM(list){ let mn=null,mx=null; for(const r of list){ const d=r.date; if(!d) continue; if(mn===null||d<mn) mn=d; if(mx===null||d>mx) mx=d; } return mn===null?[]:[mn,mx]; }
@@ -1683,7 +1723,7 @@ const total = list => list.length;
 function renderAll(){ apply(); renderFilters(); renderAlerts(); renderInfo(); const v=APPLY_VER; setTimeout(()=>{ if(v===APPLY_VER) renderSummary(); setTimeout(()=>{ if(v===APPLY_VER) renderView(); setTimeout(applyFolds,0); },0); },0); } // v173: الملخص ثم الجدول في مهام مستقلة
 let WARM_T=0;
 function warmIdle(){ clearTimeout(WARM_T); WARM_T=setTimeout(()=>{ const idle=f=>window.requestIdleCallback?requestIdleCallback(f,{timeout:2500}):setTimeout(f,50);
-  const jobs=[()=>logIdx(),()=>mvIdx(),()=>callerIndex(),()=>kwIndex(),()=>roKeys(),()=>clWarm().then(()=>new Promise(r=>idle(()=>{ try{ clinicIndex(); }catch(e){} r(); }))),()=>stWarm().then(()=>new Promise(r=>idle(()=>{ try{ staffIndex(); }catch(e){} r(); }))),()=>{ if(DUR&&DUR.on!==false) filtered.slice(0,6000).forEach(r=>durInfo(r)); }];
+  const jobs=[()=>logIdx(),()=>mvIdx(),()=>chunkEach(RECS,r=>callerKey(r)).then(()=>callerIndex()),()=>kwWarm(),()=>roKeys(),()=>clWarm().then(()=>new Promise(r=>idle(()=>{ try{ clinicIndex(); }catch(e){} r(); }))),()=>stWarm().then(()=>new Promise(r=>idle(()=>{ try{ staffIndex(); }catch(e){} r(); }))),()=>{ if(DUR&&DUR.on!==false) filtered.slice(0,6000).forEach(r=>durInfo(r)); }];
   const next=i=>{ if(i>=jobs.length) return; idle(()=>{ let p; try{ p=jobs[i](); }catch(e){} if(p&&p.then) p.then(()=>next(i+1),()=>next(i+1)); else next(i+1); }); }; next(0); },900); }
 function refresh(keepPage){ clearTimeout(SUM_T); warmIdle(); if(!keepPage) page=0; setTimeout(renderBackupBanner,0); setTimeout(()=>{ try{ renderMvBanner(); }catch(e){} },0); apply(); renderFilters(); renderAlerts(); renderSummary(); renderView(); renderInfo(); }
 function flagNote(list){ const idx=kwIndex(); const n=list.filter(r=>idx.has(r.id)).length; return n?` · ${fmt(n)} منها فيها كلمات حساسة`:''; }
@@ -1850,6 +1890,8 @@ function barsHTML(list,k,limit,tot){
 }
 function dayChartSVG(list, w=640, h=140, interactive=true){
   const m=new Map(); list.forEach(r=>{ if(r.date){ const d=r.date.slice(0,10); m.set(d,(m.get(d)||0)+1); } });
+  return dayChartMap(m,w,h,interactive); }
+function dayChartMap(m, w=640, h=140, interactive=true){
   const days=[...m.keys()].sort(); if(!days.length) return '<p class="hint">لا توجد تواريخ</p>';
   // fill gaps
   const all=[]; let d=new Date(days[0]+'T00:00:00'), end=new Date(days[days.length-1]+'T00:00:00'); let guard=0;
@@ -1929,10 +1971,10 @@ const durWait=l=>`<div class="kpi"><span class="lbl">${esc(l)}</span><span class
 // v173: تحديث بطاقة واحدة بعد اكتمال حسابها بدل إعادة رسم الصفحة كلها
 function updKpi(keys){ const S=renderSummary._K, kel=document.getElementById('kpis'); if(!S||S.v!==APPLY_VER||!kel){ renderSummary(); return; } DURC=new Map();
   try{ keys.forEach(k=>{ const el=kel.querySelector(`[data-kk="${k}"]`); if(!el||!S.K[k]) return; const w=document.createElement('div'); w.innerHTML=S.K[k]().replace('class="kpi"',`class="kpi" data-kk="${k}"`); const n=w.firstElementChild; if(n) el.replaceWith(n); }); kpiDecorate(kel); } finally{ DURC=null; } }
-function d48Tile(){ const L=durLabels(); if(!durReady()){ durWarmSoft(); return durWait(L.r); } let o=0,c=0; filtered.forEach(r=>{ const d=durI(r); if(d.st!=='none'&&d.lvl==='r'){ if(d.st==='open') o++; else c++; } });
+function d48Tile(S){ const L=durLabels(); if(!durReady()){ durWarmSoft(); return durWait(L.r); } let o=0,c=0; if(S){ if(!S.A||!S.A.durOK) return durWait(L.r); o=S.A.dO; c=S.A.dC; } else filtered.forEach(r=>{ const d=durI(r); if(d.st!=='none'&&d.lvl==='r'){ if(d.st==='open') o++; else c++; } });
   return `<div role="button" tabindex="0" class="kpi" data-dgo="d48" style="cursor:pointer;${o?'border-color:color-mix(in srgb,#E5484D 55%,var(--line))':''}"><span class="lbl">${esc(L.r)}</span><span class="val" style="${o?'color:#E5484D':''}">${fmt(o)}</span><span class="sub">مفتوح تجاوز ${+DUR.t2||48} ساعة</span>${c?`<span class="sub">+ ${fmt(c)} محلول تجاوزها</span>`:''}</div>`; }
-function durTile(){ if(!durReady()){ durWarmSoft(); return durWait('المدة الزمنية للإغلاق'); } const L=durLabels(), P=durPeriods(); const cnt=a=>{ const o={g:0,o:0,r:0,n:0,ro:0,ne:0}; a.forEach(r=>{ const d=durI(r); if(d.st!=='none'){ o[d.lvl]++; o.n++; if(d.ro) o.ro++; } else if(d.noEnd) o.ne++; }); return o; };
-  const F=cnt(filtered), Cc=P?cnt(P.C):null, Pc=P?cnt(P.P):null;
+function durTile(S){ if(!durReady()){ durWarmSoft(); return durWait('المدة الزمنية للإغلاق'); } if(S&&(!S.A||!S.A.durOK)) return durWait('المدة الزمنية للإغلاق'); const L=durLabels(), P=S?(S.B&&!S.B.none?{lbl:S.B.lbl,hasPrev:S.B.hasPrev}:null):durPeriods(); const cnt=a=>{ const o={g:0,o:0,r:0,n:0,ro:0,ne:0}; a.forEach(r=>{ const d=durI(r); if(d.st!=='none'){ o[d.lvl]++; o.n++; if(d.ro) o.ro++; } else if(d.noEnd) o.ne++; }); return o; };
+  const F=S?S.A.F:cnt(filtered), Cc=P?(S?S.B.c.D:cnt(P.C)):null, Pc=P?(S?S.B.p.D:cnt(P.P)):null;
   const arr=k=>{ if(!P||!P.hasPrev||!Pc[k]) return ''; const c=Cc[k], p=Pc[k]; if(c===p) return `<span class="kd" title="لم يتغيّر عن الفترة السابقة">=</span>`; const up=c>p, pc=Math.abs((c-p)/p*100).toFixed(0); const cls=k==='g'?(up?'g':'b'):(up?'b':'g');
     return `<span class="kd ${cls}" title="${esc(P.lbl)}: ${fmt(c)} · الفترة السابقة: ${fmt(p)}">${up?'▲':'▼'} ${pc}%</span>`; };
   const row=k=>`<div class="kdur" data-durf="${k}" title="اضغط لعرض البلاغات"><span><span class="dur dur-${k}">${esc(L[k])}</span> <b>${fmt(F[k])}</b> <span class="kp">${pct(F[k],F.n)}</span></span>${arr(k)}</div>`;
@@ -1977,55 +2019,107 @@ function kpiCompare(){
   };
 }
 // مؤشر داخل/خارج مستوى الخدمة في الشاشة الرئيسية
-function slaTile(w,CMP){
+function slaTile(w,CMP,A){
   const out=w==='out', col=out?'--bad':'--good', lbl=out?'خارج مستوى الخدمة':'داخل مستوى الخدمة', k=slaKey();
   if(!k) return `<div role="button" tabindex="0" class="kpi" data-dgo="slacol" style="text-align:start;cursor:pointer;border-color:color-mix(in srgb,var(${col}) 45%,var(--line));font:inherit;color:inherit"><span class="lbl">${lbl}</span><span class="val" style="color:var(--muted)">—</span><span class="sub">اضغط لإضافة العمود</span></div>`;
-  const o=filtered.filter(r=>slaState(r,k)==='out').length, i=filtered.filter(r=>slaState(r,k)==='in').length, n=out?o:i;
-  return `<div role="button" tabindex="0" class="kpi" data-dgo="${out?'sla':'slain'}" style="text-align:start;cursor:pointer;border-color:color-mix(in srgb,var(${col}) 45%,var(--line));font:inherit;color:inherit"><span class="lbl">${lbl}</span><span class="val" style="color:var(${col})">${fmt(n)}</span><span class="sub">${o+i?`${pct2(n,o+i)} من البلاغات`:'لا توجد قيم بعد'}</span>${CMP&&o+i?CMP(r=>slaState(r,k)===w,'',!out):''}</div>`;
+  if(!A) return durWait(lbl); const o=A.sO, i=A.sI, n=out?o:i;
+  return `<div role="button" tabindex="0" class="kpi" data-dgo="${out?'sla':'slain'}" style="text-align:start;cursor:pointer;border-color:color-mix(in srgb,var(${col}) 45%,var(--line));font:inherit;color:inherit"><span class="lbl">${lbl}</span><span class="val" style="color:var(${col})">${fmt(n)}</span><span class="sub">${o+i?`${pct2(n,o+i)} من البلاغات`:'لا توجد قيم بعد'}</span>${CMP&&o+i?CMP(w,'',!out):''}</div>`;
 }
 const WEEKDAYS=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+// v174: ملخص الرئيسية يُحسب على دفعات قصيرة (≈25ms) حتى لا يتجمد الجوال، ويُحفظ حتى تتغير البيانات أو الفلاتر
+let SUMA={sig:'',hard:'',A:null,B:null}, SUMJ={tok:0,sig:''};
+function sumHard(){ return [DATA_V,LOG_VER,MV_VER,EXC_V,GR_V,CR_V,DUR_V,READ_V,RECS.length,filtered.length,SCHEMA.length,REOPEN.length,LATE.length,JSON.stringify(filt),sort.k+':'+sort.dir,slaKey()||'',JSON.stringify(ROSET),RPT.min,(active('caller')||active('nid'))?1:0,active('sub')?1:0,active('sector')?1:0,JSON.stringify(RULES).length,DUR.on?1:0].join('|'); }
+function sumSig(){ return sumHard()+'#'+(DUR.on&&durReady()?1:0)+(kwReady()?1:0)+'#'+Math.floor(Date.now()/60000); }
+// يرجع آخر نتيجة صالحة (أو قديمة فقط بفارق الدقيقة/جاهزية المدة) ويبدأ الحساب في الخلفية إن لزم
+function sumA(){ const s=sumSig(); if(SUMA.sig===s) return SUMA; if(SUMJ.sig!==s) sumStart(s); const h=sumHard(); return SUMA.hard===h?SUMA:{sig:'',hard:h,A:null,B:null}; }
+function sumStart(s){ const tok=++SUMJ.tok; SUMJ.sig=s; const hard=sumHard(), list=filtered, SK=slaKey(), DOK=!!(DUR.on&&durReady()), KW=kwReady()?kwIdx:null, RC=(active('caller')||active('nid'));
+  const RK=new Set(); REOPEN.forEach(x=>RK.add(x.k)); LATE.forEach(x=>RK.add(x.k));
+  const cnt={center:new Map(),main:new Map(),sub:new Map(),sector:new Map()};
+  const A={m:new Map(),hrs:[0,0,0,0,0,0,0],hn:0,upAll:0,upNew:0,sO:0,sI:0,kw:0,dO:0,dC:0,F:{g:0,o:0,r:0,n:0,ro:0,ne:0},rk:new Map(),lastD:'',firstD:'',lastR:[],cg:RC?new Map():null,durOK:DOK,kwOK:!!KW,tot:list.length};
+  const add=(M,v)=>M.set(v,(M.get(v)||0)+1);
+  const run=(arr,fn,done)=>{ let i=0; const step=()=>{ if(SUMJ.tok!==tok) return; const t0=performance.now(); try{ while(i<arr.length){ fn(arr[i++]); if((i&255)===0&&performance.now()-t0>22) return setTimeout(step,0); } }catch(e){ console.error(e); } done(); }; setTimeout(step,0); };
+  run(list,r=>{ add(cnt.center,r.center); add(cnt.main,r.main); add(cnt.sub,r.sub); add(cnt.sector,r.sector);
+    const dt=r.date; if(dt){ const d=dt.slice(0,10); if(d){ add(A.m,d); if(d>A.lastD){ A.lastD=d; A.lastR=[r]; } else if(d===A.lastD) A.lastR.push(r); if(!A.firstD||d<A.firstD) A.firstD=d; }
+      if(dt.length>=13){ const h=+dt.slice(11,13); if(!isNaN(h)){ A.hn++; const j=h<0?-1:h<6?0:h<9?1:h<12?2:h<15?3:h<18?4:h<21?5:h<24?6:-1; if(j>=0) A.hrs[j]++; } } }
+    if(revTotal(r)){ A.upAll++; if(readState(r).st==='upd') A.upNew++; }
+    if(SK){ const st=slaState(r,SK); if(st==='out') A.sO++; else if(st==='in') A.sI++; }
+    if(KW&&KW.has(r.id)) A.kw++;
+    if(DOK){ const x=durInfo(r); if(x.st!=='none'){ A.F[x.lvl]++; A.F.n++; if(x.ro) A.F.ro++; if(x.lvl==='r'){ if(x.st==='open') A.dO++; else A.dC++; } } else if(x.noEnd) A.F.ne++; }
+    if(RK.size){ const k=rKey(r); if(RK.has(k)) A.rk.set(k,r); }
+    if(RC){ const k=callerKey(r); if(k) add(A.cg,k); }
+  },()=>{
+    const srt=M=>[...M.entries()].sort((a,b)=>b[1]-a[1]); A.cnt={center:srt(cnt.center),main:srt(cnt.main),sub:srt(cnt.sub),sector:srt(cnt.sector)};
+    if(A.cg){ let n=0; A.cg.forEach(v=>{ if(v>=RPT.min) n++; }); A.callers=n; A.cg=null; }
+    const ro=REOPEN.filter(x=>ROSET.mode==='all'||isReopen(x.from,x.to)).map(x=>A.rk.get(x.k)).filter(Boolean); A.ro={all:ro.length,nNew:ro.filter(r=>readState(r).st!=='read').length};
+    const la=LATE.map(x=>A.rk.get(x.k)).filter(Boolean); A.late={all:la.length,nNew:la.filter(r=>readState(r).st!=='read').length}; A.rk=null;
+    SUMA={sig:s,hard,A,B:null}; sumPaint(tok);
+    // المرحلة الثانية: المقارنة بالفترة السابقة + أعداد الأيام للشريط
+    if(!A.lastD){ SUMA.B={none:true}; sumPaint(tok); return; }
+    const last=A.lastD, firstF=A.firstD; let a,b,lbl; if(filt.from||filt.to){ a=filt.from||firstF; b=filt.to||last; lbl='الفترة المحددة'; } else { b=last; a=addDays(b,-6); lbl='آخر 7 أيام'; }
+    const len=Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000)+1, pa=addDays(a,-len), pb=addDays(a,-1);
+    const catK=active('sub')?'sub':'main', tc=A.cnt.center[0]?.[0], tt=A.cnt[catK][0]?.[0], tsl=A.cnt.sector.filter(x=>x[0])[0]?.[0];
+    const z=()=>({all:0,center:0,cat:0,sector:0,out:0,in:0,D:{g:0,o:0,r:0,n:0,ro:0,ne:0}});
+    const B={lbl,hasPrev:false,c:z(),p:z(),bm:new Map(),so:new Map(),st:new Map()};
+    run(baseNoDates(),r=>{ if(!r.date) return; const d=r.date.slice(0,10); add(B.bm,d); let sx='';
+      if(SK){ sx=slaState(r,SK); if(sx){ add(B.st,d); if(sx==='out') add(B.so,d); } }
+      if(d<a) B.hasPrev=true; const o=(d>=a&&d<=b)?B.c:(d>=pa&&d<=pb)?B.p:null; if(!o) return;
+      o.all++; if(tc!==undefined&&r.center===tc) o.center++; if(tt!==undefined&&r[catK]===tt) o.cat++; if(tsl!==undefined&&r.sector===tsl) o.sector++;
+      if(sx==='out') o.out++; else if(sx==='in') o.in++;
+      if(DOK){ const x=durInfo(r); if(x.st!=='none'){ o.D[x.lvl]++; o.D.n++; if(x.ro) o.D.ro++; } else if(x.noEnd) o.D.ne++; }
+    },()=>{ if(SUMA.sig===s){ SUMA.B=B; sumPaint(tok); } });
+  });
+}
+let SUM_PT=0;
+function sumPaint(tok){ clearTimeout(SUM_PT); SUM_PT=setTimeout(()=>{ if(SUMJ.tok!==tok) return; try{ renderSummary(); }catch(e){ console.error(e); } if(SUMA.B) try{ renderHomeTicker(); }catch(e){ console.error(e); } },0); }
+// مقارنة الفترة من نتائج المرحلة الثانية (بدل المرور على كل البلاغات في كل مربع)
+function sumCMP(S){ const B=S&&S.B; if(!B||B.none) return ()=>'';
+  const arrow=(c,p,goodUp)=>{ if(!B.hasPrev||!p) return `<span class="kd">${fmt(c)}</span>`; if(c===p) return `<span class="kd">${fmt(c)} =</span>`; const up=c>p, good=goodUp?up:!up, pc=Math.abs((c-p)/p*100).toFixed(0);
+    return `<span class="kd ${good?'g':'b'}">${fmt(c)} ${up?'↑':'↓'}${pc}%</span>`; };
+  return (key,note,goodUp)=>{ const c=B.c[key], p=B.p[key]; return `<span class="kc"><span class="kg"><span class="kl">${B.lbl}${note?` (${note})`:''}:</span> ${arrow(c,p,!!goodUp)}</span>${B.hasPrev?`<span class="kp">السابق ${fmt(p)}</span>`:''}</span>`; }; }
 function renderSummary(){
-  const tot=total(filtered), B=+HOME.bars||6;
-  const centers=countBy(filtered,'center'), mains=countBy(filtered,'main'), subs=countBy(filtered,'sub');
-  const days=new Set(filtered.map(r=>r.date&&r.date.slice(0,10)).filter(Boolean)).size;
+  const S=sumA(), A=S.A, tot=filtered.length, B=+HOME.bars||6;
+  const W=l=>durWait(l);
+  const centers=A?A.cnt.center:[], mains=A?A.cnt.main:[], subs=A?A.cnt.sub:[];
+  const days=A?A.m.size:0;
   const catK=active('sub')?'sub':'main', cats=catK==='sub'?subs:mains;
   const kpi=(l,v,sub,txt,extra,full)=>`<div class="kpi"${full?` title="${esc(full)}"`:''}><span class="lbl">${l}</span><span class="val${txt?' txt':''}">${v}</span><span class="sub">${sub||''}</span>${extra||''}</div>`;
-  const CMP=kpiCompare();
+  const CMP=sumCMP(S);
   const K={
-    total:()=>kpi('عدد البلاغات',fmt(tot),days?`${fmt(days)} يوم · ${(tot/days).toFixed(1)} بلاغ يومياً`:'—',0,CMP(()=>true)),
-    centers:()=>kpi('المراكز الصحية',fmt(centers.length),'مركز ورد منه بلاغ'),
-    topCenter:()=>kpi('أعلى مركز',esc(centers[0]?shortName(centers[0][0]):'—'),centers[0]?`${fmt(centers[0][1])} بلاغ · ${pct(centers[0][1],tot)}`:'',1,centers[0]?CMP(r=>r.center===centers[0][0]):'',centers[0]?.[0]),
-    topCat:()=>kpi(`أعلى ${catK==='sub'?'تصنيف فرعي':'تصنيف رئيسي'}`,esc(cats[0]?.[0]||'—'),cats[0]?`${fmt(cats[0][1])} بلاغ · ${pct(cats[0][1],tot)}`:'',1,cats[0]?CMP(r=>r[catK]===cats[0][0]):'',cats[0]?.[0]),
-    lastDay:()=>{ const ds=dsMM(filtered); const d=ds.length?ds[ds.length-1].slice(0,10):''; const n=d?filtered.filter(r=>r.date&&r.date.startsWith(d)).length:0; return kpi('آخر يوم مسجل',d?d.replace(/-/g,'/'):'—',d?`${fmt(n)} بلاغ في ذلك اليوم`:'',1); },
-    callers:()=>{ const g=(active('caller')||active('nid'))?repeatGroups(filtered,RPT.min):[]; return kpi('متصلون متكررون',fmt(g.length),`${RPT.min}+ بلاغ لكل متصل`); },
-    flagged:()=>{ const idx=kwIndex(); const n=filtered.filter(r=>idx.has(r.id)).length; return kpi('بلاغات بكلمات حساسة',fmt(n),n?pct(n,tot)+' من النتائج':'حسب قواعد التنبيه'); },
+    total:()=>kpi('عدد البلاغات',fmt(tot),!A?'…':days?`${fmt(days)} يوم · ${(tot/days).toFixed(1)} بلاغ يومياً`:'—',0,CMP('all')),
+    centers:()=>A?kpi('المراكز الصحية',fmt(centers.length),'مركز ورد منه بلاغ'):W('المراكز الصحية'),
+    topCenter:()=>A?kpi('أعلى مركز',esc(centers[0]?shortName(centers[0][0]):'—'),centers[0]?`${fmt(centers[0][1])} بلاغ · ${pct(centers[0][1],tot)}`:'',1,centers[0]?CMP('center'):'',centers[0]?.[0]):W('أعلى مركز'),
+    topCat:()=>A?kpi(`أعلى ${catK==='sub'?'تصنيف فرعي':'تصنيف رئيسي'}`,esc(cats[0]?.[0]||'—'),cats[0]?`${fmt(cats[0][1])} بلاغ · ${pct(cats[0][1],tot)}`:'',1,cats[0]?CMP('cat'):'',cats[0]?.[0]):W(`أعلى ${catK==='sub'?'تصنيف فرعي':'تصنيف رئيسي'}`),
+    lastDay:()=>{ if(!A) return W('آخر يوم مسجل'); const d=A.lastD; const n=d?(A.m.get(d)||0):0; return kpi('آخر يوم مسجل',d?d.replace(/-/g,'/'):'—',d?`${fmt(n)} بلاغ في ذلك اليوم`:'',1); },
+    callers:()=>{ if(!(active('caller')||active('nid'))) return kpi('متصلون متكررون',fmt(0),`${RPT.min}+ بلاغ لكل متصل`); if(!A) return W('متصلون متكررون'); return kpi('متصلون متكررون',fmt(A.callers||0),`${RPT.min}+ بلاغ لكل متصل`); },
+    flagged:()=>{ if(!A||!A.kwOK){ if(!kwReady()) kwWarm().then(()=>sumPaint(SUMJ.tok)); else sumA(); return W('بلاغات بكلمات حساسة'); } const n=A.kw; return kpi('بلاغات بكلمات حساسة',fmt(n),n?pct(n,tot)+' من النتائج':'حسب قواعد التنبيه'); },
     alerts:()=>alertsTile(),
-    updates:()=>updTile(),
-    late:()=>lateTile(),
-    d48:()=>DUR.on?d48Tile():'',
-    dur:()=>DUR.on?durTile():'',
-    reopen:()=>reopenTile(),
-    sla:()=>slaTile('out',CMP),
-    slaIn:()=>slaTile('in',CMP),
-    sectors:()=>{ const sc=countBy(filtered,'sector').filter(x=>x[0]); return kpi('أعلى قطاع',esc(sc[0]?shortName(sc[0][0]):'—'),sc[0]?`${fmt(sc[0][1])} بلاغ · ${pct(sc[0][1],tot)}`:'لا توجد قطاعات مسجلة',1,sc[0]?CMP(r=>r.sector===sc[0][0]):'',sc[0]?.[0]); }
+    updates:()=>A?updTile(A):W('تحديثات البلاغات'),
+    late:()=>A?lateTile(A.late):W('البلاغات المتأخرة'),
+    d48:()=>DUR.on?d48Tile(sumA()):'',
+    dur:()=>DUR.on?durTile(sumA()):'',
+    reopen:()=>A?reopenTile(A.ro):W('معاد فتحها'),
+    sla:()=>slaTile('out',CMP,A),
+    slaIn:()=>slaTile('in',CMP,A),
+    sectors:()=>{ if(!A) return W('أعلى قطاع'); const sc=A.cnt.sector.filter(x=>x[0]); return kpi('أعلى قطاع',esc(sc[0]?shortName(sc[0][0]):'—'),sc[0]?`${fmt(sc[0][1])} بلاغ · ${pct(sc[0][1],tot)}`:'لا توجد قطاعات مسجلة',1,sc[0]?CMP('sector'):'',sc[0]?.[0]); }
   };
   if(!active('sector')) delete K.sectors;
-  DURC=new Map();
   const ks=HOME.kpis.filter(([k,on])=>on&&K[k]&&!((k==='d48'||k==='dur')&&!DUR.on)).map(([k])=>k);
   const kel=document.getElementById('kpis');
   const ku=ks.length+(ks.includes('dur')?1:0); kel.style.setProperty('--kc', String(ku<=5?Math.max(1,ku):Math.ceil(ku/2)));
-  kel.innerHTML=ks.map(k=>K[k]().replace('class="kpi"',`class="kpi" data-kk="${k}"`)).join(''); kpiDecorate(kel); DURC=null; renderSummary._K={K,v:APPLY_VER};
+  kel.innerHTML=ks.map(k=>K[k]().replace('class="kpi"',`class="kpi" data-kk="${k}"`)).join(''); kpiDecorate(kel); renderSummary._K={K,v:APPLY_VER};
+  const PH=(k,t)=>`<div class="panel ins" data-card="${k}"><h3>${t}</h3><p class="hint">جارٍ الحساب…</p></div>`;
+  const bars=list=>{ const max=Math.max(1,...list.map(x=>x[1])); return `<div class="bars">${list.map(([v,n])=>`<div class="barrow"><span class="nm">${v}</span><span class="n">${fmt(n)}</span><span class="track"><span style="width:${(n/max*100).toFixed(1)}%"></span></span></div>`).join('')}</div>`; };
   const C={
-    daily:()=>`<div class="panel ins" data-card="daily"><h3>البلاغات اليومية<small>اضغط يوماً للفلترة</small></h3>${dayChartSVG(filtered)}</div>`,
-    centers:()=>`<div class="panel ins"><h3>أعلى المراكز<small>${fmt(centers.length)} مركز</small></h3>${barsHTML(centers,'center',B,tot)}</div>`,
-    cats:()=>{ const can=[active('sub')&&'sub',active('main')&&'main'].filter(Boolean); if(!can.length) return ''; let k=CAT_CARD; if(!can.includes(k)) k=can[0]; const list=k==='sub'?subs:mains;
+    daily:()=>A?`<div class="panel ins" data-card="daily"><h3>البلاغات اليومية<small>اضغط يوماً للفلترة</small></h3>${dayChartMap(A.m)}</div>`:PH('daily','البلاغات اليومية'),
+    centers:()=>A?`<div class="panel ins"><h3>أعلى المراكز<small>${fmt(centers.length)} مركز</small></h3>${barsHTML(centers,'center',B,tot)}</div>`:PH('centers','أعلى المراكز'),
+    cats:()=>{ const can=[active('sub')&&'sub',active('main')&&'main'].filter(Boolean); if(!can.length) return ''; let k=CAT_CARD; if(!can.includes(k)) k=can[0]; if(!A) return PH('cats','أعلى التصنيفات'); const list=k==='sub'?subs:mains;
       const sw=can.length>1?`<span class="seg sm-seg">${can.map(x=>`<label><input type="radio" name="catcard" value="${x}" ${x===k?'checked':''}><span>${x==='sub'?'الفرعية':'الرئيسية'}</span></label>`).join('')}</span>`:'';
       return `<div class="panel ins"><h3><span>أعلى التصنيفات ${k==='sub'?'الفرعية':'الرئيسية'} <small>· ${fmt(list.length)} تصنيف</small></span>${sw}</h3>${barsHTML(list,k,B,tot)}</div>`; },
-    sectors:()=>{ if(!active('sector')) return ''; const sc=countBy(filtered,'sector'); return `<div class="panel ins"><h3>البلاغات حسب القطاع<small>${fmt(sc.length)} قطاع</small></h3>${barsHTML(sc,'sector',B,tot)}</div>`; },
-    weekday:()=>{ const m=new Map(); filtered.forEach(r=>{ if(r.date){ const w=new Date(r.date.slice(0,10)+'T00:00:00').getDay(); m.set(w,(m.get(w)||0)+1); } }); const order=[0,1,2,3,4,5,6].map(i=>(WEEK_START+i)%7); const list=order.map(w=>[WEEKDAYS[w],m.get(w)||0]); const max=Math.max(1,...list.map(x=>x[1]));
-      return `<div class="panel ins"><h3>حسب أيام الأسبوع<small>من ${WEEKDAYS[WEEK_START]}</small></h3><div class="bars">${list.map(([v,n])=>`<div class="barrow"><span class="nm">${v}</span><span class="n">${fmt(n)}</span><span class="track"><span style="width:${(n/max*100).toFixed(1)}%"></span></span></div>`).join('')}</div></div>`; },
-    hours:()=>{ const sl=[['12–6 فجراً',0,6],['6–9 صباحاً',6,9],['9–12 ظهراً',9,12],['12–3 عصراً',12,15],['3–6 مساءً',15,18],['6–9 مساءً',18,21],['9–12 ليلاً',21,24]]; const hs=filtered.map(r=>r.date&&r.date.length>=13?+r.date.slice(11,13):null).filter(h=>h!=null&&!isNaN(h)); if(!hs.length) return ''; const list=sl.map(([l,a,b])=>[l,hs.filter(h=>h>=a&&h<b).length]); const max=Math.max(1,...list.map(x=>x[1]));
-      return `<div class="panel ins"><h3>حسب ساعة البلاغ<small>${fmt(hs.length)} بلاغ بوقت</small></h3><div class="bars">${list.map(([v,n])=>`<div class="barrow"><span class="nm">${v}</span><span class="n">${fmt(n)}</span><span class="track"><span style="width:${(n/max*100).toFixed(1)}%"></span></span></div>`).join('')}</div></div>`; }
+    sectors:()=>{ if(!active('sector')) return ''; if(!A) return PH('sectors','البلاغات حسب القطاع'); const sc=A.cnt.sector; return `<div class="panel ins"><h3>البلاغات حسب القطاع<small>${fmt(sc.length)} قطاع</small></h3>${barsHTML(sc,'sector',B,tot)}</div>`; },
+    weekday:()=>{ if(!A) return PH('weekday','حسب أيام الأسبوع'); const m=new Map(); A.m.forEach((n,d)=>{ const w=new Date(d+'T00:00:00').getDay(); m.set(w,(m.get(w)||0)+n); }); const order=[0,1,2,3,4,5,6].map(i=>(WEEK_START+i)%7); const list=order.map(w=>[WEEKDAYS[w],m.get(w)||0]);
+      return `<div class="panel ins"><h3>حسب أيام الأسبوع<small>من ${WEEKDAYS[WEEK_START]}</small></h3>${bars(list)}</div>`; },
+    hours:()=>{ if(!A) return PH('hours','حسب ساعة البلاغ'); const sl=['12–6 فجراً','6–9 صباحاً','9–12 ظهراً','12–3 عصراً','3–6 مساءً','6–9 مساءً','9–12 ليلاً']; if(!A.hn) return ''; const list=sl.map((l,i)=>[l,A.hrs[i]]);
+      return `<div class="panel ins"><h3>حسب ساعة البلاغ<small>${fmt(A.hn)} بلاغ بوقت</small></h3>${bars(list)}</div>`; }
   };
   const cs=HOME.cards.filter(([k,on])=>on&&C[k]).map(([k])=>k);
   const htmls=cs.map(k=>[k,C[k]()]).filter(x=>x[1]);
@@ -2178,9 +2272,9 @@ document.addEventListener('click',e=>{
 addEventListener('resize',()=>{ clearTimeout(addEventListener._st); addEventListener._st=setTimeout(()=>{ applySide(); },150); });
 /* ---------- حالة قراءة البلاغ (رسالة مغلقة/مفتوحة) ---------- */
 // المفتاح رقم البلاغ، فيبقى صحيحاً بعد استبدال القاعدة من نسخة احتياطية
-let READ={seen:{},rev:{}}, readT=0;
+let READ={seen:{},rev:{}}, readT=0, READ_V=0;
 async function loadRead(){ try{ const v=await dbMeta('readstate'); if(v&&v.seen) READ={seen:v.seen||{},rev:v.rev||{}}; }catch(e){} }
-function saveRead(){ clearTimeout(readT); readT=setTimeout(()=>dbSetMeta('readstate',READ).catch(()=>{}),400); }
+function saveRead(){ READ_V++; clearTimeout(readT); readT=setTimeout(()=>dbSetMeta('readstate',READ).catch(()=>{}),400); }
 
 function readState(r){ const k=rKey(r); if(!k) return {st:'read',n:0}; const rev=READ.rev[k]||0; if(!(k in READ.seen)) return {st:rev?'upd':'new',n:rev}; const d=rev-READ.seen[k]; return d>0?{st:'upd',n:d}:{st:'read',n:0}; }
 const revTotal=r=>{ const k=rKey(r); return k?(READ.rev[k]||0):0; };
@@ -2192,6 +2286,17 @@ const ENV_C='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 6.5A2.5 2.
 const ENV_O='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 10.5 12 4l9 6.5V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="m3.5 11 8.5 5.5 8.5-5.5"/></svg>';
 function envHTML(r){ const s=readState(r); const cf='';
   return s.st==='read'?`<span class="env" title="تم فتحه">${ENV_O}</span>`:`<span class="env ${s.st}" title="${s.st==='new'?'لم يُفتح بعد':`تحديثات لم تُفتح: ${s.n}${esc(cf)}`}">${ENV_C}${s.st==='upd'?`<b>${s.n>99?'99+':s.n}</b>`:''}</span>`; }
+// v174: أعداد شريط القراءة محفوظة وتُحسب على دفعات (بدل إعادة الفلترة مرتين مع كل عرض)
+let RCC={sig:'',v:null,tok:0,busy:''};
+function readCounts(){ const sig=[DATA_V,READ_V,RECS.length,EXC_V,GR_V,CR_V,LATE.length,JSON.stringify({...filt,unread:''})].join('|'); if(RCC.sig===sig&&RCC.v) return RCC.v; if(RCC.busy===sig) return null;
+  let pool=filtered; if(filt.unread){ const fu=filt.unread; filt.unread=''; try{ pool=filterRecs(false); } finally{ filt.unread=fu; } }
+  const o={new:0,upd:0,read:0,all:pool.length}; const fin=()=>{ RCC={sig,v:o,tok:RCC.tok,busy:''}; };
+  if(pool.length<4000){ pool.forEach(r=>o[readState(r).st]++); fin(); return o; }
+  RCC.busy=sig; const tok=++RCC.tok; let i=0;
+  const step=()=>{ if(RCC.tok!==tok) return; const t0=performance.now(); while(i<pool.length){ o[readState(pool[i++]).st]++; if((i&255)===0&&performance.now()-t0>22) return setTimeout(step,0); } fin();
+    document.querySelectorAll('[data-rc]').forEach(b=>{ b.textContent=fmt(o[b.dataset.rc]||0); }); const ra=document.getElementById('rdAll'); if(ra) ra.disabled=!(o.new+o.upd); };
+  setTimeout(step,0); return null; }
+function kwPaintRows(){ const idx=kwIdx; if(!idx) return; document.querySelectorAll('table.rec tr[data-id]').forEach(tr=>{ const r=byId.get(tr.dataset.id)||byId.get(+tr.dataset.id); const fl=r&&idx.get(r.id); if(fl&&!tr.classList.contains('flag')){ tr.classList.add('flag'); tr.title='كلمات حساسة: '+[...new Set(fl.map(x=>x.w))].join('، '); } }); }
 function renderView(){
   navPush(); setTimeout(renderSide,0); setTimeout(applyFolds,0);
   const v=document.getElementById('view');
@@ -2214,10 +2319,9 @@ function renderView(){
   }
   if(!RECS.length){ v.innerHTML=`<div class="panel empty"><b>القاعدة فارغة</b>أضف بلاغاً بزر «بلاغ جديد» أو استورد ملف Excel.</div>`; return; }
   // عدّ الحالات ضمن الفلاتر الحالية (بدون فلتر القراءة نفسه)
-  const fu=filt.unread; filt.unread=''; apply(); const pool=filtered; filt.unread=fu; apply();
-  const RC={new:0,upd:0,read:0}; pool.forEach(r=>RC[readState(r).st]++);
-  const RO=[['','الكل',pool.length],['new','غير مقروء',RC.new],['upd','محدّث',RC.upd],['read','تم الفتح',RC.read]];
-  const RB=`<div class="readbar"><div class="seg rseg">${RO.map(([v,l,n])=>`<label><input type="radio" name="rdF" value="${v}" ${(filt.unread==='1'?'':filt.unread)===v?'checked':''}><span>${v==='new'?`<span class="env new sm">${ENV_C}</span>`:v==='upd'?`<span class="env upd sm">${ENV_C}</span>`:v==='read'?`<span class="env sm">${ENV_O}</span>`:''}${l} <b>${fmt(n)}</b></span></label>`).join('')}</div><span style="flex:1"></span><button type="button" class="btn sm ghost" id="rdAll" ${RC.new+RC.upd?'':'disabled'}>تعليم ${filtered.length<RECS.length?'النتائج':'الكل'} كمقروء</button></div>`;
+  const RC=readCounts()||{};
+  const RO=[['','الكل',RC.all],['new','غير مقروء',RC.new],['upd','محدّث',RC.upd],['read','تم الفتح',RC.read]];
+  const RB=`<div class="readbar"><div class="seg rseg">${RO.map(([v,l,n])=>`<label><input type="radio" name="rdF" value="${v}" ${(filt.unread==='1'?'':filt.unread)===v?'checked':''}><span>${v==='new'?`<span class="env new sm">${ENV_C}</span>`:v==='upd'?`<span class="env upd sm">${ENV_C}</span>`:v==='read'?`<span class="env sm">${ENV_O}</span>`:''}${l} <b data-rc="${v||'all'}">${n==null?'…':fmt(n)}</b></span></label>`).join('')}</div><span style="flex:1"></span><button type="button" class="btn sm ghost" id="rdAll" ${RC.all==null||RC.new+RC.upd?'':'disabled'}>تعليم ${filtered.length<RECS.length?'النتائج':'الكل'} كمقروء</button></div>`;
   if(!filtered.length){ v.innerHTML=`<div class="panel">${RB}</div><div class="panel empty" style="margin-top:10px"><b>لا توجد نتائج</b>غيّر كلمات البحث أو وسّع الفترة أو امسح الفلاتر.</div>`; return; }
   const pages=Math.ceil(filtered.length/pageSize); page=Math.min(page,pages-1);
   const rows=filtered.slice(page*pageSize,(page+1)*pageSize);
@@ -2225,7 +2329,7 @@ function renderView(){
   const COLS=tableCols();
   const DUK=DUR.on?(COLS.some(c=>c.k==='date')?'date':COLS[COLS.length-1]?.k):null;
   const th=COLS.map(c=>`<th data-sort="${c.k}" scope="col">${esc(short(c.k))}${sort.k===c.k?`<span class="ar">${sort.dir>0?'▲':'▼'}</span>`:''}</th>${c.k===DUK?`<th data-sort="__dur" scope="col" title="اضغط للترتيب: الأطول أولاً / الأقصر أولاً">المدة الزمنية للإغلاق${sort.k==='__dur'?`<span class="ar">${sort.dir>0?'▲':'▼'}</span>`:''}</th>`:''}`).join('');
-  const KWI=kwIndex(); const SK2=slaKey();
+  const KWI=kwReady()?kwIdx:(kwWarm().then(kwPaintRows),new Map()); const SK2=slaKey();
   const body=rows.map(r=>{ const fl=KWI.get(r.id); return `<tr data-id="${r.id}" class="${selected.has(r.id)?'sel':''}${fl?' flag':''}${readState(r).st!=='read'?' unread':''}"${fl?` title="كلمات حساسة: ${esc([...new Set(fl.map(x=>x.w))].join('، '))}"`:''}><td class="cb"><input type="checkbox" data-sel="${r.id}" ${selected.has(r.id)?'checked':''} aria-label="تحديد"></td><td class="ms">${envHTML(r)}${revTotal(r)?`<span class="revc" title="عدد مرات تحديث البلاغ من الاستيراد">↻ ${fmt(revTotal(r))}</span>`:''}</td>${COLS.map(c=>{ const raw=c.fmt?c.fmt(r[c.k],r):r[c.k]; const t= c.k==='count'?raw: (c.k===SK2&&raw) ? slaBadge(raw,slaState(r,SK2)) : hl(raw,fl&&c.cls==='desc'); return `<td class="${c.cls||''}">${c.cls==='desc'?`<div title="${esc(r[c.k])}">${t}</div>`:t}</td>${c.k===DUK?`<td>${durBadge(r)}</td>`:''}`; }).join('')}</tr>`; }).join('');
   v.innerHTML=`<div class="panel">${RB}<div class="tbl-wrap"><table class="rec"><thead><tr><th class="cb nosort"><input type="checkbox" id="selPage" ${allSel?'checked':''} aria-label="تحديد الصفحة"></th><th class="ms nosort" title="حالة القراءة">${ENV_O}</th>${th}</tr></thead><tbody>${body}</tbody></table></div>
     <div class="pager"><span>عرض ${fmt(page*pageSize+1)}–${fmt(page*pageSize+rows.length)} من ${fmt(filtered.length)}</span>
@@ -3288,7 +3392,7 @@ function addLate(list,file){ const at=new Date().toISOString(), have=new Set(LAT
 const fltNote=()=>filtered.length<RECS.length?`<p class="hint" style="margin:0 0 8px">⚑ حسب الفلاتر الحالية (${fmt(filtered.length)} من ${fmt(RECS.length)} بلاغ).</p>`:'';
 function lateRecs(){ const m=new Map(filtered.map(r=>[rKey(r),r])); return LATE.map(x=>({...x,r:m.get(x.k)})).filter(x=>x.r).reverse(); }
 function lateStats(){ const L=lateRecs(); return {all:L.length,nNew:L.filter(x=>readState(x.r).st!=='read').length}; }
-function lateTile(){ const u=lateStats();
+function lateTile(u0){ const u=u0||lateStats();
   return `<div role="button" tabindex="0" class="kpi" data-dgo="latedlg" style="cursor:pointer;${u.nNew?'border-color:color-mix(in srgb,#D69E2E 60%,var(--line))':''}"><span class="lbl">البلاغات المتأخرة</span><span class="val" style="${u.nNew?'color:#B7791F':''}">${fmt(u.nNew)}</span><span class="sub">${u.all?`لم تُفتح · من ${fmt(u.all)} بلاغ متأخر`:'لا توجد بلاغات متأخرة'}</span></div>`; }
 function lateDialog(tab){
   const L=lateRecs(), nw=L.filter(x=>readState(x.r).st!=='read'); tab=tab||(nw.length?'new':'all'); const list=tab==='new'?nw:L;
@@ -3304,7 +3408,7 @@ function lateDialog(tab){
 // بطاقة ونافذة التحديثات
 function lastUpdIdx(){ const m=new Map(); logIdx().forEach((a,id)=>{ const e=a[0].e; m.set(id,{t:e.t,type:e.type,note:e.note}); }); return m; }
 function updStats(){ let nNew=0, all=0; filtered.forEach(r=>{ if(revTotal(r)){ all++; if(readState(r).st==='upd') nNew++; } }); return {nNew,all}; }
-function updTile(){ const u=updStats();
+function updTile(A){ const u=A?{nNew:A.upNew,all:A.upAll}:updStats();
   return `<div role="button" tabindex="0" class="kpi" data-dgo="upddlg" style="cursor:pointer;${u.nNew?'border-color:color-mix(in srgb,#D69E2E 60%,var(--line))':''}"><span class="lbl">تحديثات البلاغات</span><span class="val" style="${u.nNew?'color:#B7791F':''}">${fmt(u.nNew)}</span><span class="sub">${u.all?`تحديث جديد لم يُفتح · ${fmt(u.all-u.nNew)} سابق`:'لا توجد بلاغات محدّثة'}</span></div>`; }
 const fmtLocal=t=>{ if(!t) return '—'; const d=new Date(t); if(isNaN(d)) return '—'; const h=d.getHours(), h12=h%12||12; return `${iso(d).replace(/-/g,'/')} ${h12}:${String(d.getMinutes()).padStart(2,'0')} ${h<12?'ص':'م'}`; };
 function updatesDialog(tab){
@@ -3376,7 +3480,7 @@ const GR_KEY='r937-gonerev-v1'; let GR=(()=>{ try{ return JSON.parse(localStorag
 let GR_V=0, GONE_C=null;
 const saveGR=()=>{ GR_V++; try{ localStorage.setItem(GR_KEY,JSON.stringify(GR)); }catch(e){} actSyncSoon(); };
 // البلاغات غير الموجودة في آخر ملف CARE (داخل فترة الملف). تتحدّث عند كل استيراد أو فحص ملف، وتعود «موجودة» إذا ظهرت في ملف لاحق
-function goneSet(){ const sig=GR_V+'|'+RECS.length; if(GONE_C&&GONE_C.sig===sig) return GONE_C.set; const have=new Set(RECS.map(r=>rKey(r)));
+function goneSet(){ const sig=GR_V+'|'+RECS.length; if(GONE_C&&GONE_C.sig===sig) return GONE_C.set; const have=allKeys();
   const set=new Set(Object.keys(GR).filter(k=>GR[k]&&GR[k].gone!==false&&have.has(k))); GONE_C={sig,set}; return set; }
 function goneMark(fileRecs, fname){ const fds=fileRecs.map(n=>String(n.date||'').slice(0,10)).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).sort(); if(!fds.length) return [];
   const from=fds[0], to=fds[fds.length-1], fk=new Set(fileRecs.map(n=>keyNo(n.no)).filter(Boolean)), t=new Date().toISOString(); let ch=false;
@@ -5571,7 +5675,7 @@ const saveFH=()=>{ clearTimeout(fhT); fhT=setTimeout(()=>{ try{ localStorage.set
 function fhAdd(no,from,to){ const k=keyNo(no); if(!k||nrm(from)===nrm(to)) return; FH[k]=[String(from),String(to)]; saveFH(); }
 function fhBackfill(){ const rs=FIX.filter(x=>x.k==='center'); if(!rs.length||!MV.length) return 0; let n=0;
   MV.forEach(x=>{ if(x[4]!=='center') return; const f=rs.find(r=>nrm(r.from)===nrm(x[6])); if(f&&!FH[x[1]]){ FH[x[1]]=[x[6],x[7]]; n++; } }); if(n) saveFH(); return n; }
-function fhCount(from){ const n=nrm(from), have=new Set(RECS.map(r=>rKey(r))); let c=0; for(const k in FH){ if(nrm(FH[k][0])===n&&have.has(k)) c++; } return c; }
+function fhCount(from){ const n=nrm(from), have=allKeys(); let c=0; for(const k in FH){ if(nrm(FH[k][0])===n&&have.has(k)) c++; } return c; }
 function fhList(from){ const n=nrm(from); const by=new Map(RECS.map(r=>[rKey(r),r])); const out=[]; for(const k in FH){ if(nrm(FH[k][0])===n&&by.has(k)) out.push([by.get(k),FH[k]]); } return out.sort((a,b)=>String(b[0].date).localeCompare(a[0].date)); }
 function applyFixRec(r){ let c=false; ['center','sector'].forEach(k=>{ if(r[k]!=null){ const v=fixVal(k,r[k]); if(v!==r[k]){ if(k==='center'){ fhAdd(r.no,r[k],v); const ok=oldcKey(true); if(ok) r[ok]=r[k]; } r[k]=v; c=true; } } }); return c; }
 // عمود «المنشأة بالمسمى القديم»: اسم المركز كما ورد في CARE قبل تصحيحه في التطبيق
@@ -5634,7 +5738,7 @@ const saveExc=()=>{ EXC_V++; EXC_C=null; try{ localStorage.setItem(EXC_KEY,JSON.
 function excInfo(){ const sig=RECS.length+'|'+EXC_V+'|'+DATA_V+'|'+(CLU.auto?1:0)+'|'+JSON.stringify([CLU.own,CLU.cols,CLU.extra]); if(EXC_C&&EXC_C.sig===sig) return EXC_C;
   const why=new Map(); Object.entries(EXS.m).forEach(([k,v])=>why.set(k,v.why||'يدوي'));
   if(CLU.auto){ const keep=new Set(EXS.keep); cluScan(RECS).forEach(h=>{ const k=keyNo(h.r.no); if(!keep.has(k)&&!why.has(k)) why.set(k,'تلقائي: '+h.who); }); }
-  const have=new Set(RECS.map(r=>rKey(r))); const set=new Set([...why.keys()].filter(k=>have.has(k)));
+  const have=allKeys(); const set=new Set([...why.keys()].filter(k=>have.has(k)));
   EXC_C={sig,set,why}; return EXC_C; }
 const excSet=()=>{ try{ return excInfo().set; }catch(e){ return new Set(); } };
 function excAdd(keys,why){ const at=new Date().toISOString(); const kp=new Set(EXS.keep); keys.forEach(k=>{ EXS.m[k]={why,at}; kp.delete(k); }); EXS.keep=[...kp]; saveExc(); }
@@ -5737,9 +5841,12 @@ const saveSFI=()=>{ try{ localStorage.setItem(SFI_KEY,JSON.stringify([...SFI]));
 let SFL=null;
 function secFixList(force){ if(!active('sector')||!MV_READY) return []; const sig=LOG_VER+'|'+MV.length+'|'+RECS.length+'|'+SFI.size+'|'+Object.keys(SECMAP).length; if(!force&&SFL&&SFL.sig===sig) return SFL.L;
   const last=new Map(); MV.forEach(x=>{ if(x[4]==='center'){ const p=last.get(x[1]); if(!p||String(x[0])>=String(p[0])) last.set(x[1],x); } });
-  const M=new Map(RECS.map(r=>[rKey(r),r])), L=[], DS=defSec();
+  // v174: مرور واحد على البلاغات بدل مرور كامل لكل بلاغ منقول (نفس نتيجة secExpect)
+  const M=new Map(), L=[], DS=defSec(), mv=secMovedKeys(), CS=new Map();
+  for(const r of RECS){ const k=rKey(r); if(last.has(k)) M.set(k,r); if(!r.sector||mv.has(k)) continue; let m=CS.get(r.center); if(!m){ m=new Map(); CS.set(r.center,m); } m.set(r.sector,(m.get(r.sector)||0)+1); }
+  const sx=c=>{ c=String(c||'').trim(); if(!c) return ''; if(SECMAP[c]) return SECMAP[c]; const m=CS.get(c); return m?([...m.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||''):''; };
   last.forEach((x,k)=>{ const r=M.get(k); if(!r||SFI.has(k)) return; const from=String(x[6]||'').trim(); if(vNorm(from)===vNorm(r.center)) return;
-    const exp=secExpect(r.center,k), oldS=secExpect(from,k), cur=String(r.sector||'').trim();
+    const exp=sx(r.center), oldS=sx(from), cur=String(r.sector||'').trim();
     if(exp){ if(vNorm(exp)!==vNorm(cur)) L.push({r,k,from,cur,exp,t:x[0]}); }
     else if(cur && oldS && vNorm(cur)===vNorm(oldS)) L.push({r,k,from,cur,exp:DS||'',t:x[0]}); });
   L.sort((a,b)=>String(b.r.date).localeCompare(String(a.r.date))); SFL={sig,L}; return L; }
@@ -5769,7 +5876,7 @@ function secFixDialog(){ const L=secFixList(true); if(!L.length){ toast('لا ت
 document.addEventListener('click',e=>{ if(e.target.closest('[data-secfix]')) secFixDialog(); });
 function reopenRecs(){ const m=new Map(filtered.map(r=>[rKey(r),r])); return REOPEN.filter(x=>ROSET.mode==='all'||isReopen(x.from,x.to)).map(x=>({...x,r:m.get(x.k)})).filter(x=>x.r).reverse(); }
 function reopenStats(){ const L=reopenRecs(); return {all:L.length,nNew:L.filter(x=>readState(x.r).st!=='read').length}; }
-function reopenTile(){ const u=reopenStats();
+function reopenTile(u0){ const u=u0||reopenStats();
   return `<div role="button" tabindex="0" class="kpi" data-dgo="reopendlg" style="cursor:pointer;${u.nNew?'border-color:color-mix(in srgb,#E5484D 55%,var(--line))':''}"><span class="lbl">معاد فتحها</span><span class="val" style="${u.nNew?'color:#E5484D':''}">${fmt(u.nNew)}</span><span class="sub">${u.all?`لم تُفتح · من ${fmt(u.all)} تذكرة`:'اضغط لفحص ملف التذاكر'}</span></div>`; }
 function pickStatusFile(){ guard(()=>{ const i=document.createElement('input'); i.type='file'; i.accept='.xlsx,.xlsm'; i.onchange=()=>{ const f=i.files[0]; if(f) checkStatusFile(f); }; i.click(); }); }
 async function checkStatusFile(file){
@@ -6124,17 +6231,19 @@ try{ navigator.storage && navigator.storage.persist && navigator.storage.persist
     if(idb){ try{ if(ch.length) await dbPut(ch); await dbSetMeta('restore2',true); }catch(e){ console.error(e); } }
   }
   }
-  setAll(list);
+  { const out=new Array(list.length); let j=0; await chunkEach(list,r=>{ out[j++]=prep(r); }); RECS=out; byId.clear(); await chunkEach(RECS,r=>byId.set(r.id,r)); callerIdx=null; staffIdx=null; clinIdx=null; }
+  await chunkEach(RECS,r=>rKey(r)); // v174: مفاتيح البلاغات قبل أول عرض (الاستبعاد والفلاتر تحتاجها)
   await loadLog(); await loadRead(); await loadVisits(); await loadPinLog(); try{ resolvePendingPins(); }catch(e){} MV_P=loadMV(); // تُحمَّل حركة البلاغات بعد ظهور الشاشة حتى لا يتأخر فتح التطبيق
   setTimeout(()=>recomputeStatus(true),0);
   pageSize=+HOME.pageSize||50;
   if(HOME.defView && HOME.views.some(v=>v[0]===HOME.defView&&v[1])){ view=HOME.defView; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); }
   applyHome(); applySide();
+  { const tick=()=>new Promise(r=>setTimeout(r,0)); try{ await allKeysWarm(); await srtWarm(); excSet(); await tick(); goneSet(); await tick(); }catch(e){ console.error(e); } } // v174: تجهيز على دفعات قبل أول عرض
   renderAll();
   MV_P.then(()=>{ LOG_VER++; try{ refresh(true); }catch(e){ console.error(e); } setTimeout(()=>mvBackfill().catch(e=>console.error(e)),1500); setTimeout(()=>{ try{ renderMvBanner(); }catch(e){} },300);
     // تجهيز مسبق في وقت الفراغ: أول فتح لبلاغ وأول بحث يصبحان فوريين
     const idle=f=>window.requestIdleCallback?requestIdleCallback(f,{timeout:3000}):setTimeout(f,400);
-    [()=>mvIdx(),()=>callerIndex(),()=>kwIndex(),()=>roKeys()].forEach((f,i)=>setTimeout(()=>idle(()=>{ try{ f(); }catch(e){} }),600+i*250)); setTimeout(()=>{ clWarm().then(()=>stWarm()); },1800); });
+    [()=>mvIdx(),()=>chunkEach(RECS,r=>callerKey(r)).then(()=>callerIndex()),()=>kwWarm(),()=>roKeys()].forEach((f,i)=>setTimeout(()=>idle(()=>{ try{ f(); }catch(e){} }),600+i*250)); setTimeout(()=>{ clWarm().then(()=>stWarm()); },1800); });
   renderBackupBanner(); renderViewerBar(); try{ renderHeader(); applyActs(); }catch(e){ console.error(e); }
   try{ const m=sessionStorage.getItem('r937-cp-msg'); if(m){ sessionStorage.removeItem('r937-cp-msg'); setTimeout(()=>toast(m==='cancel'?'أُلغيت تغييرات لوحة التحكم':'لم تُحفظ تغييرات لوحة التحكم السابقة، فأُعيدت الإعدادات كما كانت'),400); } }catch(e){}
 })();
