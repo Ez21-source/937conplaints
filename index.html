@@ -717,7 +717,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 "use strict";
 const SEED = /*__SEED__*/null;
 const VIEWER = /*__VIEWER__*/null;
-const APP_VER = '172';
+const APP_VER = '173';
 // نسخة من نص البرنامج وواجهته كما هي عند التحميل، لإنشاء «نسخة العرض فقط»
 const SELF=(()=>{ try{ const cur=document.currentScript; const g=id=>document.getElementById(id)?.outerHTML||'';
   return {css:document.getElementById('mainCss')?.textContent||'', rcss:document.getElementById('reportCss')?.textContent||'', fcss:document.getElementById('fontEmb')?.textContent||'',
@@ -816,13 +816,17 @@ function nrm(v){ const s0=String(v??''); if(s0.length<=120){ const c=NRM_C.get(s
 function nrm0(v){ return String(v??'').toLowerCase().replace(/ـ/g,'').replace(/[ً-ْ]/g,'').replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').replace(/ؤ/g,'و').replace(/ئ/g,'ي').replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-0x660)).replace(/\s+/g,' ').trim(); }
 const uid = ()=> Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 // رقم البلاغ هو المفتاح الرئيسي: يُقارن بعد توحيد الأرقام والحروف والمسافات
-const keyNo = v => String(v??'').replace(/[\u0660-\u0669]/g,d=>String(d.charCodeAt(0)-0x660)).replace(/[\u06F0-\u06F9]/g,d=>String(d.charCodeAt(0)-0x6F0)).replace(/\s+/g,'').toUpperCase();
+const KNC=new Map(); const keyNo = v => { const s=String(v??''); let x=KNC.get(s); if(x===undefined){ x=s.replace(/[\u0660-\u0669]/g,d=>String(d.charCodeAt(0)-0x660)).replace(/[\u06F0-\u06F9]/g,d=>String(d.charCodeAt(0)-0x6F0)).replace(/\s+/g,'').toUpperCase(); if(KNC.size<600000) KNC.set(s,x); } return x; }; // v173: ذاكرة
+const RKW=new WeakMap(); const rKey=r=>{ if(!r) return keyNo(undefined); let x=RKW.get(r); if(x===undefined){ x=keyNo(r.no); RKW.set(r,x); } return x; }; // v173
 // المتصل: برقم الهوية إن وُجد، وإلا بالاسم الكامل بعد توحيد الكتابة
 const RPT_KEY='r937-repeat-v1';
 let RPT=(()=>{ try{ return {min:2,short:false,...JSON.parse(localStorage.getItem(RPT_KEY)||'{}')}; }catch(e){ return {min:2,short:false}; } })();
 const saveRpt=()=>{ try{ localStorage.setItem(RPT_KEY,JSON.stringify(RPT)); }catch(e){} };
 const NOT_PERSON=new Set(['الزاير السري','الزائر السري','مجهول','غير معروف','لا يوجد','بدون','test','تجربه'].map(s=>nrm(s)));
-function callerKey(r){
+let CKC={sig:'',wm:new WeakMap()};
+function callerKey(r){ const sig=(active('nid')?1:0)+(active('caller')?2:0)+(RPT.short?4:0); if(CKC.sig!==sig) CKC={sig,wm:new WeakMap()};
+  let x=CKC.wm.get(r); if(x===undefined){ x=callerKey0(r); CKC.wm.set(r,x); } return x; }
+function callerKey0(r){
   if(active('nid')){ const id=keyNo(r.nid).replace(/[^0-9A-Z]/g,''); if(id.length>=6) return 'id:'+id; }
   if(!active('caller')) return null;
   const n=nrm(r.caller); if(!n || NOT_PERSON.has(n)) return null;
@@ -1261,7 +1265,7 @@ function kwMatch(rec,rid){ const vr=RULES.find(x=>x.id===rid&&x.type==='value');
 const dWord=n=>n===1?'يوم واحد':n===2?'يومين':n<=10?`${fmt(n)} أيام`:`${fmt(n)} يوماً`;
 function periodWindows(days){
   let a=filt.from, b=filt.to;
-  if(!a||!b){ const ds=(a||b?filtered:RECS).map(r=>r.date).filter(Boolean).sort(); if(!ds.length) return null; const last=b||ds[ds.length-1].slice(0,10); const first=ds[0].slice(0,10); if(!b) b=last; if(!a) a = (filt.to? first : addDays(b,-(Math.max(1,days)-1))); }
+  if(!a||!b){ const ds=dsMM((a||b?filtered:RECS)); if(!ds.length) return null; const last=b||ds[ds.length-1].slice(0,10); const first=ds[0].slice(0,10); if(!b) b=last; if(!a) a = (filt.to? first : addDays(b,-(Math.max(1,days)-1))); }
   const len=Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000)+1;
   return {a,b,len,pa:addDays(a,-len),pb:addDays(a,-1)};
 }
@@ -1284,7 +1288,7 @@ function autoLimits(rule){
   const k=rule.type; if(!active(k)) return [];
   const per=rule.per||'day';
   const DAY=86400000, di=d=>Math.round(new Date(d+'T00:00:00').getTime()/DAY);
-  const ds=RECS.map(r=>r.date).filter(Boolean).sort(); if(!ds.length) return [];
+  const ds=dsMM(RECS); if(!ds.length) return [];
   const b=bucketOf(ds[ds.length-1],per); const s0=di(b.from), e0=Math.min(di(b.to),di(ds[ds.length-1].slice(0,10))), len=e0-s0+1;
   const fl=Math.max(1,+rule.floor||1), mg=Math.max(1,+rule.margin||1);
   const m=new Map();
@@ -1304,12 +1308,20 @@ function evalRules(list){ const {sig,ls}=erSig(list);
 // للواجهة: يرجع النتيجة المحفوظة فوراً، وإن لم تكن جاهزة يحسبها بعد ظهور الصفحة ثم يحدّث البطاقات
 let ER_PEND=false;
 function evalRulesSoft(list){ const {sig,ls}=erSig(list); if(ER_C.sig===sig && (ls?ER_C.ls===ls:ER_C.list===list)) return ER_C.out;
-  if(!ER_PEND){ ER_PEND=true; setTimeout(()=>{ ER_PEND=false; try{ evalRules(filtered); renderSummary(); }catch(e){} try{ renderSide(); }catch(e){} try{ renderAlerts(); }catch(e){} try{ renderHomeTicker(); }catch(e){} },60); }
+  if(!ER_PEND){ ER_PEND=true; erRunAsync(); }
   return null; }
-function evalRules0(list){
+// v173: تُحسب قاعدة بعد قاعدة على دفعات، ثم تُحدَّث البطاقات مرة واحدة
+function erRunAsync(){ const list=filtered, S0=erSig(list), rules=RULES.filter(r=>r.on), B0={}; let i=0; const acc=[];
+  const step=()=>{ const S1=erSig(filtered); if(filtered!==list||S1.sig!==S0.sig){ ER_PEND=false; ER_PEND=true; return setTimeout(erRunAsync,0); } const t0=performance.now();
+    while(i<rules.length){ try{ acc.push(...evalRules0(list,[rules[i]],B0)); }catch(e){ console.error(e); } i++; if(performance.now()-t0>30) return setTimeout(step,0); }
+    const ord={kw:0,value:1,rise:2}; const out=acc.map((a,j)=>[a,j]).sort((x,y)=>((ord[x[0].rule.type]??3)-(ord[y[0].rule.type]??3))||x[1]-y[1]).map(x=>x[0]);
+    ER_C={list,sig:S0.sig,ls:S0.ls,out}; ER_PEND=false;
+    try{ updKpi(['alerts']); }catch(e){ console.error(e); } setTimeout(()=>{ try{ renderSide(); }catch(e){} try{ renderAlerts(); }catch(e){} },0); setTimeout(()=>{ try{ renderHomeTicker(); }catch(e){} },0); };
+  setTimeout(step,30); }
+function evalRules0(list,only,B0){
   const out=[];
-  let base=null; const getBase=()=>base||(base=baseNoDates());
-  RULES.filter(r=>r.on).forEach(rule=>{
+  let base=null; const getBase=()=>base||(base=B0?(B0.v||(B0.v=baseNoDates())):baseNoDates());
+  (only||RULES.filter(r=>r.on)).forEach(rule=>{
     const n=Math.max(1,+rule.n||1);
     if(rule.type==='rise'){
       const k=rule.field==='sector'?'sector':'center'; if(!active(k)) return;
@@ -1415,9 +1427,11 @@ function deltaHTML(cur,prev,lbl){
   const p=(cur-prev)/prev*100; const up=p>0.5, dn=p<-0.5;
   return `<span class="dl ${up?'up':dn?'dn':''}">${up?'▲':dn?'▼':'■'} ${pctF(Math.abs(p),0)}% <span>${lbl} ${fmt(prev)}</span></span>`;
 }
-function dashStats(){
+let DSC={v:-1,sig:'',out:null};
+function dashStats(){ const sg=LOG_VER+'|'+RECS.length+'|'+JSON.stringify(filt); if(DSC.v===APPLY_VER&&DSC.sig===sg&&DSC.list===filtered) return DSC.out; const out=dashStats0(); DSC={v:APPLY_VER,sig:sg,list:filtered,out}; return out; }
+function dashStats0(){
   const base=baseNoDates();
-  const ds=filtered.map(r=>r.date).filter(Boolean).sort(); const d=ds.length?ds[ds.length-1].slice(0,10):'';
+  const ds=dsMM(filtered); const d=ds.length?ds[ds.length-1].slice(0,10):'';
   if(!d) return {d:''};
   const day=countRange(base,d,d), prevDay=countRange(base,addDays(d,-1),addDays(d,-1));
   const wk=countRange(base,addDays(d,-6),d), prevWk=countRange(base,addDays(d,-13),addDays(d,-7));
@@ -1548,7 +1562,8 @@ function renderHomeTicker(){
 }
 function kwRuleName(id){ if(id==='*') return 'كل الكلمات الحساسة'; const r=RULES.find(x=>x.id===id); return r?(r.name||'كلمات حساسة'):'كلمات حساسة'; }
 
-function prep(r){ r._s = nrm(cols().map(c=>c.k==='month'?monthOf(r):r[c.k]).join(' | ')); r._m=monthOf(r); return r; }
+function prep(r){ r._s=undefined; r._m=monthOf(r); return r; }
+const sOf=r=>r._s!==undefined?r._s:(r._s=nrm(cols().map(c=>c.k==='month'?monthOf(r):r[c.k]).join(' | '))); // v173: يُحسب عند أول بحث
 // إخفاء أرقام الجوال والهوية داخل النصوص الحرة
 const MASK_KEY='r937-mask-v1';
 let MASK_ON=(()=>{ try{ return localStorage.getItem(MASK_KEY)==='1'; }catch(e){ return false; } })();
@@ -1625,11 +1640,11 @@ function filterRecs(noDates){
   const EX=extraFilterCols().map(c=>[c.k,fs(c.k)]).filter(x=>x[1]);
   const from=noDates?'':filt.from, to=noDates?'':filt.to; const XS=excSet(), XM=filt.exc||''; const GS=filt.gone?goneSet():null;
   return RECS.filter(r=>{
-    if(XS.size||XM==='only'){ const ex=XS.has(keyNo(r.no)); if(XM==='only'?!ex:(XM!=='show'&&ex)) return false; }
-    if(GS){ const g=GS.has(keyNo(r.no)); if(filt.gone==='only'?!g:g) return false; }
-    if(NS && !NS.has(keyNo(r.no))) return false;
+    if(XS.size||XM==='only'){ const ex=XS.has(rKey(r)); if(XM==='only'?!ex:(XM!=='show'&&ex)) return false; }
+    if(GS){ const g=GS.has(rKey(r)); if(filt.gone==='only'?!g:g) return false; }
+    if(NS && !NS.has(rKey(r))) return false;
     if(IS && !IS.has(r.id)) return false;
-    if(LS && !LS.has(keyNo(r.no))) return false;
+    if(LS && !LS.has(rKey(r))) return false;
     if(from && (!r.date || r.date.slice(0,10)<from)) return false;
     if(to && (!r.date || r.date.slice(0,10)>to)) return false;
     if(Fm && !ok(Fm,r._m)) return false;
@@ -1644,7 +1659,7 @@ function filterRecs(noDates){
     if(filt.sla && slaState(r)!==filt.sla) return false;
     if(filt.unread){ const st=readState(r).st; if(filt.unread==='1'?st==='read':st!==filt.unread) return false; }
     for(const [k,F] of EX) if(!ok(F,rv(r,k))) return false;
-    for(const w of words) if(!r._s.includes(w)) return false;
+    for(const w of words) if(!sOf(r).includes(w)) return false;
     return true;
   });
 }
@@ -1652,13 +1667,20 @@ function apply(){ _empSet=null; _clSet=null; APPLY_VER++;
   filtered=filterRecs(false);
   const k=sort.k, d=sort.dir;
   if(k==='__dur'){ const H=new Map(); filtered.forEach(r=>{ const x=durInfo(r); H.set(r.id,x.st==='none'?null:x.h); }); filtered.sort((a,b)=>{ const x=H.get(a.id), y=H.get(b.id); if(x==null&&y==null) return 0; if(x==null) return 1; if(y==null) return -1; return (x-y)*d; }); return; }
-  filtered.sort((a,b)=>{ let x=a[k], y=b[k]; if(k==='count') return (x-y)*d; x=String(x||''); y=String(y||''); return x<y?-d:x>y?d:0; });
+  const sg=DATA_V+'|'+k+'|'+d; if(SRT.sig!==sg||SRT.recs!==RECS||SRT.n!==RECS.length){ const n=RECS.length, ks=k==='count'?RECS.map(r=>r[k]):RECS.map(r=>String(r[k]||'')), ix=Array.from({length:n},(_,i)=>i);
+    ix.sort(k==='count'?(i,j)=>(ks[i]-ks[j])*d:(i,j)=>{ const x=ks[i], y=ks[j]; return x<y?-d:x>y?d:0; }); const rank=new Map(); ix.forEach((i,p)=>rank.set(RECS[i],p)); SRT={sig:sg,recs:RECS,n,rank,arr:ix.map(i=>RECS[i])}; }
+  if(filtered.length===RECS.length) filtered=SRT.arr.slice(); else { const R=SRT.rank; filtered.sort((a,b)=>(R.get(a)??0)-(R.get(b)??0)); }
 }
-function countBy(list,k,fn){ const m=new Map(); list.forEach(r=>{ const v=fn?fn(r):r[k]; m.set(v,(m.get(v)||0)+1); }); return [...m.entries()].sort((a,b)=>b[1]-a[1]); }
+let SRT={sig:'',recs:null,n:0,rank:null,arr:null}; // v173: ترتيب كل البلاغات محفوظ حتى تتغير البيانات
+let CBC={v:-1,m:new Map()};
+// v173: أول وآخر تاريخ بمسح واحد بدل ترتيب كل التواريخ
+function dsMM(list){ let mn=null,mx=null; for(const r of list){ const d=r.date; if(!d) continue; if(mn===null||d<mn) mn=d; if(mx===null||d>mx) mx=d; } return mn===null?[]:[mn,mx]; }
+function countBy(list,k,fn){ if(!fn&&list===filtered&&typeof k==='string'){ if(CBC.v!==APPLY_VER||CBC.list!==list) CBC={v:APPLY_VER,list,m:new Map()}; let x=CBC.m.get(k); if(!x){ x=countBy0(list,k); CBC.m.set(k,x); } return x.map(e=>[e[0],e[1]]); } return countBy0(list,k,fn); }
+function countBy0(list,k,fn){ const m=new Map(); list.forEach(r=>{ const v=fn?fn(r):r[k]; m.set(v,(m.get(v)||0)+1); }); return [...m.entries()].sort((a,b)=>b[1]-a[1]); }
 const total = list => list.length;
 
 /* ---------- render ---------- */
-function renderAll(){ apply(); renderFilters(); renderAlerts(); renderSummary(); renderView(); setTimeout(applyFolds,0); renderInfo(); }
+function renderAll(){ apply(); renderFilters(); renderAlerts(); renderInfo(); const v=APPLY_VER; setTimeout(()=>{ if(v===APPLY_VER) renderSummary(); setTimeout(()=>{ if(v===APPLY_VER) renderView(); setTimeout(applyFolds,0); },0); },0); } // v173: الملخص ثم الجدول في مهام مستقلة
 let WARM_T=0;
 function warmIdle(){ clearTimeout(WARM_T); WARM_T=setTimeout(()=>{ const idle=f=>window.requestIdleCallback?requestIdleCallback(f,{timeout:2500}):setTimeout(f,50);
   const jobs=[()=>logIdx(),()=>mvIdx(),()=>callerIndex(),()=>kwIndex(),()=>roKeys(),()=>clWarm().then(()=>new Promise(r=>idle(()=>{ try{ clinicIndex(); }catch(e){} r(); }))),()=>stWarm().then(()=>new Promise(r=>idle(()=>{ try{ staffIndex(); }catch(e){} r(); }))),()=>{ if(DUR&&DUR.on!==false) filtered.slice(0,6000).forEach(r=>durInfo(r)); }];
@@ -1685,7 +1707,7 @@ function optionsFor(k){
     if(filt.kw && !kwMatch(r,filt.kw)) return false;
     if(filt.sla && slaState(r)!==filt.sla) return false;
     for(const c of extraFilterCols()) if(k!==c.k && !fOk(c.k,rv(r,c.k))) return false;
-    for(const w of words) if(!r._s.includes(w)) return false;
+    for(const w of words) if(!sOf(r).includes(w)) return false;
     return true;
   });
   filt[k]=save;
@@ -1813,7 +1835,7 @@ function presetList(){
   const ms=new Date(t.getFullYear(),t.getMonth(),1), pms=new Date(t.getFullYear(),t.getMonth()-1,1), pme=new Date(t.getFullYear(),t.getMonth(),0);
   const qs=new Date(t.getFullYear(),Math.floor(t.getMonth()/3)*3,1), pqs=new Date(qs.getFullYear(),qs.getMonth()-3,1), pqe=new Date(qs.getFullYear(),qs.getMonth(),0), ys=new Date(t.getFullYear(),0,1);
   const list=[['اليوم',today,today],['هذا الأسبوع',iso(ws),today],['آخر 7 أيام',back(7),today],['آخر 30 يوماً',back(30),today],['هذا الشهر',iso(ms),today],['الشهر الماضي',iso(pms),iso(pme)],['هذا الربع',iso(qs),today],['الربع الماضي',iso(pqs),iso(pqe)],['هذه السنة',iso(ys),today]];
-  const ds=RECS.map(r=>r.date).filter(Boolean).sort();
+  const ds=dsMM(RECS);
   if(ds.length){ const last=ds[ds.length-1].slice(0,10), lm=last.slice(0,7); const lme=iso(new Date(+lm.slice(0,4),+lm.slice(5,7),0)); list.push([`آخر شهر في البيانات (${MONTHS[+lm.slice(5,7)-1]})`,lm+'-01',lme]); }
   return list;
 }
@@ -1891,21 +1913,32 @@ document.addEventListener('change',e=>{ if(e.target.name==='khead'){ HOME.khead=
 document.addEventListener('click',e=>{ if(e.target.closest('#kheadDef')){ HOME.khead='b'; saveHome(); renderSummary(); const pb=document.getElementById('pbody'); if(pb&&pb.dataset.tab==='home') pb.innerHTML=panelHome()+panelKHead(); toast('أُعيد الشكل الافتراضي'); } });
 /* ---------- بطاقتا المدة الزمنية ---------- */
 let DURC=null; const durI=r=>{ if(!DURC) return durInfo(r); let x=DURC.get(r.id); if(!x){ x=durInfo(r); DURC.set(r.id,x); } return x; };
-function durPeriods(){ const ds=filtered.map(r=>r.date).filter(Boolean).sort(); if(!ds.length) return null; const last=ds[ds.length-1].slice(0,10), firstF=ds[0].slice(0,10); let a,b,lbl;
+function durPeriods(){ const ds=dsMM(filtered); if(!ds.length) return null; const last=ds[ds.length-1].slice(0,10), firstF=ds[0].slice(0,10); let a,b,lbl;
   if(filt.from||filt.to){ a=filt.from||firstF; b=filt.to||last; lbl='الفترة المحددة'; } else { b=last; a=addDays(b,-6); lbl='آخر 7 أيام'; }
   const len=Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000)+1, pa=addDays(a,-len), pb=addDays(a,-1);
   const base=baseNoDates(); const C=[], P=[]; base.forEach(r=>{ if(!r.date) return; const d=r.date.slice(0,10); if(d>=a&&d<=b) C.push(r); else if(d>=pa&&d<=pb) P.push(r); });
   return {C,P,lbl,hasPrev:base.some(r=>r.date&&r.date.slice(0,10)<a)}; }
-function d48Tile(){ const L=durLabels(); let o=0,c=0; filtered.forEach(r=>{ const d=durI(r); if(d.st!=='none'&&d.lvl==='r'){ if(d.st==='open') o++; else c++; } });
+const durSigF=()=>LOG_VER+'|'+MV_VER+'|'+REOPEN.length+'|'+RECS.length+'|'+DUR_V+'|'+SCHEMA.length;
+let DW={sig:'',i:0,done:false,busy:false};
+const durReady=()=>DW.done&&DW.sig===durSigF();
+function durWarmSoft(){ if(DW.busy) return; const sig=durSigF(); DW={sig,i:0,done:false,busy:true};
+  const step=()=>{ if(durSigF()!==sig){ DW.busy=false; return durWarmSoft(); } const t0=performance.now();
+    while(DW.i<RECS.length){ durInfo(RECS[DW.i++]); if((DW.i&255)===0&&performance.now()-t0>30) return setTimeout(step,0); }
+    DW.done=true; DW.busy=false; try{ updKpi(['d48','dur']); }catch(e){ console.error(e); } }; setTimeout(step,0); }
+const durWait=l=>`<div class="kpi"><span class="lbl">${esc(l)}</span><span class="val" style="color:var(--muted)">…</span><span class="sub">جارٍ الحساب</span></div>`;
+// v173: تحديث بطاقة واحدة بعد اكتمال حسابها بدل إعادة رسم الصفحة كلها
+function updKpi(keys){ const S=renderSummary._K, kel=document.getElementById('kpis'); if(!S||S.v!==APPLY_VER||!kel){ renderSummary(); return; } DURC=new Map();
+  try{ keys.forEach(k=>{ const el=kel.querySelector(`[data-kk="${k}"]`); if(!el||!S.K[k]) return; const w=document.createElement('div'); w.innerHTML=S.K[k]().replace('class="kpi"',`class="kpi" data-kk="${k}"`); const n=w.firstElementChild; if(n) el.replaceWith(n); }); kpiDecorate(kel); } finally{ DURC=null; } }
+function d48Tile(){ const L=durLabels(); if(!durReady()){ durWarmSoft(); return durWait(L.r); } let o=0,c=0; filtered.forEach(r=>{ const d=durI(r); if(d.st!=='none'&&d.lvl==='r'){ if(d.st==='open') o++; else c++; } });
   return `<div role="button" tabindex="0" class="kpi" data-dgo="d48" style="cursor:pointer;${o?'border-color:color-mix(in srgb,#E5484D 55%,var(--line))':''}"><span class="lbl">${esc(L.r)}</span><span class="val" style="${o?'color:#E5484D':''}">${fmt(o)}</span><span class="sub">مفتوح تجاوز ${+DUR.t2||48} ساعة</span>${c?`<span class="sub">+ ${fmt(c)} محلول تجاوزها</span>`:''}</div>`; }
-function durTile(){ const L=durLabels(), P=durPeriods(); const cnt=a=>{ const o={g:0,o:0,r:0,n:0,ro:0,ne:0}; a.forEach(r=>{ const d=durI(r); if(d.st!=='none'){ o[d.lvl]++; o.n++; if(d.ro) o.ro++; } else if(d.noEnd) o.ne++; }); return o; };
+function durTile(){ if(!durReady()){ durWarmSoft(); return durWait('المدة الزمنية للإغلاق'); } const L=durLabels(), P=durPeriods(); const cnt=a=>{ const o={g:0,o:0,r:0,n:0,ro:0,ne:0}; a.forEach(r=>{ const d=durI(r); if(d.st!=='none'){ o[d.lvl]++; o.n++; if(d.ro) o.ro++; } else if(d.noEnd) o.ne++; }); return o; };
   const F=cnt(filtered), Cc=P?cnt(P.C):null, Pc=P?cnt(P.P):null;
   const arr=k=>{ if(!P||!P.hasPrev||!Pc[k]) return ''; const c=Cc[k], p=Pc[k]; if(c===p) return `<span class="kd" title="لم يتغيّر عن الفترة السابقة">=</span>`; const up=c>p, pc=Math.abs((c-p)/p*100).toFixed(0); const cls=k==='g'?(up?'g':'b'):(up?'b':'g');
     return `<span class="kd ${cls}" title="${esc(P.lbl)}: ${fmt(c)} · الفترة السابقة: ${fmt(p)}">${up?'▲':'▼'} ${pc}%</span>`; };
   const row=k=>`<div class="kdur" data-durf="${k}" title="اضغط لعرض البلاغات"><span><span class="dur dur-${k}">${esc(L[k])}</span> <b>${fmt(F[k])}</b> <span class="kp">${pct(F[k],F.n)}</span></span>${arr(k)}</div>`;
   return `<div class="kpi"><span class="lbl">المدة الزمنية للإغلاق</span>${F.n?row('g')+row('o')+row('r'):'<span class="sub">لا توجد بلاغات معروفة المدة</span>'}${F.ne?`<span class="kp" style="color:var(--warn);display:block;margin-top:4px" title="حالتها ليست مفتوحة ولا يوجد لها تاريخ حل، فلا تدخل في المدة">غير مفتوحة وبلا تاريخ حل: ${fmt(F.ne)}</span>`:''}${F.n&&P&&P.hasPrev?`<span class="kp" style="color:var(--muted);display:block;margin-top:4px" title="${esc(P.lbl)}: ${fmt(Cc.g)} · ${fmt(Cc.o)} · ${fmt(Cc.r)} — الفترة السابقة: ${fmt(Pc.g)} · ${fmt(Pc.o)} · ${fmt(Pc.r)} (24 · 48 · أكثر من 48)">السابقة: ${fmt(Pc.g)} · ${fmt(Pc.o)} · ${fmt(Pc.r)}</span>`:''}${F.ro?`<span class="kp" data-dgo="reopendlg" style="color:#E5484D;display:block;margin-top:2px;cursor:pointer">↺ منها ${fmt(F.ro)} ${F.ro===1?'بلاغ معاد فتحه تُحسب مدته':'بلاغاً معاد فتحه تُحسب مدتها'} من إعادة الفتح</span>`:''}</div>`; }
 function showDurList(lv,title){ const list=filtered.filter(r=>{ const d=durInfo(r); return d.st!=='none'&&d.lvl===lv; }); if(!list.length){ toast('لا توجد بلاغات'); return; }
-  filt={...filt,nos:list.map(r=>keyNo(r.no)).join(' ')}; sort={k:'__dur',dir:-1}; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); toast(`${title}: ${fmt(list.length)} بلاغ، مرتبة من الأطول مدة`); }
+  filt={...filt,nos:list.map(r=>rKey(r)).join(' ')}; sort={k:'__dur',dir:-1}; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); toast(`${title}: ${fmt(list.length)} بلاغ، مرتبة من الأطول مدة`); }
 document.addEventListener('click',e=>{ const r=e.target.closest('[data-durf]'); if(r){ const L=durLabels(); showDurList(r.dataset.durf,L[r.dataset.durf]); } });
 function alertsTile(){
   const al=evalRulesSoft(filtered); if(!al) return `<div class="kpi"><span class="lbl">التنبيهات</span><span class="val" style="color:var(--muted)">…</span><span class="sub">جارٍ الحساب</span></div>`; const gs=alertGroups(al);
@@ -1925,7 +1958,7 @@ function alertsDialog(){
 }
 // مقارنة داخل مربعات الشاشة الرئيسية: البلاغات، ثم داخل/خارج مستوى الخدمة، مقابل الفترة السابقة
 function kpiCompare(){
-  const ds=filtered.map(r=>r.date).filter(Boolean).sort(); if(!ds.length) return ()=>'';
+  const ds=dsMM(filtered); if(!ds.length) return ()=>'';
   const last=ds[ds.length-1].slice(0,10), firstF=ds[0].slice(0,10);
   let a,b,lbl;
   if(filt.from||filt.to){ a=filt.from||firstF; b=filt.to||last; lbl='الفترة المحددة'; } else { b=last; a=addDays(b,-6); lbl='آخر 7 أيام'; }
@@ -1963,7 +1996,7 @@ function renderSummary(){
     centers:()=>kpi('المراكز الصحية',fmt(centers.length),'مركز ورد منه بلاغ'),
     topCenter:()=>kpi('أعلى مركز',esc(centers[0]?shortName(centers[0][0]):'—'),centers[0]?`${fmt(centers[0][1])} بلاغ · ${pct(centers[0][1],tot)}`:'',1,centers[0]?CMP(r=>r.center===centers[0][0]):'',centers[0]?.[0]),
     topCat:()=>kpi(`أعلى ${catK==='sub'?'تصنيف فرعي':'تصنيف رئيسي'}`,esc(cats[0]?.[0]||'—'),cats[0]?`${fmt(cats[0][1])} بلاغ · ${pct(cats[0][1],tot)}`:'',1,cats[0]?CMP(r=>r[catK]===cats[0][0]):'',cats[0]?.[0]),
-    lastDay:()=>{ const ds=filtered.map(r=>r.date).filter(Boolean).sort(); const d=ds.length?ds[ds.length-1].slice(0,10):''; const n=d?filtered.filter(r=>r.date&&r.date.startsWith(d)).length:0; return kpi('آخر يوم مسجل',d?d.replace(/-/g,'/'):'—',d?`${fmt(n)} بلاغ في ذلك اليوم`:'',1); },
+    lastDay:()=>{ const ds=dsMM(filtered); const d=ds.length?ds[ds.length-1].slice(0,10):''; const n=d?filtered.filter(r=>r.date&&r.date.startsWith(d)).length:0; return kpi('آخر يوم مسجل',d?d.replace(/-/g,'/'):'—',d?`${fmt(n)} بلاغ في ذلك اليوم`:'',1); },
     callers:()=>{ const g=(active('caller')||active('nid'))?repeatGroups(filtered,RPT.min):[]; return kpi('متصلون متكررون',fmt(g.length),`${RPT.min}+ بلاغ لكل متصل`); },
     flagged:()=>{ const idx=kwIndex(); const n=filtered.filter(r=>idx.has(r.id)).length; return kpi('بلاغات بكلمات حساسة',fmt(n),n?pct(n,tot)+' من النتائج':'حسب قواعد التنبيه'); },
     alerts:()=>alertsTile(),
@@ -1981,7 +2014,7 @@ function renderSummary(){
   const ks=HOME.kpis.filter(([k,on])=>on&&K[k]&&!((k==='d48'||k==='dur')&&!DUR.on)).map(([k])=>k);
   const kel=document.getElementById('kpis');
   const ku=ks.length+(ks.includes('dur')?1:0); kel.style.setProperty('--kc', String(ku<=5?Math.max(1,ku):Math.ceil(ku/2)));
-  kel.innerHTML=ks.map(k=>K[k]().replace('class="kpi"',`class="kpi" data-kk="${k}"`)).join(''); kpiDecorate(kel); DURC=null;
+  kel.innerHTML=ks.map(k=>K[k]().replace('class="kpi"',`class="kpi" data-kk="${k}"`)).join(''); kpiDecorate(kel); DURC=null; renderSummary._K={K,v:APPLY_VER};
   const C={
     daily:()=>`<div class="panel ins" data-card="daily"><h3>البلاغات اليومية<small>اضغط يوماً للفلترة</small></h3>${dayChartSVG(filtered)}</div>`,
     centers:()=>`<div class="panel ins"><h3>أعلى المراكز<small>${fmt(centers.length)} مركز</small></h3>${barsHTML(centers,'center',B,tot)}</div>`,
@@ -2148,7 +2181,7 @@ addEventListener('resize',()=>{ clearTimeout(addEventListener._st); addEventList
 let READ={seen:{},rev:{}}, readT=0;
 async function loadRead(){ try{ const v=await dbMeta('readstate'); if(v&&v.seen) READ={seen:v.seen||{},rev:v.rev||{}}; }catch(e){} }
 function saveRead(){ clearTimeout(readT); readT=setTimeout(()=>dbSetMeta('readstate',READ).catch(()=>{}),400); }
-const rKey=r=>keyNo(r&&r.no);
+
 function readState(r){ const k=rKey(r); if(!k) return {st:'read',n:0}; const rev=READ.rev[k]||0; if(!(k in READ.seen)) return {st:rev?'upd':'new',n:rev}; const d=rev-READ.seen[k]; return d>0?{st:'upd',n:d}:{st:'read',n:0}; }
 const revTotal=r=>{ const k=rKey(r); return k?(READ.rev[k]||0):0; };
 function markSeen(r){ const k=rKey(r); if(!k) return; READ.seen[k]=READ.rev[k]||0; saveRead(); }
@@ -2163,7 +2196,7 @@ function renderView(){
   navPush(); setTimeout(renderSide,0); setTimeout(applyFolds,0);
   const v=document.getElementById('view');
   renderBulk();
-  renderHomeTicker();
+  clearTimeout(renderView._tk); renderView._tk=setTimeout(()=>{ try{ renderHomeTicker(); }catch(e){} },0); // v173: الشريط بعد ظهور الصفحة
   if(view==='dash'){ renderDash(v); return; }
   if(view==='callers'){ renderCallers(v); return; }
   if(view==='staff'){ renderStaff(v); return; }
@@ -2204,7 +2237,7 @@ function renderView(){
 function renderBulk(){
   const b=document.getElementById('bulkbar');
   if(!selected.size){ b.innerHTML=''; return; }
-  let exN=0; try{ const XS=excSet(); if(XS.size) selected.forEach(id=>{ const r=byId.get(id); if(r&&XS.has(keyNo(r.no))) exN++; }); }catch(e){}
+  let exN=0; try{ const XS=excSet(); if(XS.size) selected.forEach(id=>{ const r=byId.get(id); if(r&&XS.has(rKey(r))) exN++; }); }catch(e){}
   const inN=selected.size-exN;
   b.innerHTML=`<div class="bulk"><b>${fmt(selected.size)} محدد</b><button type="button" class="btn sm" id="bulkEdit">تعديل جماعي</button>${inN?`<button type="button" class="btn sm" id="bulkExc" title="لا تدخل في الأعداد ولا في التقارير، وتبقى في القاعدة وتُحدَّث مع الاستيراد">استبعاد (${fmt(inN)})</button>`:''}${exN?`<button type="button" class="btn sm" id="bulkBack">إرجاع المستبعدة (${fmt(exN)})</button>`:''}<button type="button" class="btn sm danger" id="bulkDel">حذف</button><button type="button" class="btn sm ghost" id="bulkClear">إلغاء التحديد</button></div>`;
 }
@@ -2516,10 +2549,10 @@ document.addEventListener('click',e=>{
     if(b.id==='selAll'){ filtered.forEach(r=>selected.add(r.id)); renderView(); return; }
     if(b.id==='bulkClear'){ selected.clear(); renderView(); return; }
     if(b.id==='bulkDel'){ guard(()=>confirmDelete([...selected])); return; }
-    if(b.id==='bulkExc'){ guard(()=>{ const XS=excSet(); const L=[...selected].map(id=>byId.get(id)).filter(r=>r&&!XS.has(keyNo(r.no))); if(!L.length) return;
+    if(b.id==='bulkExc'){ guard(()=>{ const XS=excSet(); const L=[...selected].map(id=>byId.get(id)).filter(r=>r&&!XS.has(rKey(r))); if(!L.length) return;
       dialog({title:'استبعاد البلاغات المحددة',html:`<p style="margin-top:0">سيُستبعد <b>${fmt(L.length)}</b> بلاغ من أعداد اللوحة والتقارير وكل ما يُرسل للتقرير. تبقى في القاعدة وتُحدَّث مع كل استيراد، وتجدها وترجعها من «فحص تبعية التجمع ← المستبعدة» أو بتحديدها هنا ثم «إرجاع المستبعدة».</p><div class="field"><label for="bxWhy">السبب</label><input class="inp" id="bxWhy" value="استبعاد يدوي"></div>`,
-        actions:[{label:`استبعاد ${fmt(L.length)}`,cls:'primary',run:sc=>{ const why=(sc.querySelector('#bxWhy').value||'').trim()||'استبعاد يدوي'; excAdd(L.map(r=>keyNo(r.no)),why); selected.clear(); refresh(); toast(`استُبعد ${fmt(L.length)} بلاغ`); }},{label:'إلغاء'}]}); }); return; }
-    if(b.id==='bulkBack'){ guard(()=>{ const XS=excSet(); const K=[...selected].map(id=>byId.get(id)).filter(r=>r&&XS.has(keyNo(r.no))).map(r=>keyNo(r.no)); if(!K.length) return; excBack(K); selected.clear(); refresh(); toast(`أُرجع ${fmt(K.length)} بلاغ إلى الأعداد`); }); return; }
+        actions:[{label:`استبعاد ${fmt(L.length)}`,cls:'primary',run:sc=>{ const why=(sc.querySelector('#bxWhy').value||'').trim()||'استبعاد يدوي'; excAdd(L.map(r=>rKey(r)),why); selected.clear(); refresh(); toast(`استُبعد ${fmt(L.length)} بلاغ`); }},{label:'إلغاء'}]}); }); return; }
+    if(b.id==='bulkBack'){ guard(()=>{ const XS=excSet(); const K=[...selected].map(id=>byId.get(id)).filter(r=>r&&XS.has(rKey(r))).map(r=>rKey(r)); if(!K.length) return; excBack(K); selected.clear(); refresh(); toast(`أُرجع ${fmt(K.length)} بلاغ إلى الأعداد`); }); return; }
     if(b.id==='bulkEdit'){ guard(bulkEdit); return; }
     if(b.id==='btnNew'){ guard(()=>editRecord(null)); return; }
     if(b.id==='btnPanel'){ guard(()=>controlPanel('home')); return; }
@@ -2667,7 +2700,7 @@ const brShort = s => String(s||'').replace(/^\s*المراكز\s+(الصحية\s
 function brPeriodRecs(sector, from, to, off){
   const XS=excSet(), OF=new Set(off||[]);
   return RECS.filter(r=>{ const d=String(r.date||'').slice(0,10); if(!d||d<from||d>to) return false; if(sector && r.sector!==sector) return false;
-    if(OF.size && OF.has(String(r.sector||'').trim())) return false; if(XS.size && XS.has(keyNo(r.no))) return false; return true; });
+    if(OF.size && OF.has(String(r.sector||'').trim())) return false; if(XS.size && XS.has(rKey(r))) return false; return true; });
 }
 function brCount(list, k, top){
   const m=new Map(); list.forEach(r=>{ const v=String(r[k]||'').trim(); if(!v) return; m.set(v,(m.get(v)||0)+1); });
@@ -2774,7 +2807,7 @@ const BRQN=['الربع الأول','الربع الثاني','الربع الث
 const brQKey=(y,n)=>`${y}-${n}`;
 function brQMake(y,n,extra){ const st=new Date(y,(n-1)*3,1), en=new Date(y,n*3,0); return {k:brQKey(y,n), y, n, label:`${BRQN[n-1]} ${y}`, from:iso(st), to:iso(en), on:true, show:true, ...(extra||{})}; }
 function brQOfDate(d){ return {y:d.getFullYear(), n:Math.floor(d.getMonth()/3)+1}; }
-function brQCounts(){ const m=new Map(), XS=excSet(); RECS.forEach(r=>{ if(XS.size&&XS.has(keyNo(r.no))) return; const d=String(r.date||'').slice(0,10); if(!d) return; const k=brQKey(+d.slice(0,4), Math.floor((+d.slice(5,7)-1)/3)+1); m.set(k,(m.get(k)||0)+1); }); return m; }
+function brQCounts(){ const m=new Map(), XS=excSet(); RECS.forEach(r=>{ if(XS.size&&XS.has(rKey(r))) return; const d=String(r.date||'').slice(0,10); if(!d) return; const k=brQKey(+d.slice(0,4), Math.floor((+d.slice(5,7)-1)/3)+1); m.set(k,(m.get(k)||0)+1); }); return m; }
 // الافتراضي: آخر أربعة أرباع مكتملة، وأولها للمقارنة فقط
 function brQDefaults(){
   let {y,n}=brQOfDate(new Date()); n--; if(n<1){ n=4; y--; }
@@ -2800,7 +2833,7 @@ function brDefaults(){
 function bridgeDialog(){
   if(!RECS.length){ toast('لا توجد بلاغات في القاعدة بعد'); return; }
   const d=brDefaults();
-  const XS0=excSet(), SC=new Map(); RECS.forEach(r=>{ if(XS0.size&&XS0.has(keyNo(r.no))) return; const s=String(r.sector||'').trim(); if(s) SC.set(s,(SC.get(s)||0)+1); });
+  const XS0=excSet(), SC=new Map(); RECS.forEach(r=>{ if(XS0.size&&XS0.has(rKey(r))) return; const s=String(r.sector||'').trim(); if(s) SC.set(s,(SC.get(s)||0)+1); });
   const sectors=[...SC.keys()].sort((a,b)=>a.localeCompare(b,'ar')); const OFF=new Set(d.off||[]);
   const opt=(v,l,sel)=>`<option value="${esc(v)}"${sel?' selected':''}>${esc(l)}</option>`;
   const per=(k,p,t)=>`<fieldset style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0;display:grid;gap:8px">
@@ -2869,7 +2902,7 @@ function bridgeDialog(){
         sc.querySelector('#brPrev').textContent = ok ? `البلاغات المطابقة: ${o.a.label||'السابقة'} ${fmt(brPeriodRecs(sec,o.a.from,o.a.to,o.off).length)} · ${o.b.label||'الحالية'} ${fmt(brPeriodRecs(sec,o.b.from,o.b.to,o.off).length)}` : 'حدّد تاريخ البداية والنهاية للفترتين'; };
       sc.addEventListener('click',e=>{ if(!e.target.closest('[data-brqshow]')) return; const L=sc._brLate||[]; if(!L.length) return;
         document.getElementById('layer').innerHTML='';
-        filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:'',kw:'',sla:'',unread:'',nos:L.map(r=>keyNo(r.no)).join(' ')};
+        filt={q:'',from:'',to:'',month:'',sector:'',center:'',main:'',sub:'',ck:'',emp:'',cl:'',kw:'',sla:'',unread:'',nos:L.map(r=>rKey(r)).join(' ')};
         sort={k:'date',dir:1}; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh();
         toast(`${fmt(L.length)} بلاغ بلا تاريخ حل تجاوزت ${Math.max((+DUR.t1||24)+1,+DUR.t2||48)} ساعة · من الأقدم`); });
       sc.addEventListener('input',upd); sc.addEventListener('change',upd); sc.addEventListener('click',e=>{ const b=e.target.closest('[data-broffall]'); if(!b) return; sc.querySelectorAll('[data-broff]').forEach(i=>i.checked=b.dataset.broffall==='1'); upd(); }); sc._brRead=read; upd();
@@ -2932,7 +2965,7 @@ function cmpDialog(S){ S=S||{tab:'off',g:'all'}; const D=cmpData(); const cols=S
       :`<p class="hint" style="margin:0 0 6px">متطابق: ${fmt(D.same.length)} · مختلف: ${fmt(D.diff.length)}</p>${D.pairs.length?`<div style="max-height:160px;overflow:auto;margin-bottom:8px"><table class="tbl"><thead><tr><th>${esc(LA)}</th><th>${esc(LB)}</th><th>العدد</th></tr></thead><tbody>${D.pairs.slice(0,60).map(x=>`<tr><td>${esc(x.a)}</td><td>${esc(x.b)}</td><td>${fmt(x.n)}</td></tr>`).join('')}</tbody></table></div>`:''}`}
     <div style="max-height:45vh;overflow:auto">${LL.length?`<table class="tbl"><thead><tr><th>رقم البلاغ</th><th>التاريخ</th><th>المركز</th><th>${esc(LA)}</th><th>${esc(LB)}</th>${S.tab==='off'?'<th>المكان</th>':''}</tr></thead><tbody>${LL.map(row).join('')}</tbody></table>${list.length>LL.length?`<p class="hint">يُعرض أول ${fmt(LL.length)} — التصدير يشمل الكل.</p>`:''}`:'<p class="hint">لا توجد بلاغات.</p>'}</div>`;
   dialog({title:'مقارنة عمودين',wide:true,html,onOpen:s=>cmpWire(s,S),actions:[
-    {label:`عرضها في السجلات (${fmt(list.length)})`,run:()=>{ if(!list.length){ toast('لا توجد بلاغات'); return false; } filt={...filt,q:'',nos:list.map(r=>keyNo(r.no)).join(' ')}; view='table'; document.querySelectorAll('[data-view]').forEach(v=>v.setAttribute('aria-pressed',v.dataset.view===view)); refresh(); toast(`تُعرض ${fmt(list.length)} بلاغ`); }},
+    {label:`عرضها في السجلات (${fmt(list.length)})`,run:()=>{ if(!list.length){ toast('لا توجد بلاغات'); return false; } filt={...filt,q:'',nos:list.map(r=>rKey(r)).join(' ')}; view='table'; document.querySelectorAll('[data-view]').forEach(v=>v.setAttribute('aria-pressed',v.dataset.view===view)); refresh(); toast(`تُعرض ${fmt(list.length)} بلاغ`); }},
     {label:'تصدير Excel',run:async()=>{ busy('جارٍ تجهيز الملف…'); try{ const IC=infoCols().filter(k=>k!==D.ka&&k!==D.kb);
       const mk=(L,extraH,extraF)=>{ const HD=['رقم البلاغ','تاريخ البلاغ','القطاع','المركز','التصنيف الرئيسي','التصنيف الفرعي',LA,LB,extraH,...IC.map(k=>label(k))]; let x=`<row r="1">${HD.map((h,i)=>cellXml(1,i,h,1)).join('')}</row>`;
         L.forEach((r,ri)=>{ const rr=ri+2; x+=`<row r="${rr}">${[r.no,cellText(r,'date'),r.sector||'',r.center||'',r.main||'',r.sub||'',cellText(r,D.ka)||'',cellText(r,D.kb)||'',extraF(r),...IC.map(k=>cellText(r,k)||'')].map((c,i)=>cellXml(rr,i,c,2)).join('')}</row>`; });
@@ -3055,7 +3088,7 @@ let UPC=null;
 function upMap(){ const sig=CR_V+'|'+DATA_V+'|'+RECS.length+'|'+JSON.stringify([CLU.own,CLU.cols,CLU.extra]); if(UPC&&UPC.sig===sig) return UPC.m;
   const m=new Map(); Object.entries(CR).forEach(([k,v])=>{ if(v&&!v.done) m.set(k,v.who||''); }); try{ cluScan(RECS).forEach(h=>{ const k=keyNo(h.r.no); if(CR[k]&&CR[k].done) return; if(!m.get(k)) m.set(k,h.who); }); }catch(e){}
   UPC={sig,m}; return m; }
-function actItems(){ const XI=excInfo(), GS=goneSet(), UP=upMap(), M=new Map(RECS.map(r=>[keyNo(r.no),r])), out=[], seen=new Set();
+function actItems(){ const XI=excInfo(), GS=goneSet(), UP=upMap(), M=new Map(RECS.map(r=>[rKey(r),r])), out=[], seen=new Set();
   const add=(k,a,why)=>{ if(seen.has(k)) return; const r=M.get(k); if(!r) return; seen.add(k); const rv=(GR[k]&&GR[k].rev)||(CR[k]&&CR[k].rev)||null; const sn=(GR[k]&&GR[k].seen)||(CR[k]&&CR[k].seen)||(EXS.m[k]&&EXS.m[k].at)||'';
     out.push({k,r,a,why,rev:rv,seen:sn}); };
   XI.set.forEach(k=>add(k,'ex',XI.why.get(k)||'يدوي'));
@@ -3068,7 +3101,7 @@ let ACT_T=null, ACT_RUN=false;
 function actSyncSoon(){ if(typeof VIEWER!=='undefined'&&VIEWER) return; clearTimeout(ACT_T); ACT_T=setTimeout(()=>{ actSync().catch(e=>console.error(e)); },1500); }
 async function actSync(){ if(VIEWER||ACT_RUN) return 0; if(!MV_READY){ actSyncSoon(); return 0; } ACT_RUN=true;
   try{ await actFixCols(); const I=actItems(); const want=new Map(I.map(x=>[x.k,ACT_L[x.a]])); let ak=actKey(false); if(!ak&&!want.size) return 0; if(!ak){ ak=actKey(true); schemaChanged(); }
-    const up=[]; RECS.forEach(r=>{ const v=want.get(keyNo(r.no))||''; if(String(r[ak]||'')!==v){ const b={...r,[ak]:v}; delete b._s; delete b._m; up.push(prep(clean(b))); } });
+    const up=[]; RECS.forEach(r=>{ const v=want.get(rKey(r))||''; if(String(r[ak]||'')!==v){ const b={...r,[ak]:v}; delete b._s; delete b._m; up.push(prep(clean(b))); } });
     if(up.length) await saveRecords(up,{type:'bulk',note:'تحديث «'+label(ak)+'»',archive:true}); return up.length; } finally{ ACT_RUN=false; } }
 function actDialog(S){ S=S||{a:'all',rv:'all',secs:new Set(),cens:new Set(),from:'',to:'',sel:new Set()}; const all=actItems(), PH=Math.min(window.innerWidth||9999,(window.screen&&screen.width)||9999)<=700;
   const inF=x=>{ const r=x.r, d=String(r.date||'').slice(0,10); return (!S.secs.size||S.secs.has(r.sector||''))&&(!S.cens.size||S.cens.has(r.center||''))&&(!S.from||d>=S.from)&&(!S.to||d<=S.to); };
@@ -3220,7 +3253,7 @@ let LIDX=null, LIDX_V=-1;
 function logIdx(){ if(LIDX && LIDX_V===LOG_VER) return LIDX; const m=new Map();
   LOG.forEach(e=>{ if(['undo','replace','clear'].includes(e.type)) return; (e.before||[]).forEach(b=>{ let a=m.get(b.id); if(!a){ a=[]; m.set(b.id,a); } a.push({e,b}); }); });
   LIDX=m; LIDX_V=LOG_VER; return m; }
-function recChanges(r){ const out=recChangesLog(r); if(!MV.length) return out; const rows=mvIdx().get(keyNo(r.no)); if(!rows||!rows.length) return out;
+function recChanges(r){ const out=recChangesLog(r); if(!MV.length) return out; const rows=mvIdx().get(rKey(r)); if(!rows||!rows.length) return out;
   const have=new Set(out.map(h=>h.t)); const g=new Map();
   rows.forEach(x=>{ if(x[4]==='__new'||x[4]==='__del'||have.has(x[0])) return; const id=x[0]+'|'+x[3]; let h=g.get(id); if(!h){ h={t:x[0],type:x[3],note:'',ch:[]}; g.set(id,h); } h.ch.push([col(x[4])?x[4]:x[5],x[6],x[7]]); });
   if(!g.size) return out; return [...out,...g.values()].sort((a,b)=>String(b.t).localeCompare(String(a.t))); }
@@ -3250,10 +3283,10 @@ function changesHTML(r,unseen){
 const LATE_KEY='r937-late-v1';
 let LATE=(()=>{ try{ return JSON.parse(localStorage.getItem(LATE_KEY)||'[]')||[]; }catch(e){ return []; } })();
 const saveLate=()=>{ try{ localStorage.setItem(LATE_KEY,JSON.stringify(LATE.slice(-1000))); }catch(e){} };
-function addLate(list,file){ const at=new Date().toISOString(), have=new Set(LATE.map(x=>x.k)); list.forEach(r=>{ const k=keyNo(r.no); if(k&&!have.has(k)) LATE.push({k,at,file}); }); saveLate(); }
+function addLate(list,file){ const at=new Date().toISOString(), have=new Set(LATE.map(x=>x.k)); list.forEach(r=>{ const k=rKey(r); if(k&&!have.has(k)) LATE.push({k,at,file}); }); saveLate(); }
 // البطاقات تتبع الفلاتر الحالية (المركز، القطاع، التصنيف، الفترة…)
 const fltNote=()=>filtered.length<RECS.length?`<p class="hint" style="margin:0 0 8px">⚑ حسب الفلاتر الحالية (${fmt(filtered.length)} من ${fmt(RECS.length)} بلاغ).</p>`:'';
-function lateRecs(){ const m=new Map(filtered.map(r=>[keyNo(r.no),r])); return LATE.map(x=>({...x,r:m.get(x.k)})).filter(x=>x.r).reverse(); }
+function lateRecs(){ const m=new Map(filtered.map(r=>[rKey(r),r])); return LATE.map(x=>({...x,r:m.get(x.k)})).filter(x=>x.r).reverse(); }
 function lateStats(){ const L=lateRecs(); return {all:L.length,nNew:L.filter(x=>readState(x.r).st!=='read').length}; }
 function lateTile(){ const u=lateStats();
   return `<div role="button" tabindex="0" class="kpi" data-dgo="latedlg" style="cursor:pointer;${u.nNew?'border-color:color-mix(in srgb,#D69E2E 60%,var(--line))':''}"><span class="lbl">البلاغات المتأخرة</span><span class="val" style="${u.nNew?'color:#B7791F':''}">${fmt(u.nNew)}</span><span class="sub">${u.all?`لم تُفتح · من ${fmt(u.all)} بلاغ متأخر`:'لا توجد بلاغات متأخرة'}</span></div>`; }
@@ -3343,12 +3376,12 @@ const GR_KEY='r937-gonerev-v1'; let GR=(()=>{ try{ return JSON.parse(localStorag
 let GR_V=0, GONE_C=null;
 const saveGR=()=>{ GR_V++; try{ localStorage.setItem(GR_KEY,JSON.stringify(GR)); }catch(e){} actSyncSoon(); };
 // البلاغات غير الموجودة في آخر ملف CARE (داخل فترة الملف). تتحدّث عند كل استيراد أو فحص ملف، وتعود «موجودة» إذا ظهرت في ملف لاحق
-function goneSet(){ const sig=GR_V+'|'+RECS.length; if(GONE_C&&GONE_C.sig===sig) return GONE_C.set; const have=new Set(RECS.map(r=>keyNo(r.no)));
+function goneSet(){ const sig=GR_V+'|'+RECS.length; if(GONE_C&&GONE_C.sig===sig) return GONE_C.set; const have=new Set(RECS.map(r=>rKey(r)));
   const set=new Set(Object.keys(GR).filter(k=>GR[k]&&GR[k].gone!==false&&have.has(k))); GONE_C={sig,set}; return set; }
 function goneMark(fileRecs, fname){ const fds=fileRecs.map(n=>String(n.date||'').slice(0,10)).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).sort(); if(!fds.length) return [];
   const from=fds[0], to=fds[fds.length-1], fk=new Set(fileRecs.map(n=>keyNo(n.no)).filter(Boolean)), t=new Date().toISOString(); let ch=false;
-  const gone=RECS.filter(r=>{ const d=String(r.date||'').slice(0,10); return d&&d>=from&&d<=to&&!fk.has(keyNo(r.no)); });
-  gone.forEach(r=>{ const k=keyNo(r.no); if(!k) return; const g=GR[k]; if(!g){ GR[k]={seen:t,rev:null,gone:true,f:fname||''}; ch=true; } else if(g.gone===false){ GR[k]={...g,gone:true,f:fname||'',rev:null,seen:t}; ch=true; } });
+  const gone=RECS.filter(r=>{ const d=String(r.date||'').slice(0,10); return d&&d>=from&&d<=to&&!fk.has(rKey(r)); });
+  gone.forEach(r=>{ const k=rKey(r); if(!k) return; const g=GR[k]; if(!g){ GR[k]={seen:t,rev:null,gone:true,f:fname||''}; ch=true; } else if(g.gone===false){ GR[k]={...g,gone:true,f:fname||'',rev:null,seen:t}; ch=true; } });
   fk.forEach(k=>{ const g=GR[k]; if(g&&g.gone!==false){ GR[k]={...g,gone:false,back:t}; ch=true; } });
   if(ch) saveGR(); return gone; }
 const CR_KEY='r937-clurev-v1'; let CR=(()=>{ try{ return JSON.parse(localStorage.getItem(CR_KEY)||'{}')||{}; }catch(e){ return {}; } })();
@@ -3356,7 +3389,7 @@ const saveCR=()=>{ try{ localStorage.setItem(CR_KEY,JSON.stringify(CR)); }catch(
 const crRev=k=>!!(CR[k]&&CR[k].rev); function crMark(ks,on){ const t=new Date().toISOString(); ks.forEach(k=>{ CR[k]={...(CR[k]||{seen:t}),rev:on?t:null}; }); saveCR(); }
 const grRev=k=>!!(GR[k]&&GR[k].rev); function grMark(ks,on){ const t=new Date().toISOString(); ks.forEach(k=>{ GR[k]={...(GR[k]||{seen:t}),rev:on?t:null}; }); saveGR(); }
 const dm=t=>{ if(!t) return ''; const d=new Date(t), z=n=>String(n).padStart(2,'0'); return `${z(d.getDate())}/${z(d.getMonth()+1)} ${z(d.getHours())}:${z(d.getMinutes())}`; };
-function viewRecord(r){ const back=REC_BACK, RV=REC_REV||(REC_GONE?{is:grRev,mark:grMark}:null), fromGone=!!RV; REC_BACK=null; REC_GONE=false; REC_REV=null; if(RV&&r){ const k=keyNo(r.no); if(!RV.is(k)) RV.mark([k],true); }
+function viewRecord(r){ const back=REC_BACK, RV=REC_REV||(REC_GONE?{is:grRev,mark:grMark}:null), fromGone=!!RV; REC_BACK=null; REC_GONE=false; REC_REV=null; if(RV&&r){ const k=rKey(r); if(!RV.is(k)) RV.mark([k],true); }
   const unseen0=r?readState(r):{st:'read',n:0}; const chNote=r?changesHTML(r,unseen0.st==='upd'?unseen0.n:0):'';
   if(r && readState(r).st!=='read'){ markSeen(r); const tr=document.querySelector(`tr[data-id="${r.id}"]`); if(tr){ tr.classList.remove('unread'); const c=tr.querySelector('td.ms'); if(c) c.innerHTML=envHTML(r)+(revTotal(r)?`<span class="revc" title="عدد مرات تحديث البلاغ من الاستيراد">↻ ${fmt(revTotal(r))}</span>`:''); } setTimeout(()=>{ const rb=document.querySelector('.readbar'); if(rb&&view==='table') renderView(); },400); }
   const cs=cols();
@@ -3377,10 +3410,10 @@ function viewRecord(r){ const back=REC_BACK, RV=REC_REV||(REC_GONE?{is:grRev,mar
   const durNote=DUR.on?`<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="hint">المدة الزمنية للإغلاق:</span>${durBadge(r)}</div>`:'';
   dialog({title:`البلاغ ${r.no||''}${revTotal(r)?` · ↻ ${fmt(revTotal(r))} ${revTotal(r)===1?'تحديث':'تحديثات'}`:''}`, html:durNote+chNote+kwNote+note+staffNote+clNote+html, wide:true, onOpen:s=>{ try{ s.querySelectorAll('[data-stmark]').forEach(b=>markPhrase(s.querySelector('dl.ro'),b.dataset.stmark)); }catch(e){} const b=s.querySelector('#seeCaller'); if(b) b.onclick=()=>{ document.getElementById('layer').innerHTML=''; showCaller(ck); }; s.querySelectorAll('[data-seestaff]').forEach(x=>x.onclick=()=>{ document.getElementById('layer').innerHTML=''; showStaff(x.dataset.seestaff); }); s.querySelectorAll('[data-seecl]').forEach(x=>x.onclick=()=>{ document.getElementById('layer').innerHTML=''; showClinic(x.dataset.seecl); }); }, actions:[
     ...(back?[{label:'↩ رجوع للقائمة',run:()=>{ setTimeout(back,0); }}]:[]),
-    ...(fromGone&&r?[{label:'↺ إلغاء «روجع»',run:()=>{ RV.mark([keyNo(r.no)],false); toast('أُعيد إلى «لم تُراجَع»'); if(back) setTimeout(back,0); }}]:[]),
-    ...(VIEWER||!r?[]:(()=>{ let ex=false; try{ ex=excSet().has(keyNo(r.no)); }catch(e){}
-      return ex?[{label:'↩ إرجاع من الاستبعاد',run:()=>{ excBack([keyNo(r.no)]); refresh(true); toast('أُرجع البلاغ — يُحسب من جديد'); if(back) setTimeout(back,0); }}]
-               :[{label:'🚫 استبعاد',run:()=>{ dialog({title:`استبعاد البلاغ ${r.no}؟`,body:'لن يُحسب في الأرقام والتقارير، ويبقى محفوظاً ويمكن إرجاعه من «فحص تبعية التجمع ← المستبعدة».',actions:[{label:'استبعاد',cls:'primary',run:()=>{ excAdd([keyNo(r.no)],'يدوي بعد المراجعة'); refresh(true); toast('استُبعد البلاغ'); if(back) setTimeout(back,0); }},{label:'إلغاء',run:()=>{ setTimeout(()=>{ REC_BACK=back; viewRecord(r); },0); }}]}); return false; }}]; })()),
+    ...(fromGone&&r?[{label:'↺ إلغاء «روجع»',run:()=>{ RV.mark([rKey(r)],false); toast('أُعيد إلى «لم تُراجَع»'); if(back) setTimeout(back,0); }}]:[]),
+    ...(VIEWER||!r?[]:(()=>{ let ex=false; try{ ex=excSet().has(rKey(r)); }catch(e){}
+      return ex?[{label:'↩ إرجاع من الاستبعاد',run:()=>{ excBack([rKey(r)]); refresh(true); toast('أُرجع البلاغ — يُحسب من جديد'); if(back) setTimeout(back,0); }}]
+               :[{label:'🚫 استبعاد',run:()=>{ dialog({title:`استبعاد البلاغ ${r.no}؟`,body:'لن يُحسب في الأرقام والتقارير، ويبقى محفوظاً ويمكن إرجاعه من «فحص تبعية التجمع ← المستبعدة».',actions:[{label:'استبعاد',cls:'primary',run:()=>{ excAdd([rKey(r)],'يدوي بعد المراجعة'); refresh(true); toast('استُبعد البلاغ'); if(back) setTimeout(back,0); }},{label:'إلغاء',run:()=>{ setTimeout(()=>{ REC_BACK=back; viewRecord(r); },0); }}]}); return false; }}]; })()),
     ...(VIEWER?[]:[{label:'تعديل',cls:'primary',run:()=>{ setTimeout(()=>guard(()=>editRecord(r)),0); }}]),
     {label:'إغلاق'}]});
 }
@@ -3776,9 +3809,9 @@ function panelBrand(){
     <dl class="ro"><div><dt>اسم الجهة</dt><dd>${esc(b.org)||'<span class="ro-empty">—</span>'}</dd></div><div><dt>إعداد</dt><dd>${esc(b.preparer)||'<span class="ro-empty">—</span>'}</dd></div><div><dt>عنوان التقرير</dt><dd>${esc(b.title)}</dd></div><div><dt>الشعار</dt><dd>${b.logo?`<img src="${b.logo}" alt="" style="max-height:40px">`:'<span class="ro-empty">بدون شعار</span>'}</dd></div></dl>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" id="openBrand">تعديل الهوية</button><button type="button" class="btn" id="openRStyle">تنسيق التقرير: الألوان والشعار والغلاف</button></div></div>`;
 }
-function dupGroups(){ const m=new Map(); RECS.forEach(r=>{ const k=keyNo(r.no); if(!k) return; if(!m.has(k)) m.set(k,[]); m.get(k).push(r); }); return [...m.values()].filter(g=>g.length>1); }
+function dupGroups(){ const m=new Map(); RECS.forEach(r=>{ const k=rKey(r); if(!k) return; if(!m.has(k)) m.set(k,[]); m.get(k).push(r); }); return [...m.values()].filter(g=>g.length>1); }
 function dupReport(){
-  const g=dupGroups(), empty=RECS.filter(r=>!keyNo(r.no)).length;
+  const g=dupGroups(), empty=RECS.filter(r=>!rKey(r)).length;
   if(!g.length && !empty) return '<p><b style="color:var(--good)">لا يوجد أي تكرار.</b> كل البلاغات لها رقم فريد.</p>';
   const extra=g.reduce((s,x)=>s+x.length-1,0);
   return `${g.length?`<p><b style="color:var(--bad)">${fmt(g.length)} رقم مكرر</b> (${fmt(extra)} سجل زائد).</p><div class="ctbl-wrap secmap"><table class="ctbl"><thead><tr><th>رقم البلاغ</th><th>عدد السجلات</th><th>التواريخ</th></tr></thead><tbody>${g.slice(0,100).map(x=>`<tr><td dir="ltr">${esc(x[0].no)}</td><td>${x.length}</td><td>${x.map(r=>esc(fmtDate(r.date))).join('، ')}</td></tr>`).join('')}</tbody></table></div>
@@ -3842,7 +3875,7 @@ async function panelAction(b,body){
   if(b.id==='fixScan'){ const inp=document.createElement('input'); inp.type='file'; inp.accept='.xlsx,.xlsm'; inp.onchange=async()=>{ const f=inp.files&&inp.files[0]; if(!f) return; busy('جارٍ فحص الملف…'); let res;
       try{ res=parseRecords(await readXlsx(await f.arrayBuffer())); }catch(e){ busy(null); toast(e.message||'تعذرت قراءة الملف'); return; } busy(null);
       const rules=FIX.filter(x=>x.k==='center'); const cnt=new Map(rules.map(x=>[x.from,0])); let add=0;
-      res.recs.forEach(r=>{ const x=rules.find(q=>nrm(q.from)===nrm(r.center||'')); if(x){ cnt.set(x.from,cnt.get(x.from)+1); if(!FH[keyNo(r.no)]){ fhAdd(r.no,r.center,fixVal('center',r.center)); add++; } } });
+      res.recs.forEach(r=>{ const x=rules.find(q=>nrm(q.from)===nrm(r.center||'')); if(x){ cnt.set(x.from,cnt.get(x.from)+1); if(!FH[rKey(r)]){ fhAdd(r.no,r.center,fixVal('center',r.center)); add++; } } });
       const tot=[...cnt.values()].reduce((a,b)=>a+b,0);
       dialog({title:'نتيجة فحص الملف', html:`<p style="margin-top:0">الملف «${esc(f.name)}» فيه <b>${fmt(res.recs.length)}</b> بلاغ، منها <b>${fmt(tot)}</b> بأسماء تُصحَّح:</p><div class="ctbl-wrap"><table class="ctbl"><thead><tr><th>الاسم في الملف</th><th>العدد</th><th>يُصحَّح إلى</th></tr></thead><tbody>${rules.map(x=>`<tr><td>${esc(x.from)}</td><td><b>${fmt(cnt.get(x.from))}</b></td><td>${esc(x.to)}</td></tr>`).join('')}</tbody></table></div><p class="hint">لم يُستورد شيء. ${add?`سُجّل ${fmt(add)} بلاغ في «بلاغات صُحّحت».`:''}</p>`,
         actions:[{label:'حسناً',cls:'primary'}]}); try{ const c=document.getElementById('fixCard'); if(c) c.outerHTML=panelFix(); }catch(e){} }; inp.click(); return; }
@@ -3962,7 +3995,7 @@ async function importSettings(file){
         if(s.pctD){ PCT_D=+s.pctD===1?1:2; try{ localStorage.setItem(PCT_KEY,String(PCT_D)); }catch(x){} }
         if(s.repeat){ RPT={min:2,short:false,...s.repeat}; saveRpt(); }
         if(Array.isArray(s.periods)){ SPER=s.periods; savePeriods(); }
-        if(Array.isArray(s.pinned) && s.pinned.length){ const m=new Map(RECS.map(r=>[keyNo(r.no),r])); let nP=0;
+        if(Array.isArray(s.pinned) && s.pinned.length){ const m=new Map(RECS.map(r=>[rKey(r),r])); let nP=0;
           const pend=[]; s.pinned.forEach(x=>{ const r=m.get(keyNo(x.no)); if(!r){ pend.push(x); return; } PINL.add(r.id); const a=PINLOG[r.id]||(PINLOG[r.id]=[]); (x.items||[]).forEach(it=>{ if(!a.some(y=>y.eid===it.eid)) a.push(it); }); nP++; });
           savePinIds(); savePinLog(); if(pend.length){ try{ localStorage.setItem('r937-pinpend-v1',JSON.stringify(pend)); }catch(e){} }
           setTimeout(()=>toast(`نُقلت ${fmt(nP)} سجلات مثبتة${pend.length?` — و${fmt(pend.length)} تُطبَّق بعد استيراد بلاغاتها`:''}`),400); }
@@ -4041,7 +4074,7 @@ function verifyDialog(prefill){
     s.querySelector('#vClu')?.addEventListener('click',()=>{ document.getElementById('layer').innerHTML=''; setTimeout(()=>cluDialog(),0); });
     const out=s.querySelector('#vOut');
     const show=(nos, fileRecs, fileName)=>{
-      const byKey=new Map(RECS.map(r=>[keyNo(r.no),r]));
+      const byKey=new Map(RECS.map(r=>[rKey(r),r]));
       const rows=nos.map(no=>({no, r:byKey.get(keyNo(no)), f:fileRecs?fileRecs.get(keyNo(no)):null}));
       const found=rows.filter(x=>x.r), missing=rows.filter(x=>!x.r);
       const lastDay=RECS.reduce((m,r)=>r.date&&r.date.slice(0,10)>m?r.date.slice(0,10):m,'');
@@ -4063,7 +4096,7 @@ function verifyDialog(prefill){
     s.querySelector('#vGo').onclick=()=>show(parseNos(s.querySelector('#vNos').value));
     s.querySelector('#vNos').addEventListener('keydown',e=>{ if(e.key==='Enter' && !e.shiftKey && !s.querySelector('#vNos').value.includes('\n')){ e.preventDefault(); s.querySelector('#vGo').click(); } });
     s.querySelector('#vFileBtn').onclick=()=>s.querySelector('#vFile').click();
-    s.querySelector('#vFile').onchange=async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return; busy('جارٍ قراءة الملف…'); try{ const res=parseRecords(await readXlsx(await f.arrayBuffer())); const m=new Map(); res.recs.forEach(r=>{ const k=keyNo(r.no); if(k&&!m.has(k)) m.set(k,r); }); show([...m.values()].map(r=>String(r.no).trim()), m, f.name); }catch(err){ toast(err.message||'تعذرت قراءة الملف'); } finally{ busy(null); } };
+    s.querySelector('#vFile').onchange=async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return; busy('جارٍ قراءة الملف…'); try{ const res=parseRecords(await readXlsx(await f.arrayBuffer())); const m=new Map(); res.recs.forEach(r=>{ const k=rKey(r); if(k&&!m.has(k)) m.set(k,r); }); show([...m.values()].map(r=>String(r.no).trim()), m, f.name); }catch(err){ toast(err.message||'تعذرت قراءة الملف'); } finally{ busy(null); } };
     out.addEventListener('click',async e=>{
       const b=e.target.closest('button'); const tr=e.target.closest('tr[data-vopenrow]');
       if(tr){ document.getElementById('layer').innerHTML=''; viewRecord(byId.get(tr.dataset.vopenrow)); return; }
@@ -5058,12 +5091,12 @@ async function importFile(file){
 function continueImport(file,res){
   const {recs,used,fields}=res;
   const partial=!(fields.has('center')&&fields.has('date'));
-  if(!recs.filter(r=>keyNo(r.no)).length && recs.length){ dialog({title:'لا توجد أرقام بلاغات', body:'وُجدت صفوف بيانات لكن بدون عمود «رقم البلاغ» أو بقيم فارغة. رقم البلاغ مطلوب لأنه المفتاح الرئيسي للقاعدة.', actions:[{label:'حسناً',cls:'primary'}]}); return; }
+  if(!recs.filter(r=>rKey(r)).length && recs.length){ dialog({title:'لا توجد أرقام بلاغات', body:'وُجدت صفوف بيانات لكن بدون عمود «رقم البلاغ» أو بقيم فارغة. رقم البلاغ مطلوب لأنه المفتاح الرئيسي للقاعدة.', actions:[{label:'حسناً',cls:'primary'}]}); return; }
   if(!recs.length){ dialog({title:'لم يُعثر على بلاغات', body:'لم نجد صف عناوين بالأعمدة المتوقعة (رقم البلاغ، تاريخ البلاغ، وصف البلاغ، المركز الصحي، التصنيف…) في أول 40 صفاً من الأوراق.', actions:[{label:'حسناً',cls:'primary'}]}); return; }
-  const existing=new Map(RECS.map(r=>[keyNo(r.no),r]));
+  const existing=new Map(RECS.map(r=>[rKey(r),r]));
   const seen=new Set(); let dupIn=0, noKey=0;
-  const uniq=recs.filter(r=>{ const k=keyNo(r.no); if(!k){ noKey++; return false; } if(seen.has(k)){ dupIn++; return false; } seen.add(k); r.no=String(r.no).trim(); return true; });
-  const fresh=uniq.filter(r=>!existing.has(keyNo(r.no))), dups=uniq.filter(r=>existing.has(keyNo(r.no)));
+  const uniq=recs.filter(r=>{ const k=rKey(r); if(!k){ noKey++; return false; } if(seen.has(k)){ dupIn++; return false; } seen.add(k); r.no=String(r.no).trim(); return true; });
+  const fresh=uniq.filter(r=>!existing.has(rKey(r))), dups=uniq.filter(r=>existing.has(rKey(r)));
   const noDate=uniq.filter(r=>!r.date).length;
   // تعبئة القطاع الفارغ من ربط المراكز بالقطاعات (أو من قطاع المركز في البلاغات الموجودة)
   let secFilled=0; const secMissing=new Set();
@@ -5074,7 +5107,7 @@ function continueImport(file,res){
   const late=lastDay?fresh.filter(r=>r.date&&r.date.slice(0,10)<lastDay):[];
   // كم بلاغاً موجوداً تتغيّر بياناته فعلاً لو حُدّث (نفس طريقة «فحص تغييرات التذاكر»)
   const CKp=ALLK().filter(k=>k!=='id'&&k!=='no'); let nChg=0;
-  dups.forEach(r=>{ const o=existing.get(keyNo(r.no)); if(!o) return; const m=mergeFromFile(o,r,fields); if(CKp.some(c=>vNorm(o[c])!==vNorm(m[c]))) nChg++; });
+  dups.forEach(r=>{ const o=existing.get(rKey(r)); if(!o) return; const m=mergeFromFile(o,r,fields); if(CKp.some(c=>vNorm(o[c])!==vNorm(m[c]))) nChg++; });
   const preUpd=!partial && !fresh.length && nChg>0;
   dialog({title:`استيراد «${file.name}»`, wide:true, html:`<div class="stats"><div><b>${fmt(uniq.length)}</b><span>بلاغ في الملف</span></div><div><b>${fmt(fresh.length)}</b><span>جديد</span></div><div><b>${fmt(dups.length)}</b><span>رقمه موجود في القاعدة</span></div><div><b style="color:${nChg?'#E5484D':'inherit'}">${fmt(nChg)}</b><span>منها تغيّرت بياناتها${nChg?' — تُحدَّث فقط إذا اخترت «تحديث»':''}</span></div></div>
     <p>الأوراق المقروءة: ${esc(used.join('، '))}${dupIn?` · استُبعد ${fmt(dupIn)} صف رقمه مكرر داخل الملف (أُخذ أول ظهور)`:''}${noKey?` · استُبعد ${fmt(noKey)} صف بدون رقم بلاغ`:''}${noDate?` · ${fmt(noDate)} بلاغ بدون تاريخ`:''}</p>
@@ -5092,7 +5125,7 @@ function continueImport(file,res){
       if(mode==='all'){ await replaceAll(uniq,{type:'replace',note:file.name}); setLastUpd('استبدال',file.name,uniq.length,0); toast(`استُورد ${fmt(uniq.length)} بلاغ${flagNote(RECS)}`); return; }
       const add= mode==='onlyupd' ? [] : fresh.map(prep);
       // التحديث يدمج: يغيّر فقط الأعمدة الموجودة في الملف وقيمها غير فارغة
-      const upd= (mode==='upd'||mode==='onlyupd') ? dups.map(r=>mergeFromFile(existing.get(keyNo(r.no)),r,fields)) : [];
+      const upd= (mode==='upd'||mode==='onlyupd') ? dups.map(r=>mergeFromFile(existing.get(rKey(r)),r,fields)) : [];
       // نحفظ فقط البلاغات التي تغيّرت فعلاً، حتى يبقى سجل التغييرات صغيراً ودقيقاً
       const updAll=upd.length, CK=ALLK().filter(k=>k!=='id');
       const updCh=upd.filter(n=>{ const o=byId.get(n.id); return !o || CK.some(k=>vNorm(o[k])!==vNorm(n[k])); });
@@ -5538,14 +5571,14 @@ const saveFH=()=>{ clearTimeout(fhT); fhT=setTimeout(()=>{ try{ localStorage.set
 function fhAdd(no,from,to){ const k=keyNo(no); if(!k||nrm(from)===nrm(to)) return; FH[k]=[String(from),String(to)]; saveFH(); }
 function fhBackfill(){ const rs=FIX.filter(x=>x.k==='center'); if(!rs.length||!MV.length) return 0; let n=0;
   MV.forEach(x=>{ if(x[4]!=='center') return; const f=rs.find(r=>nrm(r.from)===nrm(x[6])); if(f&&!FH[x[1]]){ FH[x[1]]=[x[6],x[7]]; n++; } }); if(n) saveFH(); return n; }
-function fhCount(from){ const n=nrm(from), have=new Set(RECS.map(r=>keyNo(r.no))); let c=0; for(const k in FH){ if(nrm(FH[k][0])===n&&have.has(k)) c++; } return c; }
-function fhList(from){ const n=nrm(from); const by=new Map(RECS.map(r=>[keyNo(r.no),r])); const out=[]; for(const k in FH){ if(nrm(FH[k][0])===n&&by.has(k)) out.push([by.get(k),FH[k]]); } return out.sort((a,b)=>String(b[0].date).localeCompare(a[0].date)); }
+function fhCount(from){ const n=nrm(from), have=new Set(RECS.map(r=>rKey(r))); let c=0; for(const k in FH){ if(nrm(FH[k][0])===n&&have.has(k)) c++; } return c; }
+function fhList(from){ const n=nrm(from); const by=new Map(RECS.map(r=>[rKey(r),r])); const out=[]; for(const k in FH){ if(nrm(FH[k][0])===n&&by.has(k)) out.push([by.get(k),FH[k]]); } return out.sort((a,b)=>String(b[0].date).localeCompare(a[0].date)); }
 function applyFixRec(r){ let c=false; ['center','sector'].forEach(k=>{ if(r[k]!=null){ const v=fixVal(k,r[k]); if(v!==r[k]){ if(k==='center'){ fhAdd(r.no,r[k],v); const ok=oldcKey(true); if(ok) r[ok]=r[k]; } r[k]=v; c=true; } } }); return c; }
 // عمود «المنشأة بالمسمى القديم»: اسم المركز كما ورد في CARE قبل تصحيحه في التطبيق
 const OLDC_L='المنشأة بالمسمى القديم';
 function oldcKey(create){ let k=colByLabel(OLDC_L); if(!k&&create&&!VIEWER&&(create==='force'||Object.keys(FH).length)){ SCHEMA.push({k:'c_'+uid(),l:OLDC_L,type:'text',custom:1,table:1,rep:0,req:0,pii:0,options:[]}); saveSchema(); k=colByLabel(OLDC_L); } return k; }
 async function oldcSync(){ if(VIEWER) return 0; try{ fhBackfill(); }catch(e){} if(!Object.keys(FH).length) return 0; const had=!!colByLabel(OLDC_L), ok=oldcKey(true); if(!ok) return 0;
-  const up=[]; RECS.forEach(r=>{ const h=FH[keyNo(r.no)]; const want=h&&nrm(h[0])!==nrm(r.center)?h[0]:''; if(String(r[ok]||'')!==want){ const b={...r,[ok]:want}; delete b._s; delete b._m; up.push(prep(clean(b))); } });
+  const up=[]; RECS.forEach(r=>{ const h=FH[rKey(r)]; const want=h&&nrm(h[0])!==nrm(r.center)?h[0]:''; if(String(r[ok]||'')!==want){ const b={...r,[ok]:want}; delete b._s; delete b._m; up.push(prep(clean(b))); } });
   if(up.length) await saveRecords(up,{type:'bulk',note:'تعبئة «'+OLDC_L+'»'}); if(!had||up.length) schemaChanged(); return up.length; }
 async function addFixes(k,froms,to){ to=String(to||'').trim(); if(!to) return 0;
   froms.forEach(f=>{ f=String(f||'').trim(); if(!f||nrm(f)===nrm(to)) return; FIX=FIX.filter(x=>!(x.k===k&&nrm(x.from)===nrm(f))); FIX.push({k,from:f,to}); });
@@ -5601,7 +5634,7 @@ const saveExc=()=>{ EXC_V++; EXC_C=null; try{ localStorage.setItem(EXC_KEY,JSON.
 function excInfo(){ const sig=RECS.length+'|'+EXC_V+'|'+DATA_V+'|'+(CLU.auto?1:0)+'|'+JSON.stringify([CLU.own,CLU.cols,CLU.extra]); if(EXC_C&&EXC_C.sig===sig) return EXC_C;
   const why=new Map(); Object.entries(EXS.m).forEach(([k,v])=>why.set(k,v.why||'يدوي'));
   if(CLU.auto){ const keep=new Set(EXS.keep); cluScan(RECS).forEach(h=>{ const k=keyNo(h.r.no); if(!keep.has(k)&&!why.has(k)) why.set(k,'تلقائي: '+h.who); }); }
-  const have=new Set(RECS.map(r=>keyNo(r.no))); const set=new Set([...why.keys()].filter(k=>have.has(k)));
+  const have=new Set(RECS.map(r=>rKey(r))); const set=new Set([...why.keys()].filter(k=>have.has(k)));
   EXC_C={sig,set,why}; return EXC_C; }
 const excSet=()=>{ try{ return excInfo().set; }catch(e){ return new Set(); } };
 function excAdd(keys,why){ const at=new Date().toISOString(); const kp=new Set(EXS.keep); keys.forEach(k=>{ EXS.m[k]={why,at}; kp.delete(k); }); EXS.keep=[...kp]; saveExc(); }
@@ -5610,7 +5643,7 @@ document.addEventListener('click',e=>{ if(e.target.closest('[data-excopen]')) cl
 function cluDialog(tab0){ if(!RECS.length){ toast('لا توجد بلاغات'); return; }
   const allK=ALLK().filter(k=>k!=='id'&&k!=='no'&&!['date','month'].includes(k)), sel=new Set(cluCols());
   let tab=tab0||'found', picked=null, H=[];
-  const byKey=()=>new Map(RECS.map(r=>[keyNo(r.no),r]));
+  const byKey=()=>new Map(RECS.map(r=>[rKey(r),r]));
   const draw=()=>{ const ks=[...sel]; CLU.cols=ks; saveClu(); EXC_C=null; const X=excInfo();
     H=ks.length?cluScan(CLU.all?RECS:filtered):[]; if(!picked) picked=new Set(H.map(h=>keyNo(h.r.no)).filter(k=>!X.set.has(k)));
     const tb=(t,l)=>`<button type="button" class="btn sm ${tab===t?'primary':''}" data-clutab="${t}">${l}</button>`;
@@ -5662,7 +5695,7 @@ const isReopen=(from,to)=>isClosedVal(from) && String(to||'').trim()!=='' && !is
 let ROK={sig:'',keys:null};
 function roKeys(){ const sig=MV_VER+'|'+REOPEN.length+'|'+ROSET.col+'|'+JSON.stringify(ROSET.closed); if(ROK.sig===sig&&ROK.keys) return ROK.keys; const sk=roKey(), K=new Set();
   if(sk) MV.forEach(x=>{ if(x[4]===sk&&isReopen(x[6],x[7])) K.add(x[1]); }); REOPEN.forEach(x=>{ if((x.ats&&x.ats.length)||isReopen(x.from,x.to)) K.add(x.k); }); ROK={sig,keys:K}; return K; }
-function roCycles(r){ const k=keyNo(r.no); if(!roKeys().has(k)) return null; const sk=roKey(), eks=[durEndKey(),durEndKey2()].filter(Boolean);
+function roCycles(r){ const k=rKey(r); if(!roKeys().has(k)) return null; const sk=roKey(), eks=[durEndKey(),durEndKey2()].filter(Boolean);
   const rows=(MV.length&&mvIdx().get(k))||[]; const ro=[];
   rows.forEach(x=>{ if(sk&&x[4]===sk&&isReopen(x[6],x[7])) ro.push(new Date(x[0]).getTime()); });
   REOPEN.filter(x=>x.k===k).forEach(x=>(x.ats||(isReopen(x.from,x.to)?[x.at]:[])).forEach(t=>{ const v=new Date(t).getTime(); if(!isNaN(v)&&!ro.some(y=>Math.abs(y-v)<180000)) ro.push(v); }));
@@ -5695,7 +5728,7 @@ function mergeFromFile(o,r,fields){ const base={...o}; delete base._s; delete ba
   return prep(clean(base)); }
 // القطاع المتوقع لمنشأة: من ربط المراكز بالقطاعات، ثم من أكثر قطاع لبقية بلاغات نفس المنشأة (عدا البلاغات المحوّلة إليها)
 function secExpect(c, skipK){ c=String(c||'').trim(); if(!c) return ''; if(SECMAP[c]) return SECMAP[c];
-  const mv=secMovedKeys(), cnt=new Map(); RECS.forEach(r=>{ if(r.center!==c||!r.sector) return; const k=keyNo(r.no); if(k===skipK||mv.has(k)) return; cnt.set(r.sector,(cnt.get(r.sector)||0)+1); });
+  const mv=secMovedKeys(), cnt=new Map(); RECS.forEach(r=>{ if(r.center!==c||!r.sector) return; const k=rKey(r); if(k===skipK||mv.has(k)) return; cnt.set(r.sector,(cnt.get(r.sector)||0)+1); });
   return [...cnt.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||''; }
 let SMK=null; function secMovedKeys(){ const sig=MV.length; if(SMK&&SMK.sig===sig) return SMK.set; const s=new Set(); MV.forEach(x=>{ if(x[4]==='center') s.add(x[1]); }); SMK={sig,set:s}; return s; }
 // بلاغات تغيّرت منشأتها سابقاً وبقي قطاعها القديم
@@ -5704,7 +5737,7 @@ const saveSFI=()=>{ try{ localStorage.setItem(SFI_KEY,JSON.stringify([...SFI]));
 let SFL=null;
 function secFixList(force){ if(!active('sector')||!MV_READY) return []; const sig=LOG_VER+'|'+MV.length+'|'+RECS.length+'|'+SFI.size+'|'+Object.keys(SECMAP).length; if(!force&&SFL&&SFL.sig===sig) return SFL.L;
   const last=new Map(); MV.forEach(x=>{ if(x[4]==='center'){ const p=last.get(x[1]); if(!p||String(x[0])>=String(p[0])) last.set(x[1],x); } });
-  const M=new Map(RECS.map(r=>[keyNo(r.no),r])), L=[], DS=defSec();
+  const M=new Map(RECS.map(r=>[rKey(r),r])), L=[], DS=defSec();
   last.forEach((x,k)=>{ const r=M.get(k); if(!r||SFI.has(k)) return; const from=String(x[6]||'').trim(); if(vNorm(from)===vNorm(r.center)) return;
     const exp=secExpect(r.center,k), oldS=secExpect(from,k), cur=String(r.sector||'').trim();
     if(exp){ if(vNorm(exp)!==vNorm(cur)) L.push({r,k,from,cur,exp,t:x[0]}); }
@@ -5734,7 +5767,7 @@ function secFixDialog(){ const L=secFixList(true); if(!L.length){ toast('لا ت
       {label:`عرضها في السجلات (${fmt(L.length)})`,run:()=>{ filt={...filt,q:'',from:'',to:'',exc:'show',gone:'',nos:L.map(x=>keyNo(x.r.no)).join(' ')}; view='table'; document.querySelectorAll('[data-view]').forEach(v=>v.setAttribute('aria-pressed',v.dataset.view===view)); refresh(); toast(`تُعرض ${fmt(L.length)} بلاغ تغيّرت منشأته`); }},
       {label:'تجاهل المحدد',run:s=>{ s.querySelectorAll('[data-sfi]').forEach(c=>{ if(c.checked) SFI.add(L[+c.dataset.sfi].k); }); saveSFI(); SFL=null; refresh(true); }},{label:'إغلاق'}]}); }
 document.addEventListener('click',e=>{ if(e.target.closest('[data-secfix]')) secFixDialog(); });
-function reopenRecs(){ const m=new Map(filtered.map(r=>[keyNo(r.no),r])); return REOPEN.filter(x=>ROSET.mode==='all'||isReopen(x.from,x.to)).map(x=>({...x,r:m.get(x.k)})).filter(x=>x.r).reverse(); }
+function reopenRecs(){ const m=new Map(filtered.map(r=>[rKey(r),r])); return REOPEN.filter(x=>ROSET.mode==='all'||isReopen(x.from,x.to)).map(x=>({...x,r:m.get(x.k)})).filter(x=>x.r).reverse(); }
 function reopenStats(){ const L=reopenRecs(); return {all:L.length,nNew:L.filter(x=>readState(x.r).st!=='read').length}; }
 function reopenTile(){ const u=reopenStats();
   return `<div role="button" tabindex="0" class="kpi" data-dgo="reopendlg" style="cursor:pointer;${u.nNew?'border-color:color-mix(in srgb,#E5484D 55%,var(--line))':''}"><span class="lbl">معاد فتحها</span><span class="val" style="${u.nNew?'color:#E5484D':''}">${fmt(u.nNew)}</span><span class="sub">${u.all?`لم تُفتح · من ${fmt(u.all)} تذكرة`:'اضغط لفحص ملف التذاكر'}</span></div>`; }
@@ -5743,7 +5776,7 @@ async function checkStatusFile(file){
   const sk=roKey()||durStKey();
   let res; busy('جارٍ فحص الملف…');
   try{ res=parseRecords(await readXlsx(await file.arrayBuffer())); res.recs.forEach(n=>{ n.__c0=n.center; }); if(FIX.length) res.recs.forEach(applyFixRec); }catch(e){ busy(null); toast(e.message||'تعذرت قراءة الملف'); return; } busy(null);
-  const ex=new Map(RECS.map(r=>[keyNo(r.no),r])); const CK=ALLK().filter(k=>k!=='id'&&k!=='no');
+  const ex=new Map(RECS.map(r=>[rKey(r),r])); const CK=ALLK().filter(k=>k!=='id'&&k!=='no');
   const seen=new Set(), hits=[]; let notIn=0, same=0;
   res.recs.forEach(n=>{ const k=keyNo(n.no); if(!k||seen.has(k)) return; seen.add(k); const o=ex.get(k); if(!o){ notIn++; return; }
     const m=mergeFromFile(o,n,res.fields); const ch=CK.filter(c=>c==='month'?vNorm(o[c]||monthOf(o))!==vNorm(m[c]||monthOf(m)):vNorm(o[c])!==vNorm(m[c]));
@@ -5755,7 +5788,7 @@ async function checkStatusFile(file){
   // بلاغات القاعدة داخل فترة الملف وغير موجودة فيه (محذوفة أو مستبعدة من المنصة؟)
   const fds=res.recs.map(n=>String(n.date||'').slice(0,10)).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).sort(), rng={from:fds[0]||'',to:fds[fds.length-1]||''};
   const fk=new Set(res.recs.map(n=>keyNo(n.no)).filter(Boolean));
-  const gone=rng.from?RECS.filter(r=>{ const d=String(r.date||'').slice(0,10); return d&&d>=rng.from&&d<=rng.to&&!fk.has(keyNo(r.no)); }).sort((a,b)=>String(a.date).localeCompare(String(b.date))):[];
+  const gone=rng.from?RECS.filter(r=>{ const d=String(r.date||'').slice(0,10); return d&&d>=rng.from&&d<=rng.to&&!fk.has(rKey(r)); }).sort((a,b)=>String(a.date).localeCompare(String(b.date))):[];
   goneMark(res.recs, file.name);
   const CC0=new Set(); hits.forEach(h=>h.ch.forEach(c=>CC0.add(c)));
   // أسماء صحّحها التطبيق، ومراكز بلا قطاع أو بالقطاع الافتراضي
@@ -5786,15 +5819,15 @@ function checkDialog(S){
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${tb('chg','تذاكر تغيّرت',hits.length)}${tb('new','بلاغات جديدة',news.length)}${tb('gone','غير موجودة في الملف',gone.length)}${tb('ren','أسماء مراكز مُصحّحة',(S.ren||[]).filter(x=>inR(x.n.date)).length)}${tb('ns','مراكز بلا قطاع أو «تجمع مكة»',(S.ns||[]).filter(x=>inR(x.n.date)).length)}${tb('clu','خارج التجمع',(S.clu||[]).filter(x=>inR(x.n.date)).length)}</div>
     ${!VIEWER&&(hits.length||news.length)?(()=>{ if(S.arch===undefined){ const fmx=[...hits.map(h=>h.o),...news].map(r=>String(r.date||'').slice(0,10)).filter(Boolean).sort().pop()||'', dmn=RECS.map(r=>String(r.date||'').slice(0,10)).filter(Boolean).sort()[0]||''; S.arch=!!(fmx&&dmn&&fmx<dmn); }
       return `<label class="opt" style="margin:6px 0 10px;border-color:color-mix(in srgb,#7C5CFF 40%,var(--line))"><input type="checkbox" id="ckArch" ${S.arch?'checked':''}><span>📦 بيانات أرشيف (سنوات سابقة)<small>عند «تحديث المتغيّرة» أو «إضافة الجديدة»: لا تُسجَّل في «حركة البلاغات»، ولا تُعدّ «متأخرة»، ولا تظهر في «التحديثات» و«المعاد فتحها»، ولا يتغيّر «آخر تحديث للبيانات». يُؤشَّر تلقائياً إذا كانت كل بلاغات الملف أقدم من بيانات التطبيق.</small></span></label>`; })():''}
-    ${tab==='clu'?ckCluTab(S,inR):tab==='ren'||tab==='ns'?ckNameTab(S,tab,inR):tab==='gone'?(()=>{ const GS=S.gsel||(S.gsel=new Set()), XS=excSet(), byC=countBy(gone,'center'), stK=sk; const nU=gone.filter(r=>!grRev(keyNo(r.no))).length, nR=gone.length-nU;
-      if(!S.gf) S.gf=nU?'new':'all'; const GL=(S.gf==='new'?gone.filter(r=>!grRev(keyNo(r.no))):S.gf==='rev'?gone.filter(r=>grRev(keyNo(r.no))):gone).slice().sort((a,b)=>(grRev(keyNo(a.no))-grRev(keyNo(b.no)))||String(b.date).localeCompare(String(a.date)));
+    ${tab==='clu'?ckCluTab(S,inR):tab==='ren'||tab==='ns'?ckNameTab(S,tab,inR):tab==='gone'?(()=>{ const GS=S.gsel||(S.gsel=new Set()), XS=excSet(), byC=countBy(gone,'center'), stK=sk; const nU=gone.filter(r=>!grRev(rKey(r))).length, nR=gone.length-nU;
+      if(!S.gf) S.gf=nU?'new':'all'; const GL=(S.gf==='new'?gone.filter(r=>!grRev(rKey(r))):S.gf==='rev'?gone.filter(r=>grRev(rKey(r))):gone).slice().sort((a,b)=>(grRev(keyNo(a.no))-grRev(keyNo(b.no)))||String(b.date).localeCompare(String(a.date)));
       const gb=(k,l)=>`<button type="button" class="btn sm ${S.gf===k?'primary':''}" data-gf="${k}">${l}</button>`; return `<div style="padding:10px 12px;border:1px solid #F0C27A;border-inline-start:4px solid #E8890C;background:color-mix(in srgb,#E8890C 8%,var(--surface));border-radius:10px;margin-bottom:10px"><b>بلاغات في التطبيق تاريخها داخل فترة الملف (${esc(fmtDate(S.rng.from))} – ${esc(fmtDate(S.rng.to))}) ولم تَرِد فيه.</b><br><span class="hint">قد تكون حُذفت أو أُلغيت في المنصة، أو أن الملف مُصدَّر بفلتر (مراكز أو حالات معيّنة) فلم يشملها. تأكد قبل الحذف.</span></div>
       ${gone.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${byC.slice(0,8).map(([c,n])=>`<span class="badge" style="padding:3px 10px">${esc(c||'—')} · <b>${fmt(n)}</b></span>`).join('')}${byC.length>8?`<span class="hint">+${fmt(byC.length-8)} مركز</span>`:''}</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"><button type="button" class="btn sm" data-gone="view">عرضها في السجلات</button><button type="button" class="btn sm" data-gone="xlsx">تصدير Excel</button></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center">${gb('new',`🆕 لم تُراجَع (${fmt(nU)})`)}${gb('rev',`✓ روجعت (${fmt(nR)})`)}${gb('all',`الكل (${fmt(gone.length)})`)}<button type="button" class="btn sm" data-gone="rev" ${GS.size?'':'disabled'}>✓ تعليم المحددة كمراجَعة (${fmt(GS.size)})</button></div>
       <p class="hint" style="margin:0 0 6px">اضغط أي صف لقراءة البلاغ (يُعلَّم «✓ روجع» تلقائياً) ثم «↩ رجوع للقائمة». بعد التأكد أشّر البلاغات واختر الإجراء:</p>
       ${!VIEWER?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center"><button type="button" class="btn sm ghost" data-gone="all">تحديد الكل</button><button type="button" class="btn sm ghost" data-gone="none">إلغاء التحديد</button><button type="button" class="btn sm primary" data-gone="exc" ${GS.size?'':'disabled'}>🚫 استبعاد المحددة (${fmt(GS.size)})</button><button type="button" class="btn sm danger" data-gone="del" ${GS.size?'':'disabled'}>🗑 حذف المحددة (${fmt(GS.size)})</button></div>`:''}
-      <div class="ctbl-wrap" style="max-height:40vh"><table class="ctbl"><thead><tr>${!VIEWER?'<th></th>':''}<th>رقم البلاغ</th><th>تاريخ البلاغ</th><th>المركز</th><th>التصنيف</th>${stK?`<th>${esc(label(stK))} (آخر قيمة)</th>`:''}<th>المراجعة</th></tr></thead><tbody>${GL.slice(0,400).map(r=>{ const k=keyNo(r.no), g=GR[k]||{}, rv=!!g.rev; return `<tr data-gopen="${esc(r.id)}" style="cursor:pointer;${rv?'opacity:.62':'background:color-mix(in srgb,#2563eb 10%,transparent)'}" title="اضغط لقراءة البلاغ">${!VIEWER?`<td><input type="checkbox" data-gsel="${esc(keyNo(r.no))}" ${GS.has(keyNo(r.no))?'checked':''}></td>`:''}<td><b dir="ltr">${esc(r.no)}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(r.date))}</td><td>${esc(r.center||'')}</td><td>${esc(r.sub||r.main||'')}</td>${stK?`<td>${esc(r[stK]||'')}</td>`:''}<td style="white-space:nowrap">${rv?`<span class="badge" style="background:color-mix(in srgb,#22A06B 18%,transparent);color:#1E8A5A;font-weight:700">✓ روجع ${esc(dm(g.rev))}</span>`:`<span class="badge" style="background:#2563eb;color:#fff;font-weight:700">جديد</span> <span class="hint">ظهر ${esc(dm(g.seen))}</span>`}${XS.has(k)?' <span class="hint">· مستبعد</span>':''}</td></tr>`; }).join('')}</tbody></table></div>${GL.length>400?`<p class="hint">يظهر أول 400 — صدّر Excel للكل.</p>`:''}`:'<p class="ro-empty" style="padding:14px;text-align:center">كل بلاغات التطبيق في فترة الملف موجودة فيه ✓</p>'}`; })():tab==='new'?(news.length?`<div class="ctbl-wrap" style="max-height:46vh"><table class="ctbl"><thead><tr><th>رقم البلاغ</th><th>تاريخ البلاغ</th><th>المركز</th><th>التصنيف</th></tr></thead><tbody>${LN.map(n=>`<tr><td><b dir="ltr">${esc(n.no)}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(n.date||''))}</td><td>${esc(shortName(n.center||''))}</td><td style="font-size:12.5px">${esc(n.sub||n.main||'')}</td></tr>`).join('')}</tbody></table></div>${news.length>LN.length?`<p class="hint">يظهر أقدم ${fmt(LN.length)}.</p>`:''}<p class="hint">تُضاف كبلاغات جديدة كما في الاستيراد العادي: يُعبّأ القطاع تلقائياً، والأقدم من آخر يوم مسجّل يظهر في «البلاغات المتأخرة».</p>`:'<p class="ro-empty" style="padding:14px;text-align:center">لا توجد بلاغات جديدة غير مسجّلة'+(flt?' في هذه الفترة':'')+'.</p>')
+      <div class="ctbl-wrap" style="max-height:40vh"><table class="ctbl"><thead><tr>${!VIEWER?'<th></th>':''}<th>رقم البلاغ</th><th>تاريخ البلاغ</th><th>المركز</th><th>التصنيف</th>${stK?`<th>${esc(label(stK))} (آخر قيمة)</th>`:''}<th>المراجعة</th></tr></thead><tbody>${GL.slice(0,400).map(r=>{ const k=rKey(r), g=GR[k]||{}, rv=!!g.rev; return `<tr data-gopen="${esc(r.id)}" style="cursor:pointer;${rv?'opacity:.62':'background:color-mix(in srgb,#2563eb 10%,transparent)'}" title="اضغط لقراءة البلاغ">${!VIEWER?`<td><input type="checkbox" data-gsel="${esc(rKey(r))}" ${GS.has(rKey(r))?'checked':''}></td>`:''}<td><b dir="ltr">${esc(r.no)}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(r.date))}</td><td>${esc(r.center||'')}</td><td>${esc(r.sub||r.main||'')}</td>${stK?`<td>${esc(r[stK]||'')}</td>`:''}<td style="white-space:nowrap">${rv?`<span class="badge" style="background:color-mix(in srgb,#22A06B 18%,transparent);color:#1E8A5A;font-weight:700">✓ روجع ${esc(dm(g.rev))}</span>`:`<span class="badge" style="background:#2563eb;color:#fff;font-weight:700">جديد</span> <span class="hint">ظهر ${esc(dm(g.seen))}</span>`}${XS.has(k)?' <span class="hint">· مستبعد</span>':''}</td></tr>`; }).join('')}</tbody></table></div>${GL.length>400?`<p class="hint">يظهر أول 400 — صدّر Excel للكل.</p>`:''}`:'<p class="ro-empty" style="padding:14px;text-align:center">كل بلاغات التطبيق في فترة الملف موجودة فيه ✓</p>'}`; })():tab==='new'?(news.length?`<div class="ctbl-wrap" style="max-height:46vh"><table class="ctbl"><thead><tr><th>رقم البلاغ</th><th>تاريخ البلاغ</th><th>المركز</th><th>التصنيف</th></tr></thead><tbody>${LN.map(n=>`<tr><td><b dir="ltr">${esc(n.no)}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(n.date||''))}</td><td>${esc(shortName(n.center||''))}</td><td style="font-size:12.5px">${esc(n.sub||n.main||'')}</td></tr>`).join('')}</tbody></table></div>${news.length>LN.length?`<p class="hint">يظهر أقدم ${fmt(LN.length)}.</p>`:''}<p class="hint">تُضاف كبلاغات جديدة كما في الاستيراد العادي: يُعبّأ القطاع تلقائياً، والأقدم من آخر يوم مسجّل يظهر في «البلاغات المتأخرة».</p>`:'<p class="ro-empty" style="padding:14px;text-align:center">لا توجد بلاغات جديدة غير مسجّلة'+(flt?' في هذه الفترة':'')+'.</p>')
     :(hits.length?`<div class="ctbl-wrap" style="max-height:46vh"><table class="ctbl"><thead><tr><th>رقم البلاغ</th><th>تاريخ البلاغ</th><th>المركز</th><th>ما تغيّر</th></tr></thead><tbody>${L.map(h=>`<tr><td><b dir="ltr">${esc(h.o.no)}</b></td><td dir="ltr" style="text-align:right">${esc(fmtDate(h.o.date||''))}</td><td>${esc(shortName(h.o.center||''))}</td><td style="font-size:12.5px">${isReopen(h.from,h.to)?'<div><b style="color:#E5484D">↺ معاد فتحها</b></div>':''}${h.ch.slice(0,3).map(c=>{ const ct=v=>{ v=String(v??''); return v===''?'<i class="hint">فارغ</i>':esc(v.length>40?v.slice(0,40)+'…':v); }; return `<div><b>${esc(label(c))}</b>: <span style="color:var(--muted);text-decoration:line-through">${ct(cellText(h.o,c))}</span> ← ${ct(cellText(h.m,c))}</div>`; }).join('')}${h.ch.length>3?`<div class="hint">+${h.ch.length-3} أعمدة أخرى</div>`:''}</td></tr>`).join('')}</tbody></table></div>${hits.length>L.length?`<p class="hint">يظهر أقدم ${fmt(L.length)}.</p>`:''}
     <div style="margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:10px;display:grid;gap:6px"><b>الأعمدة التي ستُحدَّث</b><span class="hint">التذكرة نفسها تُحدَّث برقمها ولا تُكرَّر. ألغِ تحديد أي عمود لا تريد تحديثه ليبقى كما هو.</span>
       ${ccl.map(([c,n])=>`<label class="opt"><input type="checkbox" data-cc="${esc(c)}" ${S.sel.has(c)?'checked':''}><span>${esc(label(c))}<small>يتغيّر في ${fmt(n)} تذكرة</small></span></label>`).join('')}</div>`:'<p class="ro-empty" style="padding:14px;text-align:center">لا توجد تذاكر متغيّرة'+(flt?' في هذه الفترة':': كل تذاكر الملف مطابقة للقاعدة')+'.</p>')}`;
@@ -5803,7 +5836,7 @@ function checkDialog(S){
     await saveRecords(puts,{type:'reopen',note:(S.arch?'📦 أرشيف · ':'')+file.name+(flt?` (${F.from||'…'} – ${F.to||'…'})`:'')+' · '+sel.map(c=>label(c)).join('، '),archive:!!S.arch});
     if(S.arch) return {n:hits.length, nR:0};
     return {n:hits.length, nR:addReopen(hits.map(h=>sel.includes(sk)?h:{...h,to:h.from}),file.name,sel)}; };
-  const doAdd=async()=>{ const have=new Set(RECS.map(r=>keyNo(r.no))); const list=news.filter(n=>!have.has(keyNo(n.no))); if(!list.length) return 0;
+  const doAdd=async()=>{ const have=new Set(RECS.map(r=>rKey(r))); const list=news.filter(n=>!have.has(keyNo(n.no))); if(!list.length) return 0;
     const DS=defSec(); if(active('sector')) list.forEach(r=>{ if(String(r.sector||'').trim()) return; const x=r.center?centerToSector(r.center):''; if(x) r.sector=x; else if(DS) r.sector=DS; });
     const lastDay=RECS.reduce((m,r)=>r.date&&r.date.slice(0,10)>m?r.date.slice(0,10):m,''); const late=lastDay?list.filter(r=>r.date&&r.date.slice(0,10)<lastDay):[];
     await saveRecords(list.map(prep),{type:'import',note:(S.arch?'📦 أرشيف · ':'')+file.name+' · بلاغات جديدة من الفحص',archive:!!S.arch}); if(late.length&&!S.arch) addLate(late,file.name); return list.length; };
@@ -5822,14 +5855,14 @@ function checkDialog(S){
       sc.addEventListener('change',e=>{ const t=e.target; if(t.dataset.gsel===undefined) return; const G=S.gsel||(S.gsel=new Set()); t.checked?G.add(t.dataset.gsel):G.delete(t.dataset.gsel); sc.querySelectorAll('[data-gone="exc"],[data-gone="del"],[data-gone="rev"]').forEach(b=>{ b.disabled=!G.size; b.textContent=b.textContent.replace(/\(\d[\d,]*\)/,'('+fmt(G.size)+')'); }); });
       sc.addEventListener('click',async e=>{ const fb=e.target.closest('[data-gf]'); if(fb){ S.gf=fb.dataset.gf; checkDialog(S); return; } const tr=e.target.closest('tr[data-gopen]'); if(tr&&!e.target.closest('input,button,label')){ const r=byId.get(tr.dataset.gopen); if(r){ REC_BACK=()=>checkDialog({...S,tab:'gone'}); REC_GONE=true; document.getElementById('layer').innerHTML=''; viewRecord(r); } return; }
         const g=e.target.closest('[data-gone]'); if(!g) return; const a=g.dataset.gone; const G=S.gsel||(S.gsel=new Set());
-        if(a==='all'){ const vis=S.gf==='new'?gone.filter(r=>!grRev(keyNo(r.no))):S.gf==='rev'?gone.filter(r=>grRev(keyNo(r.no))):gone; vis.forEach(r=>G.add(keyNo(r.no))); checkDialog(S); return; } if(a==='none'){ G.clear(); checkDialog(S); return; }
+        if(a==='all'){ const vis=S.gf==='new'?gone.filter(r=>!grRev(rKey(r))):S.gf==='rev'?gone.filter(r=>grRev(rKey(r))):gone; vis.forEach(r=>G.add(rKey(r))); checkDialog(S); return; } if(a==='none'){ G.clear(); checkDialog(S); return; }
         if(a==='rev'){ if(!G.size) return; grMark([...G],true); toast(`عُلّم ${fmt(G.size)} بلاغ «✓ روجع»`); G.clear(); checkDialog(S); return; }
-        const sel=(a==='exc'||a==='del')?gone.filter(r=>G.has(keyNo(r.no))):gone, ks=sel.map(r=>keyNo(r.no));
+        const sel=(a==='exc'||a==='del')?gone.filter(r=>G.has(rKey(r))):gone, ks=sel.map(r=>rKey(r));
         if(a==='view'){ document.getElementById('layer').innerHTML=''; filt={...filt,q:'',from:'',to:'',exc:'show',nos:ks.join(' '),gone:''}; view='table'; document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.view===view)); refresh(); toast(`تُعرض ${fmt(gone.length)} بلاغ غير موجودة في الملف`); }
         if(a==='xlsx'){ busy('جارٍ تجهيز الملف…'); try{ const IC=infoCols(); const HD=['رقم البلاغ','تاريخ البلاغ','المركز','التصنيف',...(sk?[label(sk)]:[]),...IC.map(k=>label(k))]; let x=`<row r="1">${HD.map((h,i)=>cellXml(1,i,h,1)).join('')}</row>`; gone.forEach((r,ri)=>{ const rr=ri+2; x+=`<row r="${rr}">${[r.no,cellText(r,'date'),r.center||'',r.sub||r.main||'',...(sk?[r[sk]||'']:[]),...IC.map(k=>cellText(r,k)||'')].map((c,i)=>cellXml(rr,i,c,2)).join('')}</row>`; }); const blob=await buildXlsx([],{sheets:[['غير موجودة في الملف',sheetDoc(x,[16,20,30,36,...(sk?[24]:[]),...IC.map(()=>50)],`<autoFilter ref="A1:${String.fromCharCode(64+HD.length)}${gone.length+1}"/>`)]]}); busy(null); await saveFile(`غير-موجودة-في-الملف-${stamp()}.xlsx`,blob); }catch(err){ busy(null); toast('تعذر التصدير'); } }
         if(a==='exc'){ if(!ks.length) return; excAdd(ks,'غير موجود في ملف '+file.name); G.clear(); refresh(true); toast(`استُبعد ${fmt(ks.length)} بلاغ — لا تُحسب، ويمكن إرجاعها من «فحص تبعية التجمع ← المستبعدة»`); checkDialog(S); }
         if(a==='del'){ if(!ks.length) return; dialog({title:`حذف ${fmt(sel.length)} بلاغ من القاعدة؟`, body:`هذه البلاغات تاريخها داخل فترة الملف «${file.name}» ولم تَرِد فيه. ستُحذف من التطبيق على هذا الجهاز، ويمكن التراجع بزر «تراجع». إن لم تكن متأكداً فاختر «استبعادها» بدل الحذف.`,
-          actions:[{label:'حذف',cls:'primary danger',run:async()=>{ await removeRecords(sel.map(r=>r.id),'del'); G.clear(); S.gone=(S.gone||[]).filter(r=>!ks.includes(keyNo(r.no))); toast(`حُذف ${fmt(ks.length)} بلاغ`); setTimeout(()=>checkDialog(S),50); }},{label:'إلغاء'}]}); } });
+          actions:[{label:'حذف',cls:'primary danger',run:async()=>{ await removeRecords(sel.map(r=>r.id),'del'); G.clear(); S.gone=(S.gone||[]).filter(r=>!ks.includes(rKey(r))); toast(`حُذف ${fmt(ks.length)} بلاغ`); setTimeout(()=>checkDialog(S),50); }},{label:'إلغاء'}]}); } });
       sc.addEventListener('change',e=>{ if(e.target.id==='ckArch') S.arch=e.target.checked; });
       sc.addEventListener('click',e=>ckNameClick(e,S,sc,inR)); sc.addEventListener('click',e=>ckCluClick(e,S,sc,inR));
       sc.addEventListener('change',e=>{ const t=e.target; if(t.dataset.csel===undefined) return; const G=S.csel||(S.csel=new Set()); t.checked?G.add(t.dataset.csel):G.delete(t.dataset.csel); sc.querySelectorAll('[data-cm="exc"],[data-cm="rev"]').forEach(b=>{ b.disabled=!G.size; b.textContent=b.textContent.replace(/\(\d[\d,]*\)/,'('+fmt(G.size)+')'); }); });
@@ -5886,7 +5919,7 @@ async function pinRecLog(r,on){ if(on){ PINL.add(r.id); savePinIds(); keepPinned
   else { PINL.delete(r.id); delete PINLOG[r.id]; savePinIds(); await savePinLog(); toast('أُلغي التثبيت وحُذف السجل المثبت لهذا البلاغ'); } }
 // سجلات مثبتة وصلت من جهاز آخر قبل أن تصل بلاغاتها: تُطبَّق عند ظهور البلاغ
 function resolvePendingPins(){ let pend; try{ pend=JSON.parse(localStorage.getItem('r937-pinpend-v1')||'[]'); }catch(e){ pend=[]; } if(!pend.length) return;
-  const m=new Map(RECS.map(r=>[keyNo(r.no),r])); const left=[]; let n=0;
+  const m=new Map(RECS.map(r=>[rKey(r),r])); const left=[]; let n=0;
   pend.forEach(x=>{ const r=m.get(keyNo(x.no)); if(!r){ left.push(x); return; } PINL.add(r.id); const a=PINLOG[r.id]||(PINLOG[r.id]=[]); (x.items||[]).forEach(it=>{ if(!a.some(y=>y.eid===it.eid)) a.push(it); }); n++; });
   if(n){ savePinIds(); savePinLog(); } try{ left.length?localStorage.setItem('r937-pinpend-v1',JSON.stringify(left)):localStorage.removeItem('r937-pinpend-v1'); }catch(e){} }
 function pinnedDialog(){
@@ -5943,7 +5976,7 @@ function mvIdx(){ if(MVIX && MVIX_V===MV_VER) return MVIX; const m=new Map(); MV
 function mvRecord(puts,dels,type,t){
   if(VIEWER||!MVS.on) return; t=t||new Date().toISOString();
   const keys=ALLK().filter(k=>k!=='id'&&col(k)); let n=0;
-  puts.forEach(r=>{ const k=keyNo(r.no); if(!k) return; const old=byId.get(r.id);
+  puts.forEach(r=>{ const k=rKey(r); if(!k) return; const old=byId.get(r.id);
     if(!old){ MV.push([t,k,r.no,type,'__new','إضافة إلى القاعدة','',mvCut(cellText(r,'center'))]); n++; return; }
     keys.forEach(f=>{ if(vNorm(old[f])!==vNorm(r[f])){ MV.push([t,k,r.no,type,f,label(f),mvCut(cellText(old,f)),mvCut(cellText(r,f))]); n++; } }); });
   dels.forEach(id=>{ const old=byId.get(id); if(!old) return; const k=keyNo(old.no); if(!k) return; MV.push([t,k,old.no,type,'__del','حذف من القاعدة',mvCut(cellText(old,'center')),'']); n++; });
@@ -5953,14 +5986,14 @@ function mvRecord(puts,dels,type,t){
 async function mvBackfill(){
   if(VIEWER) return; try{ if(await dbMeta('mvinit')) return; }catch(e){ return; }
   const have=new Set(MV.map(x=>x[0]+'|'+x[1]+'|'+x[4])); const add=[];
-  RECS.forEach(r=>{ if(!logIdx().has(r.id) && !(PINLOG[r.id]||[]).length) return; const k=keyNo(r.no); if(!k) return;
+  RECS.forEach(r=>{ if(!logIdx().has(r.id) && !(PINLOG[r.id]||[]).length) return; const k=rKey(r); if(!k) return;
     recChangesLog(r).forEach(h=>h.ch.forEach(([f,a,b])=>{ const id=h.t+'|'+k+'|'+f; if(have.has(id)) return; have.add(id); add.push([h.t,k,r.no,h.type,f,label(f),mvCut(a),mvCut(b)]); })); });
   if(add.length){ MV=MV.concat(add).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0); mvTrim(); }
   MV_FULL=true; await mvSave(true); try{ await dbSetMeta('mvinit',true); }catch(e){}
 }
 const mvWhen=t=>{ const d=new Date(t); if(isNaN(d)) return String(t||''); let h=d.getHours(); const pm=h>=12; h=h%12||12; return `${iso(d).replace(/-/g,'/')} ${h}:${String(d.getMinutes()).padStart(2,'0')} ${pm?'م':'ص'}`; };
 const mvType=x=>LOG_TYPES[x]||x||'';
-function mvCenterMap(){ return new Map(RECS.map(r=>[keyNo(r.no),r])); }
+function mvCenterMap(){ return new Map(RECS.map(r=>[rKey(r),r])); }
 function mvFilter(f){
   const q=(f.q||'').trim().toUpperCase(), from=f.from||'', to=f.to||'';
   return MV.filter(x=>{
@@ -6084,7 +6117,7 @@ try{ navigator.storage && navigator.storage.persist && navigator.storage.persist
   // استعادة أسماء المتصلين والأرقام التي حُذفت سابقاً من بيانات الملف الأصلي (مرة واحدة)
   if(SEED && SEED.length && !(await dbMeta('restore2'))){
     const bySeed=new Map(SEED.map(a=>[keyNo(a[0]),a])); const ch=[];
-    list.forEach(r=>{ const a=bySeed.get(keyNo(r.no)); if(!a) return; let c=false;
+    list.forEach(r=>{ const a=bySeed.get(rKey(r)); if(!a) return; let c=false;
       if(!r.caller && a[8]){ r.caller=a[8]; c=true; } if(!r.nid && a[9]){ r.nid=a[9]; c=true; }
       if(r.desc && r.desc.includes(MASKED) && a[3]){ r.desc=a[3]; c=true; }
       if(c) ch.push(r); });
